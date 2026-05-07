@@ -1,3 +1,8 @@
+"""GAIA package."""
+
+from .core import GaiaCore
+
+__all__ = ["GaiaCore"]
 """GAIA core package.
 
 GAIA is a modular, local-first autonomous intelligence operating platform.

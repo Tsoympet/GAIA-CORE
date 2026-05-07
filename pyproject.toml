@@ -1,10 +1,21 @@
 [build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
 name = "gaia-core"
 version = "0.1.0"
+description = "Core runtime primitives for GAIA."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.scripts]
+gaia = "gaia.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 description = "GAIA core runtime bootstrap for a local-first autonomous intelligence operating platform."
 readme = "README.md"
 requires-python = ">=3.12"
