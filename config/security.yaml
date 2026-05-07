@@ -1,0 +1,12 @@
+security:
+  sandbox_required: true
+  permission_gating: true
+  audit_logging: true
+  human_override: true
+  emergency_kill_switch: true
+  blocked_behaviors:
+    - self_replication
+    - self_propagation
+    - permission_bypass
+    - silent_production_modification
+    - audit_disablement

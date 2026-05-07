@@ -1,0 +1,24 @@
+agents:
+  - name: gaia_core_agent
+    capabilities: [reasoning, planning]
+  - name: gaia_research_agent
+    capabilities: [research]
+  - name: gaia_code_agent
+    capabilities: [coding, tooling]
+  - name: gaia_engineer_agent
+    capabilities: [engineering]
+  - name: gaia_vision_agent
+    capabilities: [vision]
+  - name: gaia_audio_agent
+    capabilities: [audio]
+  - name: gaia_memory_agent
+    capabilities: [memory]
+  - name: gaia_security_agent
+    capabilities: [security]
+  - name: gaia_self_model_agent
+    capabilities: [self_model]
+  - name: gaia_dreaming_agent
+    capabilities: [dreaming]
+  - name: gaia_self_evolve_agent
+    capabilities: [self_evolve]
+    requires_human_approval: true

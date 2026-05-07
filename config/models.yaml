@@ -1,0 +1,18 @@
+models:
+  local_first: true
+  providers:
+    - name: ollama
+      type: local
+      enabled: true
+    - name: llama.cpp
+      type: local
+      enabled: true
+    - name: vllm
+      type: local
+      enabled: true
+    - name: huggingface-transformers
+      type: local
+      enabled: true
+    - name: openai
+      type: cloud
+      enabled: false
