@@ -1,3 +1,17 @@
+[project]
+name = "gaia-core"
+version = "0.1.0"
+description = "GAIA local-first autonomous intelligence foundation modules"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.110",
+  "pydantic>=2.6",
+  "httpx>=0.27",
+  "uvicorn[standard]>=0.29"
+]
+
+[tool.pytest.ini_options]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
@@ -70,6 +84,7 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
+src = ["src"]
 target-version = "py312"
 src = ["src", "tests"]
 
