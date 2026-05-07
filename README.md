@@ -403,3 +403,13 @@ GAIA is intended to become a secure, observable, human-controlled, modular, exte
 - controlled self-evolution under explicit human governance
 
 This repository currently captures that architecture vision and bootstrap direction. All future implementation work should preserve the long-term GAIA vision rather than collapsing it into a minimal chatbot.
+
+## Foundation Implementation Status
+
+This bootstrap now includes first-phase foundation modules under `src/gaia/`:
+
+- `security`: permission management, command/file/network guards, audit logging, secrets redaction, self-modification approval checks, and an autonomy kill switch.
+- `memory`: scoped project/user/session/timeline memory, symbolic facts, vector-store abstraction, in-memory vector search, indexing, retrieval, and retention policy hooks.
+- `models`: a model registry, local-first router, Ollama client, local placeholder client, and disabled-by-default cloud fallback adapter.
+- `server`: a FastAPI application factory with typed Pydantic v2 schemas and route modules for chat, agents, memory, models, tools, workspaces, security, self-model, metacognition, dreaming, and idle cognition.
+- `desktop`: a Tauri + React + TypeScript mission-control shell with panels for the primary GAIA operating surfaces.
