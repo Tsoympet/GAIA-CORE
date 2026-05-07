@@ -22,3 +22,16 @@
 | GAIA self-model vision | `src/gaia/self_model/` | Simulated self-model, capability map, limitation tracking. |
 | GAIA metacognition vision | `src/gaia/metacognition/` | Confidence estimator, self-critique, reflection loop. |
 | GAIA dreaming / idle cognition vision | `src/gaia/dreaming/` | Safe internal-only analysis, consolidation, replay, synthetic scenarios, goal rehearsal. |
+
+## First Runnable Backend Mapping
+
+| Required output | GAIA implementation |
+| --- | --- |
+| OpenJarvis study notes | `ARCHITECTURE_COMPARISON.md` study-note sections. |
+| Microsoft JARVIS study notes | `ARCHITECTURE_COMPARISON.md` study-note sections. |
+| Architecture comparison | `ARCHITECTURE_COMPARISON.md`. |
+| Module mapping | `MODULE_MAPPING.md`. |
+| Implementation roadmap | `GAIA_IMPLEMENTATION_PLAN.md` and `DEVELOPMENT_ROADMAP.md`. |
+| Backend implementation | `src/gaia/core/runtime.py`, `src/gaia/server/app.py`, `src/gaia/orchestrator/`, `src/gaia/agents/`, `src/gaia/security/`. |
+| Initial tests | `tests/` unit and integration tests. |
+| Next-step checklist | `DEVELOPMENT_ROADMAP.md`. |

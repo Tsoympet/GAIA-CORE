@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from gaia.core.runtime import GaiaRuntime, TaskRequest, create_runtime
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import OrchestrationPlan
+from gaia.server.routes import ROUTERS
 
 
 class TaskResponse(BaseModel):
@@ -31,6 +32,8 @@ def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
     runtime = runtime or create_runtime(config_dir=Path("config"))
     app = FastAPI(title="GAIA Core Runtime", version="0.1.0")
     app.state.runtime = runtime
+    for router in ROUTERS:
+        app.include_router(router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
