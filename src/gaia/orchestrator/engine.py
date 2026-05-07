@@ -1,70 +1,100 @@
-"""Async orchestration primitives for GAIA task graphs."""
+"""Composition of planner, router, executor, and aggregator for GAIA."""
+
+from __future__ import annotations
 
 from collections.abc import Sequence
-from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from gaia.capabilities.router import CapabilityRouter, RouteDecision
-from gaia.memory.store import MemoryStore
+from gaia.agents.agent_registry import AgentRegistry
+from gaia.capabilities.capability_router import CapabilityRouter, RouteDecision
+from gaia.memory.memory_manager import MemoryManager
+from gaia.orchestrator.aggregator import AggregatedResponse, ResultAggregator
+from gaia.orchestrator.executor import ExecutionReport, MultiAgentExecutor
+from gaia.orchestrator.planner import TaskPlan, TaskPlanner
 from gaia.security.policy import SecurityDecision, SecurityPolicy
-
-
-class TaskNode(BaseModel):
-    """A unit of work in an orchestration DAG."""
-
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    objective: str
-    required_capabilities: list[str] = Field(default_factory=list)
-    dependencies: list[str] = Field(default_factory=list)
-
-
-class TaskGraph(BaseModel):
-    """A DAG representation used for autonomous, auditable workflows."""
-
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    objective: str
-    nodes: list[TaskNode] = Field(default_factory=list)
 
 
 class OrchestrationPlan(BaseModel):
     """Initial execution plan with route and security decisions."""
 
-    graph: TaskGraph
+    graph: object
     routes: list[RouteDecision]
     security: SecurityDecision
 
 
-class Orchestrator(BaseModel):
-    """Coordinates task decomposition, capability routing, and safe execution."""
+class Orchestrator:
+    """Coordinates task planning, routing, execution, and aggregation."""
 
-    capability_router: CapabilityRouter
-    memory_store: MemoryStore
-    security_policy: SecurityPolicy
-
-    model_config = {"arbitrary_types_allowed": True}
+    def __init__(
+        self,
+        planner: TaskPlanner,
+        executor: MultiAgentExecutor,
+        aggregator: ResultAggregator,
+        capability_router: CapabilityRouter,
+        memory: MemoryManager,
+        security_policy: SecurityPolicy,
+    ) -> None:
+        self.planner = planner
+        self.executor = executor
+        self.aggregator = aggregator
+        self.capability_router = capability_router
+        self.memory = memory
+        self.security_policy = security_policy
 
     async def plan(self, objective: str, capabilities: Sequence[str] = ()) -> OrchestrationPlan:
-        """Create a minimal task graph and route it through GAIA capabilities."""
-        node = TaskNode(objective=objective, required_capabilities=list(capabilities))
-        graph = TaskGraph(objective=objective, nodes=[node])
+        """Create a DAG plan and route every node without executing it."""
+        task_plan = await self.planner.create_plan(objective, list(capabilities))
         security = self.security_policy.evaluate_objective(objective)
-        routes = [self.capability_router.route(node.required_capabilities)]
-        await self.memory_store.record_event(
-            "plan_created",
-            {"graph_id": graph.id, "objective": objective},
+        routes = [
+            self.capability_router.route(node.required_capabilities)
+            for node in task_plan.graph.nodes
+        ]
+        await self.memory.remember("plan_created", objective, {"graph_id": task_plan.graph.id})
+        return OrchestrationPlan(graph=task_plan.graph, routes=routes, security=security)
+
+    async def run(
+        self, objective: str, session_id: str, capabilities: Sequence[str] = ()
+    ) -> AggregatedResponse:
+        """Run the full planner-router-executor-aggregator pipeline."""
+        task_plan: TaskPlan = await self.planner.create_plan(objective, list(capabilities))
+        security = self.security_policy.evaluate_objective(objective)
+        if not security.allowed:
+            await self.memory.remember("security_block", objective, {"reasons": security.reasons})
+            return AggregatedResponse(
+                task_id=task_plan.graph.id,
+                status="blocked",
+                answer="Task blocked by GAIA security policy.",
+                confidence=1.0,
+                artifacts={"security": security.model_dump(mode="json")},
+            )
+        report: ExecutionReport = await self.executor.execute(task_plan.graph, session_id)
+        response = await self.aggregator.aggregate(objective, report)
+        await self.memory.remember(
+            "task_completed",
+            objective,
+            {"graph_id": task_plan.graph.id, "agents": response.agents},
         )
-        return OrchestrationPlan(graph=graph, routes=routes, security=security)
+        return response
 
 
 def create_orchestrator(
     capability_router: CapabilityRouter,
-    memory_store: MemoryStore,
+    memory_store: MemoryManager,
     security_policy: SecurityPolicy,
+    agent_registry: AgentRegistry | None = None,
 ) -> Orchestrator:
-    """Create an orchestrator instance."""
+    """Create a GAIA orchestrator instance."""
+    if agent_registry is None:
+        # Compatibility path; prefer passing the same registry used by the runtime.
+        from gaia.agents.agent_registry import create_default_agent_registry
+
+        agent_registry = create_default_agent_registry()
     return Orchestrator(
+        planner=TaskPlanner(),
+        executor=MultiAgentExecutor(agent_registry, capability_router),
+        aggregator=ResultAggregator(),
         capability_router=capability_router,
-        memory_store=memory_store,
+        memory=memory_store,
         security_policy=security_policy,
     )
