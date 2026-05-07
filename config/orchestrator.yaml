@@ -1,0 +1,12 @@
+orchestrator:
+  task_graph: dag
+  max_parallel_tasks: 4
+  default_timeout_seconds: 300
+  retries: 2
+  reflection_passes: 1
+  supports:
+    - serial_tasks
+    - parallel_tasks
+    - branching_execution
+    - conditional_execution
+    - iterative_loops

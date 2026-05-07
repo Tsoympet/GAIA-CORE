@@ -1,0 +1,22 @@
+capabilities:
+  local_first: true
+  routing_inputs:
+    - task_type
+    - resource_availability
+    - confidence_estimate
+    - latency_constraints
+    - gpu_availability
+    - memory_constraints
+  domains:
+    - reasoning
+    - planning
+    - research
+    - coding
+    - engineering
+    - vision
+    - audio
+    - memory
+    - security
+    - self_model
+    - dreaming
+    - self_evolve

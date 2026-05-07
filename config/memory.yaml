@@ -1,0 +1,17 @@
+memory:
+  encrypted_local_storage: true
+  workspace_scoped: true
+  agent_scoped: true
+  types:
+    - semantic
+    - episodic
+    - procedural
+    - project
+    - user
+    - timeline
+    - self
+    - task
+  consolidation:
+    compression: true
+    summarization: true
+    lineage: true
