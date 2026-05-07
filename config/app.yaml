@@ -1,0 +1,10 @@
+app:
+  name: GAIA
+  mode: local-first
+  environment: development
+  log_level: INFO
+runtime:
+  async_enabled: true
+  streaming_enabled: true
+  cancellation_enabled: true
+  audit_enabled: true
