@@ -1,3 +1,4 @@
+"""GAIA core package."""
 """GAIA package."""
 
 from .core import GaiaCore
