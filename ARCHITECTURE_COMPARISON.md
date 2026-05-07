@@ -129,3 +129,19 @@ GAIA should evolve around these native subsystems:
 8. `src/gaia/metacognition/` — confidence, uncertainty, self-critique, reflective review.
 9. `src/gaia/dreaming/` — idle cognition with no external action capability.
 10. `src/gaia/server/` and `desktop/` — API and desktop operating surface.
+
+## Study Notes — OpenJarvis
+
+- Public positioning: OpenJarvis emphasizes personal AI on personal devices and local-first operation. GAIA adopts that direction by making local runtime composition, local model catalog entries, and cloud-disabled defaults part of the foundation.
+- Architecture: OpenJarvis documentation describes core primitives around intelligence/model catalog, engines, agentic logic, memory, learning/traces, and an event bus. GAIA maps these to `models`, `orchestrator`, `agents`, `memory`, `metacognition`, telemetry, and future event-stream APIs.
+- Registry pattern: OpenJarvis's extensibility pattern is adapted as GAIA-native registries for agents, capabilities, models, tools, and future plugins.
+- Desktop/server split: OpenJarvis informs GAIA's separation between the Python backend API and the Tauri/React desktop interface.
+- Licensing: OpenJarvis is Apache-2.0. This repository uses original GAIA implementations and preserves the study notes instead of copying source.
+
+## Study Notes — Microsoft JARVIS / HuggingGPT
+
+- Public workflow: Microsoft JARVIS/HuggingGPT describes four stages: task planning, model selection, task execution, and response generation. GAIA adapts this as planner, capability router, executor, and aggregator.
+- Expert routing: JARVIS routes tasks to expert Hugging Face models. GAIA generalizes that idea to route across agents, tools, model providers, plugins, and multimodal capabilities under permission policy.
+- Intermediate observability: JARVIS exposes task/result APIs for intermediate state. GAIA starts with `/orchestrator/plan`, `/tasks`, and runtime status, with execution graph APIs planned next.
+- Local-first divergence: JARVIS can depend on remote model endpoints and API keys. GAIA keeps a deterministic local bootstrap path and makes cloud fallback opt-in.
+- Licensing: Microsoft JARVIS is MIT licensed. This repository implements GAIA-native code rather than copying files.

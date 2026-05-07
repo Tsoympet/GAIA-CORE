@@ -1,5 +1,6 @@
 """Model foundation exports."""
 
+from .catalog import ModelCatalog, ModelProviderConfig, create_model_catalog
 from .cloud_client import CloudFallbackClient, CloudModelConfig
 from .local_client import LocalModelClient, ModelClient
 from .ollama_client import OllamaClient
@@ -7,11 +8,16 @@ from .registry import ModelDescriptor, ModelProvider, ModelRegistry
 from .router import ModelRouter
 
 __all__ = [
-    "CloudFallbackClient", "CloudModelConfig", "LocalModelClient", "ModelClient", "ModelDescriptor",
-    "ModelProvider", "ModelRegistry", "ModelRouter", "OllamaClient",
+    "CloudFallbackClient",
+    "CloudModelConfig",
+    "LocalModelClient",
+    "ModelCatalog",
+    "ModelClient",
+    "ModelDescriptor",
+    "ModelProvider",
+    "ModelProviderConfig",
+    "ModelRegistry",
+    "ModelRouter",
+    "OllamaClient",
+    "create_model_catalog",
 ]
-"""Model catalog and local-first model selection primitives."""
-
-from gaia.models.catalog import ModelCatalog, ModelProvider, create_model_catalog
-
-__all__ = ["ModelCatalog", "ModelProvider", "create_model_catalog"]

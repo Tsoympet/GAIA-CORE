@@ -413,3 +413,28 @@ This bootstrap now includes first-phase foundation modules under `src/gaia/`:
 - `models`: a model registry, local-first router, Ollama client, local placeholder client, and disabled-by-default cloud fallback adapter.
 - `server`: a FastAPI application factory with typed Pydantic v2 schemas and route modules for chat, agents, memory, models, tools, workspaces, security, self-model, metacognition, dreaming, and idle cognition.
 - `desktop`: a Tauri + React + TypeScript mission-control shell with panels for the primary GAIA operating surfaces.
+
+## First Runnable Foundation
+
+The current foundation provides a minimal end-to-end GAIA runtime:
+
+```bash
+python -m pip install -e '.[dev]'
+python -m pytest -q
+gaia status
+gaia run "Plan a local-first assistant workflow"
+uvicorn gaia.server.app:app --host 127.0.0.1 --port 8000
+```
+
+Implemented bootstrap flow:
+
+1. accept a task through CLI or `POST /tasks`,
+2. create a typed task plan,
+3. build a dependency-aware task graph,
+4. route by capability to a registered GAIA agent,
+5. execute through the multi-agent executor,
+6. aggregate a structured response,
+7. log runtime memory events,
+8. enforce a pre-execution security policy.
+
+The implementation is intentionally deterministic and local-first while model, tool, workspace, and desktop layers mature.
