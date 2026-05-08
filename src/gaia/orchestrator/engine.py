@@ -10,6 +10,7 @@ from gaia.agents.agent_registry import AgentRegistry
 from gaia.capabilities.capability_router import CapabilityRouter, RouteDecision
 from gaia.memory.memory_manager import MemoryManager
 from gaia.metacognition.reflection_loop import ReflectionLoop, ReflectionReport
+from gaia.metacognition.reflection_loop import ReflectionLoop
 from gaia.orchestrator.aggregator import AggregatedResponse, ResultAggregator
 from gaia.orchestrator.executor import ExecutionReport, MultiAgentExecutor
 from gaia.orchestrator.planner import TaskPlan, TaskPlanner, TaskStep
@@ -94,6 +95,19 @@ class Orchestrator:
             "reflection_pass",
             "final_response",
         ]
+        reflection = self.reflection_loop.review(
+            response.answer,
+            {
+                "agent_confidence": response.confidence,
+                "node_completion": 1.0 if response.status == "completed" else 0.0,
+                "route_coverage": min(
+                    1.0,
+                    len(report.node_results) / max(1, len(task_plan.graph.nodes)),
+                ),
+            },
+        )
+        response.confidence = min(response.confidence, reflection.confidence.confidence)
+        response.artifacts["reflection"] = reflection.model_dump(mode="json")
         await self.memory.remember(
             "task_completed",
             objective,
@@ -102,6 +116,15 @@ class Orchestrator:
                 "agents": response.agents,
                 "confidence": response.confidence,
                 "reflection_confidence": reflection.confidence.confidence,
+            },
+        )
+        await self.memory.remember(
+            "reflection_completed",
+            objective,
+            {
+                "graph_id": task_plan.graph.id,
+                "confidence": response.confidence,
+                "uncertainty": reflection.confidence.uncertainty,
             },
         )
         return response

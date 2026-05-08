@@ -21,6 +21,11 @@
 - Next refinements: replace heuristic decomposition with configurable planners,
   add route scoring weights, persist execution traces, and introduce streaming
   task events.
+- Status: initial bootstrap implemented.
+- Structured `PlanStep` objects now build dependency-aware DAGs.
+- Capability routes now include selected agent, local-first model family, safe tool metadata, and execution mode.
+- Runtime execution now performs aggregation followed by a reflection pass with confidence/uncertainty artifacts.
+- Next: replace deterministic heuristics with configurable scoring, richer task decomposition, streaming graph events, and human approval checkpoints.
 
 ## Phase 4: Memory and workspace system
 - Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.

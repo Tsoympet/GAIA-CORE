@@ -18,11 +18,22 @@ class TaskStep(BaseModel):
     expected_output: str = "structured result"
 
 
+class PlanStep(BaseModel):
+    """Structured planner step before graph execution."""
+
+    id: str
+    objective: str
+    required_capabilities: list[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
+    rationale: str
+
+
 class TaskPlan(BaseModel):
     """Planner output before execution."""
 
     objective: str
     summary: str
+    steps: list[PlanStep] = Field(default_factory=list)
     graph: TaskGraph
     steps: list[TaskStep] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
@@ -48,6 +59,12 @@ class TaskPlanner:
                 "Create a safe local-first execution plan using planner, task graph, "
                 "capability routing, agent execution, aggregation, and reflection."
             ),
+        steps = self._create_steps(normalized, requested, explicit=bool(capabilities))
+        graph = self.graph_builder.build_from_steps(normalized, steps)
+        return TaskPlan(
+            objective=normalized,
+            summary="Create a safe structured execution plan for the bootstrap runtime.",
+            steps=steps,
             graph=graph,
             steps=steps,
             assumptions=[
@@ -55,6 +72,45 @@ class TaskPlanner:
                 "Model/tool choices are local-first bootstrap routing hints.",
             ],
         )
+
+    def _create_steps(
+        self, objective: str, capabilities: list[str], *, explicit: bool
+    ) -> list[PlanStep]:
+        """Create deterministic HuggingGPT-style task steps for the bootstrap planner."""
+        primary = capabilities or ["reasoning"]
+        if explicit:
+            return [
+                PlanStep(
+                    id="step-1",
+                    objective=objective,
+                    required_capabilities=primary,
+                    rationale=(
+                        "User supplied explicit capabilities; execute one focused routed step."
+                    ),
+                )
+            ]
+        return [
+            PlanStep(
+                id="step-1",
+                objective=f"Plan approach for: {objective}",
+                required_capabilities=["planning"],
+                rationale="Decompose the objective before selecting execution capabilities.",
+            ),
+            PlanStep(
+                id="step-2",
+                objective=objective,
+                required_capabilities=primary,
+                dependencies=["step-1"],
+                rationale="Execute the primary user objective with inferred capabilities.",
+            ),
+            PlanStep(
+                id="step-3",
+                objective=f"Reflect on result quality for: {objective}",
+                required_capabilities=["reflection"],
+                dependencies=["step-2"],
+                rationale="Review uncertainty and limitations before final response.",
+            ),
+        ]
 
     def _infer_capabilities(self, objective: str) -> list[str]:
         lowered = objective.lower()

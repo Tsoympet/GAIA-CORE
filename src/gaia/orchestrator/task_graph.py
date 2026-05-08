@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from gaia.orchestrator.planner import TaskStep
+    from gaia.orchestrator.planner import PlanStep
 
 
 class TaskNode(BaseModel):
@@ -70,6 +71,7 @@ class TaskGraphBuilder:
 
     def build(self, objective: str, capabilities: list[str]) -> TaskGraph:
         """Build a one-node DAG for compatibility with earlier callers."""
+        """Build a one-node DAG for compatibility with early callers."""
         return TaskGraph(
             objective=objective,
             nodes=[
@@ -86,3 +88,17 @@ class TaskGraphBuilder:
         from gaia.orchestrator.planner import steps_to_nodes
 
         return TaskGraph(objective=objective, nodes=steps_to_nodes(steps))
+    def build_from_steps(self, objective: str, steps: list[PlanStep]) -> TaskGraph:
+        """Build an auditable DAG from structured planner steps."""
+        return TaskGraph(
+            objective=objective,
+            nodes=[
+                TaskNode(
+                    id=step.id,
+                    objective=step.objective,
+                    required_capabilities=step.required_capabilities or ["reasoning"],
+                    dependencies=step.dependencies,
+                )
+                for step in steps
+            ],
+        )

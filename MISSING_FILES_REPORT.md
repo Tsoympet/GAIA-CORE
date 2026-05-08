@@ -32,6 +32,12 @@ The backend exposes the Phase 2 endpoints:
 - `GET /memory/status`
 - `GET /security/status`
 
+## Phase 3 Progress
+
+- Added structured planner steps for the bootstrap HuggingGPT-style pipeline.
+- Added route metadata for selected model, selected tool, and execution mode.
+- Added reflection artifacts to final task responses.
+
 ## Known Remaining Gaps
 
 - Real model backends, tool execution, workspace persistence, and external action
