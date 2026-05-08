@@ -97,6 +97,8 @@ class TaskGraphBuilder:
                     required_capabilities=step.required_capabilities or ["reasoning"],
                     dependencies=step.dependencies,
                     execution_mode=step.execution_hint,
+                )
+                for step in steps
                     objective=objective,
                     title="Execute requested task",
                     required_capabilities=capabilities or ["reasoning"],
