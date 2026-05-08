@@ -11,9 +11,11 @@
 - Add Ollama and local model health checks.
 
 ## Phase 3: JARVIS-style planner/router/executor
-- Evolve single-node plans into multi-node DAG decomposition.
-- Add model/capability scoring and execution traces.
-- Add response synthesis over artifacts.
+- Status: initial bootstrap implemented.
+- Structured `PlanStep` objects now build dependency-aware DAGs.
+- Capability routes now include selected agent, local-first model family, safe tool metadata, and execution mode.
+- Runtime execution now performs aggregation followed by a reflection pass with confidence/uncertainty artifacts.
+- Next: replace deterministic heuristics with configurable scoring, richer task decomposition, streaming graph events, and human approval checkpoints.
 
 ## Phase 4: Memory and workspace system
 - Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.

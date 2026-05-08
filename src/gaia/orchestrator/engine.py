@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from gaia.agents.agent_registry import AgentRegistry
 from gaia.capabilities.capability_router import CapabilityRouter, RouteDecision
 from gaia.memory.memory_manager import MemoryManager
+from gaia.metacognition.reflection_loop import ReflectionLoop
 from gaia.orchestrator.aggregator import AggregatedResponse, ResultAggregator
 from gaia.orchestrator.executor import ExecutionReport, MultiAgentExecutor
 from gaia.orchestrator.planner import TaskPlan, TaskPlanner
@@ -34,6 +35,7 @@ class Orchestrator:
         capability_router: CapabilityRouter,
         memory: MemoryManager,
         security_policy: SecurityPolicy,
+        reflection_loop: ReflectionLoop | None = None,
     ) -> None:
         self.planner = planner
         self.executor = executor
@@ -41,6 +43,7 @@ class Orchestrator:
         self.capability_router = capability_router
         self.memory = memory
         self.security_policy = security_policy
+        self.reflection_loop = reflection_loop or ReflectionLoop()
 
     async def plan(self, objective: str, capabilities: Sequence[str] = ()) -> OrchestrationPlan:
         """Create a DAG plan and route every node without executing it."""
@@ -70,10 +73,32 @@ class Orchestrator:
             )
         report: ExecutionReport = await self.executor.execute(task_plan.graph, session_id)
         response = await self.aggregator.aggregate(objective, report)
+        reflection = self.reflection_loop.review(
+            response.answer,
+            {
+                "agent_confidence": response.confidence,
+                "node_completion": 1.0 if response.status == "completed" else 0.0,
+                "route_coverage": min(
+                    1.0,
+                    len(report.node_results) / max(1, len(task_plan.graph.nodes)),
+                ),
+            },
+        )
+        response.confidence = min(response.confidence, reflection.confidence.confidence)
+        response.artifacts["reflection"] = reflection.model_dump(mode="json")
         await self.memory.remember(
             "task_completed",
             objective,
             {"graph_id": task_plan.graph.id, "agents": response.agents},
+        )
+        await self.memory.remember(
+            "reflection_completed",
+            objective,
+            {
+                "graph_id": task_plan.graph.id,
+                "confidence": response.confidence,
+                "uncertainty": reflection.confidence.uncertainty,
+            },
         )
         return response
 
