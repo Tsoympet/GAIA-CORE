@@ -60,3 +60,53 @@ class ModelRegistrationRequest(GaiaSchema):
 class SecurityDecisionResponse(GaiaSchema):
     allowed: bool
     reason: str
+
+
+class MemoryStatusResponse(GaiaSchema):
+    scopes: dict[str, int]
+    indexed_documents: int
+    symbolic_facts: int
+    consent_records: dict[str, str]
+    pending_deletion_requests: int
+    retention_days: int | None
+    deletion_requires_review: bool = True
+    local_first: bool = True
+
+
+class MemoryConsentRequest(GaiaSchema):
+    owner_id: str = Field(min_length=1)
+
+
+class MemoryDeletionRequestCreate(GaiaSchema):
+    owner_id: str = Field(min_length=1)
+    scope: Literal["project", "user", "session", "timeline"]
+    reason: str = Field(min_length=1)
+
+
+class MemoryDeletionReviewRequest(GaiaSchema):
+    approve: bool
+
+
+class MemoryDeletionRequestResponse(GaiaSchema):
+    request_id: str
+    owner_id: str
+    scope: str
+    reason: str
+    status: str
+    requested_at: datetime
+    reviewed_at: datetime | None = None
+
+
+class WorkspaceCreateRequest(GaiaSchema):
+    name: str = Field(min_length=1)
+    description: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceResponse(GaiaSchema):
+    workspace_id: str
+    name: str
+    description: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
