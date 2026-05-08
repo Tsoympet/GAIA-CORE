@@ -11,13 +11,17 @@
 - Add Ollama and local model health checks.
 
 ## Phase 3: JARVIS-style planner/router/executor
+- Status: initial deterministic foundation implemented.
 - Evolve single-node plans into multi-node DAG decomposition.
-- Add model/capability scoring and execution traces.
-- Add response synthesis over artifacts.
+- Add model/tool/execution-mode routing metadata for each task node.
+- Add response synthesis over artifacts and a simulated reflection pass.
+- Next: replace heuristic scoring with configurable local model/tool profiles.
 
 ## Phase 4: Memory and workspace system
+- Status: initial local-first memory controls implemented; durable workspace persistence remains next.
 - Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.
 - Add memory consent, retention, export, and deletion review.
+- Next: add workspace lifecycle APIs, durable storage, audit hooks, and memory review endpoints.
 
 ## Phase 5: Desktop UI
 - Build mission-control navigation for tasks, agents, graphs, memory, models, security, voice, and settings.
