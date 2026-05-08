@@ -3,6 +3,9 @@
 ## Current Repository Position
 
 GAIA has a runnable Phase 1/2 backend foundation and an initial deterministic
+Phase 3 orchestration pipeline. Phase 4 memory/workspace work now has first-pass local controls for consent,
+export, retention policy checks, symbolic facts, vector indexing, deletion review,
+user-facing review APIs, and durable SQLite workspace metadata.
 Phase 3 orchestration pipeline. Phase 4 memory/workspace work is partially
 scaffolded and now has first-pass local controls for consent, export, retention
 policy checks, symbolic facts, vector indexing, and deletion review.
@@ -39,6 +42,17 @@ Implemented/scaffolded:
 - Owner consent grant/revoke state.
 - Owner export grouped by memory scope.
 - Human-reviewable deletion requests before deletion is applied.
+- User-facing memory review, export, consent, and deletion-review API routes.
+- Durable local SQLite workspace create/list/get routes.
+- Phase 4 unit/integration tests for status, consent, indexing, facts, export-ready
+  records, deletion review, memory review APIs, and workspace persistence.
+
+Still needed:
+
+- Durable SQLite/PostgreSQL persistence for memory records themselves.
+- Workspace-scoped memory binding and workspace timeline events.
+- Memory audit events connected to the security audit log.
+- Vector backend adapters beyond in-memory bootstrap embeddings.
 - Phase 4 unit tests for status, consent, indexing, facts, export-ready records,
   and deletion review.
 
@@ -53,6 +67,9 @@ Still needed:
 
 ## Recommendation
 
+Continue Phase 4 by binding memory records to durable workspaces and adding audit
+events before expanding autonomous scheduled work. This keeps GAIA local-first,
+consent-aware, and auditable while the orchestrator becomes more capable.
 Finish Phase 4 next by adding durable workspace persistence and memory review API
 endpoints before expanding autonomous scheduled work. This keeps GAIA local-first
 and auditable while the orchestrator becomes more capable.

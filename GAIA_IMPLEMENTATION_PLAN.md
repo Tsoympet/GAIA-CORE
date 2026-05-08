@@ -16,6 +16,16 @@
 - Add model/tool/execution-mode routing metadata for each task node.
 - Add response synthesis over artifacts and a simulated reflection pass.
 - Next: replace heuristic scoring with configurable local model/tool profiles.
+
+## Phase 4: Memory and workspace system
+- Status: initial local-first memory controls, review APIs, and durable workspace metadata implemented.
+- Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.
+- Add memory consent, retention, export, and deletion review.
+- Next: bind memory to workspaces, persist memory records durably, add audit hooks, and add backup/restore workflows.
+- Evolve single-node plans into multi-node DAG decomposition.
+- Add model/tool/execution-mode routing metadata for each task node.
+- Add response synthesis over artifacts and a simulated reflection pass.
+- Next: replace heuristic scoring with configurable local model/tool profiles.
 - Evolve single-node plans into multi-node DAG decomposition.
 - Add model/tool/execution-mode routing metadata for each task node.
 - Add response synthesis over artifacts and a simulated reflection pass.

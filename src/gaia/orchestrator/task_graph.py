@@ -99,6 +99,8 @@ class TaskGraphBuilder:
                     execution_mode=step.execution_hint,
                 )
                 for step in steps
+                )
+                for step in steps
                     objective=objective,
                     title="Execute requested task",
                     required_capabilities=capabilities or ["reasoning"],

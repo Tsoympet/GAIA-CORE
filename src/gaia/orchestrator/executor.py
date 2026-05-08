@@ -61,6 +61,13 @@ class MultiAgentExecutor:
         except Exception:
             node.execution_status = "failed"
             raise
+        agent = self.agent_registry.get(route.selected_agent)
+        context = AgentContext(session_id=session_id, task_id=node.id)
+        try:
+            result = await agent.run(node.objective, context)
+        except Exception:
+            node.execution_status = "failed"
+            raise
         node.selected_model = route.selected_model
         node.selected_tool = route.selected_tool
         node.execution_mode = route.execution_mode
