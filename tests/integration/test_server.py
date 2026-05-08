@@ -40,3 +40,26 @@ def test_foundation_route_groups_are_registered() -> None:
         response = client.get(path)
         assert response.status_code == 200
         assert response.json()["accepted"] is True
+
+
+def test_phase_two_required_endpoints_are_registered() -> None:
+    client = TestClient(create_app())
+
+    for path in (
+        "/version",
+        "/agents",
+        "/capabilities",
+        "/memory/status",
+        "/security/status",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+
+
+def test_task_endpoint_rejects_empty_tasks() -> None:
+    client = TestClient(create_app())
+
+    response = client.post("/tasks", json={"task": "   "})
+
+    assert response.status_code == 400
+    assert "objective must not be empty" in response.json()["detail"]

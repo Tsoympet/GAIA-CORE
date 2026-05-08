@@ -16,6 +16,8 @@ class TaskNode(BaseModel):
     required_capabilities: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     assigned_agent: str | None = None
+    execution_status: str = "pending"
+    result: dict[str, object] = Field(default_factory=dict)
 
 
 class TaskGraph(BaseModel):
