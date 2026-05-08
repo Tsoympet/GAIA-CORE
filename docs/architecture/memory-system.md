@@ -1,6 +1,7 @@
 # Memory System
 
 GAIA's memory system is local-first and currently split into three compatible
+GAIA's memory system is local-first and currently split into two compatible
 layers:
 
 1. Runtime event memory for orchestration events.
@@ -61,3 +62,11 @@ The workspace routes expose durable local workspace metadata:
 - Memory audit events connected to the security audit log.
 - Production vector backend adapters.
 - Backup/restore workflows and migration scripts.
+
+## Remaining Phase 4 Work
+
+- Durable SQLite/PostgreSQL persistence.
+- Workspace lifecycle APIs and workspace-scoped storage.
+- Memory audit events connected to the security audit log.
+- Production vector backend adapters.
+- User-facing memory review, export, and delete endpoints.
