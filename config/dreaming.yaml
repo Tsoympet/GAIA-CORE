@@ -1,0 +1,4 @@
+dreaming:
+  enabled: true
+  terminology: synthetic dreaming simulation
+  external_actions_allowed: false

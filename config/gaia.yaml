@@ -1,0 +1,7 @@
+runtime:
+  name: gaia-core
+  local_first: true
+  environment: development
+server:
+  host: 0.0.0.0
+  port: 8000

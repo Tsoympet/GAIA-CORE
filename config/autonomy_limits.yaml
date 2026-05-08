@@ -1,0 +1,4 @@
+autonomy:
+  enabled: false
+  require_human_approval: true
+  kill_switch_default: true

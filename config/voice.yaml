@@ -1,0 +1,17 @@
+voice:
+  enabled: true
+  profile_id: gaia-default
+  synthetic_identity: true
+  storage: data/voice_profiles
+  default_provider: local-placeholder
+  local_tts:
+    piper: optional
+    coqui: optional
+    xtts: optional
+    bark: optional
+    openvoice: optional
+  cloud_tts:
+    enabled: false
+  safety:
+    block_real_person_impersonation: true
+    require_export_approval: true

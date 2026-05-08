@@ -1,0 +1,3 @@
+tools:
+  enabled: false
+  require_permission_for_risky_actions: true

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from gaia.agents.base_agent import BaseAgent, CapabilityAgent, LocalReasoningAgent
+from gaia.agents.gaia_voice_agent import GaiaVoiceAgent
 
 
 class AgentDescriptor(BaseModel):
@@ -60,6 +61,7 @@ def create_default_agent_registry() -> AgentRegistry:
     """Create GAIA's initial specialized-agent registry."""
     registry = AgentRegistry()
     registry.register(LocalReasoningAgent())
+    registry.register(GaiaVoiceAgent())
     for name, description, capabilities in [
         ("gaia_research_agent", "Research collection and synthesis.", ("research",)),
         (

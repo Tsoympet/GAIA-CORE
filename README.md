@@ -438,3 +438,15 @@ Implemented bootstrap flow:
 8. enforce a pre-execution security policy.
 
 The implementation is intentionally deterministic and local-first while model, tool, workspace, and desktop layers mature.
+
+## Current Runnable Foundation
+
+This repository now includes a first runnable GAIA backend foundation:
+
+- FastAPI application factory and health/runtime/task endpoints.
+- Typed runtime composition with planner, DAG task graph, capability router, multi-agent executor, memory, and permission management.
+- Synthetic GAIA voice subsystem with voice profiles, safety filters, TTS/STT abstractions, voice/audio API routes, local-first provider placeholders, and text-only fallback.
+- Advanced cognition scaffolding for a simulated self-model, metacognitive monitor, reflective review, idle cognition, synthetic dreaming simulation, and controlled autonomy.
+- Security scaffolding for risky-action approval, command/file/network guards, audit logging, rollback, and autonomy kill-switch integration.
+
+GAIA voice assets are synthetic by default. The project does not support illegal impersonation or cloning of real people without explicit permission, and voice model export must be approved by the user.
