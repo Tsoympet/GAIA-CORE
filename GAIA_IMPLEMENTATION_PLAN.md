@@ -11,9 +11,11 @@
 - Add Ollama and local model health checks.
 
 ## Phase 3: JARVIS-style planner/router/executor
+- Status: initial deterministic foundation implemented.
 - Evolve single-node plans into multi-node DAG decomposition.
-- Add model/capability scoring and execution traces.
-- Add response synthesis over artifacts.
+- Add model/tool/execution-mode routing metadata for each task node.
+- Add response synthesis over artifacts and a simulated reflection pass.
+- Next: replace heuristic scoring with configurable local model/tool profiles.
 
 ## Phase 4: Memory and workspace system
 - Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.

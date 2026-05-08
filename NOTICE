@@ -1,0 +1,14 @@
+GAIA — General Autonomous Intelligence Assistant
+Copyright 2026 GAIA Contributors
+
+This product includes work derived from or inspired by OpenJarvis, licensed under the
+Apache License, Version 2.0. OpenJarvis copyright and license notices are preserved
+in LICENSE and in repository history where applicable.
+
+Microsoft JARVIS / HuggingGPT is referenced only as conceptual prior art for task
+planning, model routing, multimodal orchestration, and result aggregation. No
+Microsoft JARVIS source code has been directly merged into this codebase as part
+of the GAIA foundation work.
+
+GAIA-specific modules are provided under the repository license unless a file
+states otherwise.
