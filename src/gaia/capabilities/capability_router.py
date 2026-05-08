@@ -13,6 +13,9 @@ class RouteDecision(BaseModel):
 
     requested_capabilities: list[str] = Field(default_factory=list)
     selected_agent: str
+    selected_model: str
+    selected_tool: str | None = None
+    execution_mode: str = "local"
     candidate_agents: list[str] = Field(default_factory=list)
     requires_human_approval: bool = False
     rationale: str
@@ -57,10 +60,39 @@ class CapabilityRouter:
         return RouteDecision(
             requested_capabilities=requested,
             selected_agent=selected,
+            selected_model=self._select_model(requested),
+            selected_tool=self._select_tool(requested),
+            execution_mode=self._select_execution_mode(requested, approval),
             candidate_agents=sorted(candidates),
             requires_human_approval=approval,
             rationale=rationale,
         )
+
+    def _select_model(self, requested: list[str]) -> str:
+        """Select a local-first model family for the capability request."""
+        if any(capability in requested for capability in ("coding", "repo")):
+            return "local-code-model"
+        if any(capability in requested for capability in ("vision", "audio", "voice")):
+            return "local-multimodal-model"
+        return "local-reasoning-model"
+
+    def _select_tool(self, requested: list[str]) -> str | None:
+        """Select a safe internal tool adapter without performing external actions."""
+        if "memory" in requested:
+            return "memory_search"
+        if "coding" in requested or "repo" in requested:
+            return "repo_inspector"
+        if "research" in requested:
+            return "research_summarizer"
+        return None
+
+    def _select_execution_mode(self, requested: list[str], approval: bool) -> str:
+        """Select execution mode while preserving human approval gates."""
+        if approval:
+            return "human_approval_required"
+        if any(capability in requested for capability in ("coding", "tooling", "repo")):
+            return "sandboxed"
+        return "local"
 
 
 def create_default_capability_router(agent_registry: AgentRegistry) -> CapabilityRouter:

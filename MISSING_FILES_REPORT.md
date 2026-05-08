@@ -1,28 +1,49 @@
 # Missing Files Report
 
-## Scan Summary
+## Phase 1/2 Repository Scan Summary
 
-The repository already contained a bootstrap backend, core orchestrator, several agent/security/memory modules, and initial tests. The scan found missing voice system directories, audio/voice API schemas and routes, desktop voice panels, required voice configs/data directories, additional self-model/metacognition/dreaming/autonomy modules, deployment files, and several architecture docs.
+The repository now contains the first runnable GAIA foundation rather than a raw
+OpenJarvis-branded application. Core package paths live under `src/gaia`, the
+FastAPI service is titled GAIA, and the project metadata names `gaia-core`.
 
-## Created Missing Directories and Modules
+## Created or Confirmed Foundation Files
 
-- `src/gaia/voice/` with manager, profiles, TTS/STT abstractions, wake word, microphone, speaker, routing, memory, emotion, identity, local/cloud clients, Whisper/Piper/Coqui clients, and audio sessions.
-- `src/gaia/agents/gaia_voice_agent.py`.
-- `src/gaia/capabilities/voice_capabilities.py` and `speech_capabilities.py`.
-- `src/gaia/server/routes/voice.py` and `audio.py`.
-- `src/gaia/server/schemas/voice_schema.py` and `audio_schema.py`.
-- Desktop voice page, components, API helpers, and state stores.
-- `config/voice.yaml`, `audio.yaml`, `wake_word.yaml`, and additional platform configs.
-- `data/voice_profiles/`, `data/audio_cache/`, `data/transcripts/`, and `data/generated_voice/` with `.gitkeep` placeholders.
-- Architecture docs for overview, orchestrator, memory, self-model/metacognition, dreaming, security, local models, voice, audio, speech, setup, and the voice agent.
-- Autonomy modules and additional security guards.
-- Docker, compose, nginx, and systemd deployment files.
-- Voice demo example and first voice unit tests.
+- Core runtime/session modules under `src/gaia/core/`.
+- Orchestrator planner, task graph, executor, and aggregator under
+  `src/gaia/orchestrator/`.
+- Capability registry/router modules under `src/gaia/capabilities/`.
+- Base agent and default agent registry under `src/gaia/agents/`.
+- In-memory memory manager and permission manager under `src/gaia/memory/` and
+  `src/gaia/security/`.
+- FastAPI application entry point under `src/gaia/server/app.py`.
+- CLI entry point under `src/gaia/cli.py`.
+- Project documents: `README.md`, `ARCHITECTURE_COMPARISON.md`,
+  `MODULE_MAPPING.md`, `GAIA_IMPLEMENTATION_PLAN.md`, `NOTICE`, and this report.
 
-## Remaining Implementation Work
+## Required API Surface
 
-- Replace placeholders with provider integrations after license review.
-- Add persistent database migrations and workspace storage.
-- Add real sandbox backends for command/file/network execution.
-- Add streaming APIs and WebSocket events.
-- Add production UI routing and visual telemetry.
+The backend exposes the Phase 2 endpoints:
+
+- `GET /health`
+- `GET /version`
+- `POST /tasks`
+- `GET /agents`
+- `GET /capabilities`
+- `GET /memory/status`
+- `GET /security/status`
+
+## Phase 3 Progress
+
+- Added structured planner steps for the bootstrap HuggingGPT-style pipeline.
+- Added route metadata for selected model, selected tool, and execution mode.
+- Added reflection artifacts to final task responses.
+
+## Known Remaining Gaps
+
+- Real model backends, tool execution, workspace persistence, and external action
+  adapters remain placeholders pending explicit security policy and provider
+  integration work.
+- The task graph is intentionally minimal and single-node by default, but it now
+  stores node status and result payloads so multi-step execution can be expanded.
+- Voice, dreaming, self-modeling, and advanced security modules are scaffolded,
+  but production integrations are future phases.

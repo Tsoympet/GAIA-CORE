@@ -41,9 +41,12 @@ class MultiAgentExecutor:
 
     async def execute_node(self, node: TaskNode, session_id: str) -> NodeExecutionResult:
         """Route and execute a single node."""
+        node.execution_status = "running"
         route = self.capability_router.route(node.required_capabilities)
         agent = self.agent_registry.get(route.selected_agent)
         context = AgentContext(session_id=session_id, task_id=node.id)
         result = await agent.run(node.objective, context)
         node.assigned_agent = agent.name
+        node.execution_status = "completed"
+        node.result = result.model_dump(mode="json")
         return NodeExecutionResult(node_id=node.id, route=route, result=result)

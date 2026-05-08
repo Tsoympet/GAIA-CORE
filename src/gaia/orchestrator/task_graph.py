@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
+
+if TYPE_CHECKING:
+    from gaia.orchestrator.planner import PlanStep
 
 
 class TaskNode(BaseModel):
@@ -16,6 +20,8 @@ class TaskNode(BaseModel):
     required_capabilities: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     assigned_agent: str | None = None
+    execution_status: str = "pending"
+    result: dict[str, object] = Field(default_factory=dict)
 
 
 class TaskGraph(BaseModel):
@@ -58,7 +64,7 @@ class TaskGraphBuilder:
     """Build bootstrap DAGs from planner output."""
 
     def build(self, objective: str, capabilities: list[str]) -> TaskGraph:
-        """Build a one-node DAG for the initial runnable foundation."""
+        """Build a one-node DAG for compatibility with early callers."""
         return TaskGraph(
             objective=objective,
             nodes=[
@@ -66,5 +72,20 @@ class TaskGraphBuilder:
                     objective=objective,
                     required_capabilities=capabilities or ["reasoning"],
                 )
+            ],
+        )
+
+    def build_from_steps(self, objective: str, steps: list[PlanStep]) -> TaskGraph:
+        """Build an auditable DAG from structured planner steps."""
+        return TaskGraph(
+            objective=objective,
+            nodes=[
+                TaskNode(
+                    id=step.id,
+                    objective=step.objective,
+                    required_capabilities=step.required_capabilities or ["reasoning"],
+                    dependencies=step.dependencies,
+                )
+                for step in steps
             ],
         )
