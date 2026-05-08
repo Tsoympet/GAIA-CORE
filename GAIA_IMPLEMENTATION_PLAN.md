@@ -11,6 +11,11 @@
 - Add Ollama and local model health checks.
 
 ## Phase 3: JARVIS-style planner/router/executor
+- Status: initial deterministic foundation implemented.
+- Evolve single-node plans into multi-node DAG decomposition.
+- Add model/tool/execution-mode routing metadata for each task node.
+- Add response synthesis over artifacts and a simulated reflection pass.
+- Next: replace heuristic scoring with configurable local model/tool profiles.
 - Status: initial implementation added.
 - Evolve single-node plans into multi-node DAG decomposition.
 - Add model/capability scoring and execution traces.

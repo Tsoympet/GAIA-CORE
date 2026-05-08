@@ -23,6 +23,8 @@ class TaskNode(BaseModel):
     dependencies: list[str] = Field(default_factory=list)
     expected_output: str = "structured result"
     assigned_agent: str | None = None
+    assigned_model: str | None = None
+    assigned_tool: str | None = None
     selected_model: str | None = None
     selected_tool: str | None = None
     execution_mode: str | None = None
@@ -70,16 +72,36 @@ class TaskGraphBuilder:
     """Build bootstrap DAGs from planner output."""
 
     def build(self, objective: str, capabilities: list[str]) -> TaskGraph:
+        """Build a DAG from capabilities for backward-compatible callers."""
+        from gaia.orchestrator.planner import TaskStep
+
+        steps = [
+            TaskStep(
+                id="step-1",
+                objective=objective,
+                required_capabilities=capabilities or ["reasoning"],
+            )
+        ]
+        return self.build_from_steps(objective, steps)
+
+    def build_from_steps(self, objective: str, steps: list[TaskStep]) -> TaskGraph:
+        """Build a DAG from structured planner steps."""
         """Build a one-node DAG for compatibility with earlier callers."""
         """Build a one-node DAG for compatibility with early callers."""
         return TaskGraph(
             objective=objective,
             nodes=[
                 TaskNode(
+                    id=step.id,
+                    objective=step.objective,
+                    required_capabilities=step.required_capabilities or ["reasoning"],
+                    dependencies=step.dependencies,
+                    execution_mode=step.execution_hint,
                     objective=objective,
                     title="Execute requested task",
                     required_capabilities=capabilities or ["reasoning"],
                 )
+                for step in steps
             ],
         )
 

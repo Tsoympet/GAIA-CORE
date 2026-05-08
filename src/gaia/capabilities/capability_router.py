@@ -13,6 +13,8 @@ class RouteDecision(BaseModel):
 
     requested_capabilities: list[str] = Field(default_factory=list)
     selected_agent: str
+    selected_model: str
+    selected_tool: str
     selected_model: str = "local-bootstrap-reasoner"
     selected_tool: str = "none"
     execution_mode: str = "local_sync"
@@ -45,6 +47,8 @@ class CapabilityRouter:
     def route(
         self, requested_capabilities: list[str] | tuple[str, ...] | None = None
     ) -> RouteDecision:
+        """Choose the best currently registered agent/model/tool tuple for a node."""
+        requested = list(requested_capabilities or ["reasoning"])
         """Choose the best currently registered target for requested capabilities."""
         requested = [capability.strip().lower() for capability in requested_capabilities or []]
         requested = [capability for capability in requested if capability] or ["reasoning"]
@@ -60,6 +64,8 @@ class CapabilityRouter:
             rationale = "No exact capability match; fell back to the GAIA core agent."
         else:
             rationale = (
+                "Selected the highest-overlap local agent, model, and tool adapter "
+                "for the requested capabilities."
                 "Selected the highest-overlap local agent plus local-first bootstrap "
                 "model/tool hints for the requested capabilities."
             )
@@ -69,6 +75,7 @@ class CapabilityRouter:
             selected_agent=selected,
             selected_model=self._select_model(requested),
             selected_tool=self._select_tool(requested),
+            execution_mode=self._select_execution_mode(requested),
             execution_mode=self._select_execution_mode(requested, approval),
             candidate_agents=sorted(candidates),
             requires_human_approval=approval,
@@ -76,6 +83,36 @@ class CapabilityRouter:
         )
 
     def _select_model(self, capabilities: list[str]) -> str:
+        """Select a local-first model profile for a capability bundle."""
+        if any(capability in capabilities for capability in ("coding", "repo")):
+            return "local-code-reasoner"
+        if any(capability in capabilities for capability in ("vision", "documents")):
+            return "local-multimodal-reasoner"
+        if any(
+            capability in capabilities
+            for capability in ("audio", "speech", "stt", "tts", "voice")
+        ):
+            return "local-audio-voice-stack"
+        return "local-general-reasoner"
+
+    def _select_tool(self, capabilities: list[str]) -> str:
+        """Select the safest default tool adapter for a capability bundle."""
+        if "coding" in capabilities or "repo" in capabilities:
+            return "permission_checked_repo_tools"
+        if "research" in capabilities:
+            return "local_research_scratchpad"
+        if "memory" in capabilities:
+            return "memory_manager"
+        if any(capability in capabilities for capability in ("voice", "speech", "tts", "stt")):
+            return "voice_router"
+        return "no_external_tool"
+
+    def _select_execution_mode(self, capabilities: list[str]) -> str:
+        """Select an execution mode without granting unsafe autonomy."""
+        if any(capability in capabilities for capability in ("coding", "tooling", "repo")):
+            return "permission_gated"
+        if any(capability in capabilities for capability in ("voice", "audio", "speech")):
+            return "local_with_text_fallback"
         if "coding" in capabilities or "repo" in capabilities:
             return "local-code-reasoner"
         if "vision" in capabilities:

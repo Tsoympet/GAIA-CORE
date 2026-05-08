@@ -21,6 +21,7 @@ class OrchestrationPlan(BaseModel):
     """Initial execution plan with route and security decisions."""
 
     graph: object
+    steps: list[TaskStep]
     routes: list[RouteDecision]
     security: SecurityDecision
     steps: list[TaskStep] = Field(default_factory=list)
@@ -51,6 +52,27 @@ class Orchestrator:
         """Create a DAG plan and route every node without executing it."""
         task_plan = await self.planner.create_plan(objective, list(capabilities))
         security = self.security_policy.evaluate_objective(objective)
+        routes: list[RouteDecision] = []
+        for node in task_plan.graph.nodes:
+            route = self.capability_router.route(node.required_capabilities)
+            node.assigned_agent = route.selected_agent
+            node.assigned_model = route.selected_model
+            node.assigned_tool = route.selected_tool
+            node.execution_mode = route.execution_mode
+            routes.append(route)
+        await self.memory.remember(
+            "plan_created",
+            objective,
+            {
+                "graph_id": task_plan.graph.id,
+                "steps": [step.model_dump(mode="json") for step in task_plan.steps],
+            },
+        )
+        return OrchestrationPlan(
+            graph=task_plan.graph,
+            steps=task_plan.steps,
+            routes=routes,
+            security=security,
         routes = [
             self.capability_router.route(node.required_capabilities)
             for node in task_plan.graph.nodes
@@ -99,6 +121,12 @@ class Orchestrator:
             response.answer,
             {
                 "agent_confidence": response.confidence,
+                "node_completion": 1.0 if report.node_results else 0.0,
+                "route_coverage": 1.0 if response.agents else 0.0,
+            },
+        )
+        response.reflection = reflection
+        response.confidence = (response.confidence + reflection.confidence.confidence) / 2
                 "node_completion": 1.0 if response.status == "completed" else 0.0,
                 "route_coverage": min(
                     1.0,
