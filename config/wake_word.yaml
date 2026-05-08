@@ -1,0 +1,4 @@
+wake_word:
+  enabled: false
+  phrase: hey gaia
+  local_only: true
