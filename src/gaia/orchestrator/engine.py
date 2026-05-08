@@ -1,14 +1,15 @@
-"""Composition of planner, router, executor, and aggregator for GAIA."""
+"""Composition of planner, router, executor, aggregator, and reflection for GAIA."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from gaia.agents.agent_registry import AgentRegistry
 from gaia.capabilities.capability_router import CapabilityRouter, RouteDecision
 from gaia.memory.memory_manager import MemoryManager
+from gaia.metacognition.reflection_loop import ReflectionLoop, ReflectionReport
 from gaia.metacognition.reflection_loop import ReflectionLoop
 from gaia.orchestrator.aggregator import AggregatedResponse, ResultAggregator
 from gaia.orchestrator.executor import ExecutionReport, MultiAgentExecutor
@@ -23,10 +24,11 @@ class OrchestrationPlan(BaseModel):
     steps: list[TaskStep]
     routes: list[RouteDecision]
     security: SecurityDecision
+    steps: list[TaskStep] = Field(default_factory=list)
 
 
 class Orchestrator:
-    """Coordinates task planning, routing, execution, and aggregation."""
+    """Coordinates task planning, routing, execution, aggregation, and reflection."""
 
     def __init__(
         self,
@@ -71,12 +73,26 @@ class Orchestrator:
             steps=task_plan.steps,
             routes=routes,
             security=security,
+        routes = [
+            self.capability_router.route(node.required_capabilities)
+            for node in task_plan.graph.nodes
+        ]
+        await self.memory.remember(
+            "plan_created",
+            objective,
+            {"graph_id": task_plan.graph.id, "step_count": len(task_plan.steps)},
+        )
+        return OrchestrationPlan(
+            graph=task_plan.graph,
+            routes=routes,
+            security=security,
+            steps=task_plan.steps,
         )
 
     async def run(
         self, objective: str, session_id: str, capabilities: Sequence[str] = ()
     ) -> AggregatedResponse:
-        """Run the full planner-router-executor-aggregator pipeline."""
+        """Run planner-router-executor-aggregator-reflection pipeline."""
         task_plan: TaskPlan = await self.planner.create_plan(objective, list(capabilities))
         security = self.security_policy.evaluate_objective(objective)
         if not security.allowed:
@@ -90,6 +106,17 @@ class Orchestrator:
             )
         report: ExecutionReport = await self.executor.execute(task_plan.graph, session_id)
         response = await self.aggregator.aggregate(objective, report)
+        reflection = self._reflect(response, report)
+        response.artifacts["reflection"] = reflection.model_dump(mode="json")
+        response.artifacts["pipeline"] = [
+            "planner",
+            "task_graph",
+            "capability_router",
+            "agent_executor",
+            "result_aggregator",
+            "reflection_pass",
+            "final_response",
+        ]
         reflection = self.reflection_loop.review(
             response.answer,
             {
@@ -100,13 +127,48 @@ class Orchestrator:
         )
         response.reflection = reflection
         response.confidence = (response.confidence + reflection.confidence.confidence) / 2
+                "node_completion": 1.0 if response.status == "completed" else 0.0,
+                "route_coverage": min(
+                    1.0,
+                    len(report.node_results) / max(1, len(task_plan.graph.nodes)),
+                ),
+            },
+        )
+        response.confidence = min(response.confidence, reflection.confidence.confidence)
         response.artifacts["reflection"] = reflection.model_dump(mode="json")
         await self.memory.remember(
             "task_completed",
             objective,
-            {"graph_id": task_plan.graph.id, "agents": response.agents},
+            {
+                "graph_id": task_plan.graph.id,
+                "agents": response.agents,
+                "confidence": response.confidence,
+                "reflection_confidence": reflection.confidence.confidence,
+            },
+        )
+        await self.memory.remember(
+            "reflection_completed",
+            objective,
+            {
+                "graph_id": task_plan.graph.id,
+                "confidence": response.confidence,
+                "uncertainty": reflection.confidence.uncertainty,
+            },
         )
         return response
+
+    def _reflect(
+        self, response: AggregatedResponse, report: ExecutionReport
+    ) -> ReflectionReport:
+        node_count = max(1, len(report.node_results))
+        completed = len(report.node_results)
+        route_score = sum(1 for node in report.node_results if node.route.selected_agent)
+        signals = {
+            "agent_confidence": response.confidence,
+            "completion": completed / node_count,
+            "routing": route_score / node_count,
+        }
+        return self.reflection_loop.review(response.answer, signals)
 
 
 def create_orchestrator(

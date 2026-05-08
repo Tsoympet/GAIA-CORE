@@ -58,6 +58,12 @@ class ResultAggregator:
                         "tool": node.route.selected_tool,
                         "execution_mode": node.route.execution_mode,
                         "status": "completed",
+                "node_results": [
+                    {
+                        "node_id": node.node_id,
+                        "agent": node.result.agent_name,
+                        "success": True,
+                        "confidence": node.result.confidence,
                     }
                     for node in report.node_results
                 ],
