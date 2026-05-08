@@ -40,5 +40,14 @@ class ResultAggregator:
             artifacts={
                 "node_count": len(report.node_results),
                 "routes": [node.route.model_dump(mode="json") for node in report.node_results],
+                "node_results": [
+                    {
+                        "node_id": node.node_id,
+                        "agent": node.result.agent_name,
+                        "success": True,
+                        "confidence": node.result.confidence,
+                    }
+                    for node in report.node_results
+                ],
             },
         )
