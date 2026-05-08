@@ -15,6 +15,11 @@ class RouteDecision(BaseModel):
     selected_agent: str
     selected_model: str
     selected_tool: str
+    selected_model: str = "local-bootstrap-reasoner"
+    selected_tool: str = "none"
+    execution_mode: str = "local_sync"
+    selected_model: str
+    selected_tool: str | None = None
     execution_mode: str = "local"
     candidate_agents: list[str] = Field(default_factory=list)
     requires_human_approval: bool = False
@@ -27,7 +32,7 @@ class RouteDecision(BaseModel):
 
 
 class CapabilityRouter:
-    """Route planned tasks to agents based on advertised capabilities."""
+    """Route planned tasks to agents, models, tools, and execution modes."""
 
     def __init__(
         self, capability_registry: CapabilityRegistry, agent_registry: AgentRegistry
@@ -44,8 +49,11 @@ class CapabilityRouter:
     ) -> RouteDecision:
         """Choose the best currently registered agent/model/tool tuple for a node."""
         requested = list(requested_capabilities or ["reasoning"])
+        """Choose the best currently registered target for requested capabilities."""
+        requested = [capability.strip().lower() for capability in requested_capabilities or []]
+        requested = [capability for capability in requested if capability] or ["reasoning"]
         candidates: dict[str, int] = {}
-        approval = False
+        approval = self._capabilities_require_approval(requested)
         for capability in requested:
             for agent in self.agent_registry.find_by_capability(capability):
                 candidates[agent.name] = candidates.get(agent.name, 0) + 1
@@ -58,6 +66,8 @@ class CapabilityRouter:
             rationale = (
                 "Selected the highest-overlap local agent, model, and tool adapter "
                 "for the requested capabilities."
+                "Selected the highest-overlap local agent plus local-first bootstrap "
+                "model/tool hints for the requested capabilities."
             )
         selected = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))[0][0]
         return RouteDecision(
@@ -66,6 +76,7 @@ class CapabilityRouter:
             selected_model=self._select_model(requested),
             selected_tool=self._select_tool(requested),
             execution_mode=self._select_execution_mode(requested),
+            execution_mode=self._select_execution_mode(requested, approval),
             candidate_agents=sorted(candidates),
             requires_human_approval=approval,
             rationale=rationale,
@@ -102,6 +113,70 @@ class CapabilityRouter:
             return "permission_gated"
         if any(capability in capabilities for capability in ("voice", "audio", "speech")):
             return "local_with_text_fallback"
+        if "coding" in capabilities or "repo" in capabilities:
+            return "local-code-reasoner"
+        if "vision" in capabilities:
+            return "local-vision-adapter"
+        if "audio" in capabilities or "voice" in capabilities or "speech" in capabilities:
+            return "local-audio-voice-adapter"
+        if "research" in capabilities:
+            return "local-research-reasoner"
+        return "local-bootstrap-reasoner"
+
+    def _select_tool(self, capabilities: list[str]) -> str:
+        if "coding" in capabilities or "repo" in capabilities:
+            return "repository_inspector"
+        if "memory" in capabilities:
+            return "memory_search"
+        if "security" in capabilities:
+            return "policy_review"
+        if "voice" in capabilities or "tts" in capabilities:
+            return "voice_synthesizer"
+        if "research" in capabilities:
+            return "local_reference_summarizer"
+        return "none"
+
+    def _select_execution_mode(self, capabilities: list[str], approval: bool) -> str:
+        if approval:
+            return "requires_approval"
+        if any(capability in capabilities for capability in ("coding", "tooling", "repo")):
+            return "sandboxed_local_sync"
+        return "local_sync"
+
+    def _capabilities_require_approval(self, capabilities: list[str]) -> bool:
+        risky = {"coding", "tooling", "repo", "self_evolve", "plugins"}
+        for capability in capabilities:
+            try:
+                registered = self.capability_registry.get(capability)
+            except KeyError:
+                continue
+            if registered.risky_actions:
+                return True
+        return bool(risky.intersection(capabilities))
+    def _select_model(self, requested: list[str]) -> str:
+        """Select a local-first model family for the capability request."""
+        if any(capability in requested for capability in ("coding", "repo")):
+            return "local-code-model"
+        if any(capability in requested for capability in ("vision", "audio", "voice")):
+            return "local-multimodal-model"
+        return "local-reasoning-model"
+
+    def _select_tool(self, requested: list[str]) -> str | None:
+        """Select a safe internal tool adapter without performing external actions."""
+        if "memory" in requested:
+            return "memory_search"
+        if "coding" in requested or "repo" in requested:
+            return "repo_inspector"
+        if "research" in requested:
+            return "research_summarizer"
+        return None
+
+    def _select_execution_mode(self, requested: list[str], approval: bool) -> str:
+        """Select execution mode while preserving human approval gates."""
+        if approval:
+            return "human_approval_required"
+        if any(capability in requested for capability in ("coding", "tooling", "repo")):
+            return "sandboxed"
         return "local"
 
 
