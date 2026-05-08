@@ -43,6 +43,9 @@ class MultiAgentExecutor:
         """Route and execute a single node."""
         node.execution_status = "running"
         route = self.capability_router.route(node.required_capabilities)
+        node.selected_model = route.selected_model
+        node.selected_tool = route.selected_tool
+        node.execution_mode = route.execution_mode
         agent = self.agent_registry.get(route.selected_agent)
         context = AgentContext(session_id=session_id, task_id=node.id)
         result = await agent.run(node.objective, context)

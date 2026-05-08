@@ -9,6 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
+    from gaia.orchestrator.planner import TaskStep
     from gaia.orchestrator.planner import PlanStep
 
 
@@ -17,9 +18,14 @@ class TaskNode(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     objective: str
+    title: str | None = None
     required_capabilities: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
+    expected_output: str = "structured result"
     assigned_agent: str | None = None
+    selected_model: str | None = None
+    selected_tool: str | None = None
+    execution_mode: str | None = None
     execution_status: str = "pending"
     result: dict[str, object] = Field(default_factory=dict)
 
@@ -64,17 +70,24 @@ class TaskGraphBuilder:
     """Build bootstrap DAGs from planner output."""
 
     def build(self, objective: str, capabilities: list[str]) -> TaskGraph:
+        """Build a one-node DAG for compatibility with earlier callers."""
         """Build a one-node DAG for compatibility with early callers."""
         return TaskGraph(
             objective=objective,
             nodes=[
                 TaskNode(
                     objective=objective,
+                    title="Execute requested task",
                     required_capabilities=capabilities or ["reasoning"],
                 )
             ],
         )
 
+    def build_from_steps(self, objective: str, steps: list[TaskStep]) -> TaskGraph:
+        """Build a DAG from structured planner steps."""
+        from gaia.orchestrator.planner import steps_to_nodes
+
+        return TaskGraph(objective=objective, nodes=steps_to_nodes(steps))
     def build_from_steps(self, objective: str, steps: list[PlanStep]) -> TaskGraph:
         """Build an auditable DAG from structured planner steps."""
         return TaskGraph(
