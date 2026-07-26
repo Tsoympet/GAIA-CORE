@@ -46,25 +46,33 @@ class BaseAgent(ABC):
 class LocalReasoningAgent(BaseAgent):
     """Deterministic bootstrap agent used before model backends are wired in."""
 
-    name = "gaia_core_agent"
-    description = "General local-first reasoning and task synthesis agent."
-    capabilities = ("reasoning", "planning")
+    name: str = "gaia_core_agent"
+    description: str = "General local-first reasoning and task synthesis agent."
+    capabilities: tuple[str, ...] = ("reasoning", "planning")
 
     async def run(self, task: str, context: AgentContext) -> AgentResult:
-        """Return a safe, deterministic response for the first runnable core."""
+        """Return a safe, deterministic response for the runnable core."""
         return AgentResult(
             task_id=context.task_id,
             agent_name=self.name,
             content=f"GAIA bootstrap agent received and analyzed: {task}",
             confidence=0.62,
-            artifacts={"mode": "local_bootstrap", "session_id": context.session_id},
+            artifacts={
+                "mode": "local_bootstrap",
+                "session_id": context.session_id,
+            },
         )
 
 
 class CapabilityAgent(LocalReasoningAgent):
-    """Simple capability-specialized agent descriptor with deterministic behavior."""
+    """Capability-specialized agent with deterministic bootstrap behavior."""
 
-    def __init__(self, name: str, description: str, capabilities: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        capabilities: tuple[str, ...],
+    ) -> None:
         self.name = name
         self.description = description
         self.capabilities = capabilities
