@@ -1,6 +1,7 @@
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from gaia.core import create_runtime
 from gaia.server import create_app
 
 
@@ -69,6 +70,26 @@ def test_scoped_and_runtime_memory_status_are_distinct() -> None:
     assert runtime["backend"] == "in-memory"
     assert runtime["append_only"] is True
     assert "records" in runtime
+
+
+def test_security_api_controls_runtime_kill_switch() -> None:
+    runtime = create_runtime()
+    client = TestClient(create_app(runtime))
+
+    triggered = client.post(
+        "/security/kill-switch",
+        params={"reason": "operator recovery test"},
+    )
+
+    assert triggered.status_code == 200
+    assert runtime.permission_manager.autonomy_kill_switch is True
+    assert client.get("/security/status").json()["autonomy_kill_switch"] is True
+
+    reset = client.delete("/security/kill-switch")
+
+    assert reset.status_code == 200
+    assert runtime.permission_manager.autonomy_kill_switch is False
+    assert client.get("/security/status").json()["autonomy_kill_switch"] is False
 
 
 def test_application_has_no_duplicate_method_path_routes() -> None:
