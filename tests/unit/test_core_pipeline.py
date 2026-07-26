@@ -12,11 +12,8 @@ async def test_runtime_accepts_task_and_returns_structured_response() -> None:
     response = await runtime.submit_task(TaskRequest(task="Analyze the GAIA bootstrap runtime"))
 
     assert response.status == "completed"
-    assert response.agents == [
-        "gaia_core_agent",
-        "gaia_core_agent",
-        "gaia_reflection_agent",
-    ]
+    assert response.agents == ["gaia_core_agent"]
     assert response.confidence > 0
-    assert response.artifacts["node_count"] == 3
+    assert response.artifacts["node_count"] == 1
+    assert response.artifacts["pipeline"][-2:] == ["reflection_pass", "final_response"]
     assert "reflection" in response.artifacts
