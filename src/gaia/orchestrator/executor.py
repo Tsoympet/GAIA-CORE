@@ -1,4 +1,4 @@
-"""Task graph executor for GAIA agents."""
+"""Task graph execution for GAIA agents."""
 
 from __future__ import annotations
 
@@ -26,55 +26,59 @@ class ExecutionReport(BaseModel):
 
 
 class MultiAgentExecutor:
-    """Executes task graph nodes by routing to registered agents."""
+    """Execute graph nodes exactly once in dependency order."""
 
-    def __init__(self, agent_registry: AgentRegistry, capability_router: CapabilityRouter) -> None:
+    def __init__(
+        self,
+        agent_registry: AgentRegistry,
+        capability_router: CapabilityRouter,
+    ) -> None:
         self.agent_registry = agent_registry
         self.capability_router = capability_router
 
     async def execute(self, graph: TaskGraph, session_id: str) -> ExecutionReport:
-        """Execute all graph nodes in dependency order."""
+        """Execute every graph node once in deterministic topological order."""
         report = ExecutionReport(graph_id=graph.id)
         for node in graph.execution_order():
-            report.node_results.append(await self.execute_node(node, session_id))
+            report.node_results.append(
+                await self.execute_node(node, session_id)
+            )
         return report
 
-    async def execute_node(self, node: TaskNode, session_id: str) -> NodeExecutionResult:
-        """Route and execute a single node."""
+    async def execute_node(
+        self,
+        node: TaskNode,
+        session_id: str,
+    ) -> NodeExecutionResult:
+        """Route and execute a single node exactly once."""
+        if node.execution_status not in {"pending", "retry"}:
+            raise RuntimeError(
+                f"task node {node.id} is not executable from "
+                f"status {node.execution_status!r}"
+            )
+
         node.execution_status = "running"
         route = self.capability_router.route(node.required_capabilities)
         node.assigned_agent = route.selected_agent
         node.assigned_model = route.selected_model
         node.assigned_tool = route.selected_tool
-        node.execution_mode = route.execution_mode
-        agent = self.agent_registry.get(route.selected_agent)
-        context = AgentContext(session_id=session_id, task_id=node.id)
-        try:
-            result = await agent.run(node.objective, context)
-        except Exception:
-            node.execution_status = "failed"
-            raise
-        agent = self.agent_registry.get(route.selected_agent)
-        context = AgentContext(session_id=session_id, task_id=node.id)
-        try:
-            result = await agent.run(node.objective, context)
-        except Exception:
-            node.execution_status = "failed"
-            raise
-        agent = self.agent_registry.get(route.selected_agent)
-        context = AgentContext(session_id=session_id, task_id=node.id)
-        try:
-            result = await agent.run(node.objective, context)
-        except Exception:
-            node.execution_status = "failed"
-            raise
         node.selected_model = route.selected_model
         node.selected_tool = route.selected_tool
         node.execution_mode = route.execution_mode
+
         agent = self.agent_registry.get(route.selected_agent)
         context = AgentContext(session_id=session_id, task_id=node.id)
-        result = await agent.run(node.objective, context)
-        node.assigned_agent = agent.name
+
+        try:
+            result = await agent.run(node.objective, context)
+        except Exception:
+            node.execution_status = "failed"
+            raise
+
         node.execution_status = "completed"
         node.result = result.model_dump(mode="json")
-        return NodeExecutionResult(node_id=node.id, route=route, result=result)
+        return NodeExecutionResult(
+            node_id=node.id,
+            route=route,
+            result=result,
+        )
