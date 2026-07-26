@@ -80,8 +80,13 @@ def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
             ]
         }
 
-    @app.get("/memory/status")
-    async def memory_status() -> dict[str, Any]:
+    @app.get("/runtime/memory/status")
+    async def runtime_memory_status() -> dict[str, Any]:
+        """Return append-only orchestration-event memory status.
+
+        Scoped user/project memory remains available at ``/memory/status`` through
+        the canonical memory router.
+        """
         return {
             "status": "ok",
             "backend": "in-memory",
