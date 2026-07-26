@@ -56,6 +56,11 @@ jobs:
             echo "pytest=$pytest_status"
           } | tee ci-logs/summary.txt
 
+          tar -czf ci-logs/source-snapshot.tar.gz \
+            src \
+            tests \
+            pyproject.toml
+
           failed=false
           for status in \
             "$compile_status" \
