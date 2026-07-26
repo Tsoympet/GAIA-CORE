@@ -34,6 +34,10 @@ class VectorStore(ABC):
     def delete(self, document_ids: list[str]) -> int:
         """Delete documents by stable ID and return the number removed."""
 
+    @abstractmethod
+    def count(self) -> int:
+        """Return the number of indexed documents."""
+
 
 def cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
@@ -63,3 +67,6 @@ class InMemoryVectorStore(VectorStore):
             if self.documents.pop(document_id, None) is not None:
                 removed += 1
         return removed
+
+    def count(self) -> int:
+        return len(self.documents)
