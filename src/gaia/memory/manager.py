@@ -185,3 +185,4 @@ class MemoryManager:
         ]
         for record_id in record_ids:
             scoped_memory.records.pop(record_id, None)
+        self.vector_store.delete(record_ids)
