@@ -21,10 +21,14 @@ class AggregatedResponse(BaseModel):
 
 
 class ResultAggregator:
-    """Combine node outputs into a single auditable response."""
+    """Combine node outputs into one auditable response."""
 
-    async def aggregate(self, objective: str, report: ExecutionReport) -> AggregatedResponse:
-        """Aggregate all node results into one response."""
+    async def aggregate(
+        self,
+        objective: str,
+        report: ExecutionReport,
+    ) -> AggregatedResponse:
+        """Aggregate all successful node results."""
         if not report.node_results:
             return AggregatedResponse(
                 task_id=report.graph_id,
@@ -32,8 +36,10 @@ class ResultAggregator:
                 answer=f"No execution results were produced for: {objective}",
                 confidence=0.0,
             )
+
         answers = [node.result.content for node in report.node_results]
         confidences = [node.result.confidence for node in report.node_results]
+
         return AggregatedResponse(
             task_id=report.graph_id,
             answer="\n".join(answers),
@@ -49,7 +55,10 @@ class ResultAggregator:
                     "result_aggregator",
                     "reflection_loop",
                 ],
-                "routes": [node.route.model_dump(mode="json") for node in report.node_results],
+                "routes": [
+                    node.route.model_dump(mode="json")
+                    for node in report.node_results
+                ],
                 "node_statuses": [
                     {
                         "node_id": node.node_id,
@@ -58,11 +67,13 @@ class ResultAggregator:
                         "tool": node.route.selected_tool,
                         "execution_mode": node.route.execution_mode,
                         "status": "completed",
+                    }
+                    for node in report.node_results
+                ],
                 "node_results": [
                     {
                         "node_id": node.node_id,
                         "agent": node.result.agent_name,
-                        "success": True,
                         "confidence": node.result.confidence,
                     }
                     for node in report.node_results
