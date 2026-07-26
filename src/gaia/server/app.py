@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from gaia.core.runtime import GaiaRuntime, TaskRequest, create_runtime
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import OrchestrationPlan
+from gaia.server.deps import GaiaServices, get_services
 from gaia.server.routes import ROUTERS
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,9 @@ def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
     runtime = runtime or create_runtime(config_dir=Path("config"))
     app = FastAPI(title="GAIA Core Runtime", version="0.1.0")
     app.state.runtime = runtime
+    app.state.services = GaiaServices(permissions=runtime.permission_manager)
+    app.dependency_overrides[get_services] = lambda: app.state.services
+
     for router in ROUTERS:
         app.include_router(router)
 
