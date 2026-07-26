@@ -61,12 +61,12 @@ class Orchestrator:
         routes: list[RouteDecision] = []
 
         for node in task_plan.graph.nodes:
-            route = self.capability_router.route(node.required_capabilities)
+            route = self.capability_router.route(
+                node.required_capabilities
+            )
             node.assigned_agent = route.selected_agent
             node.assigned_model = route.selected_model
             node.assigned_tool = route.selected_tool
-            node.selected_model = route.selected_model
-            node.selected_tool = route.selected_tool
             node.execution_mode = route.execution_mode
             routes.append(route)
 
