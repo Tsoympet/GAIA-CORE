@@ -28,7 +28,11 @@ class VectorStore(ABC):
     def upsert(self, documents: list[VectorDocument]) -> None: ...
 
     @abstractmethod
-    def search(self, embedding: list[float], limit: int = 5) -> list[VectorSearchResult]: ...
+    def search(
+        self,
+        embedding: list[float],
+        limit: int = 5,
+    ) -> list[VectorSearchResult]: ...
 
     @abstractmethod
     def delete(self, document_ids: list[str]) -> int:
@@ -43,7 +47,10 @@ def cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
     denominator = sqrt(sum(x * x for x in a)) * sqrt(sum(y * y for y in b))
-    return 0.0 if denominator == 0 else sum(x * y for x, y in zip(a, b, strict=True)) / denominator
+    if denominator == 0:
+        return 0.0
+    numerator = sum(x * y for x, y in zip(a, b, strict=True))
+    return numerator / denominator
 
 
 @dataclass(slots=True)
@@ -54,12 +61,20 @@ class InMemoryVectorStore(VectorStore):
         for document in documents:
             self.documents[document.document_id] = document
 
-    def search(self, embedding: list[float], limit: int = 5) -> list[VectorSearchResult]:
+    def search(
+        self,
+        embedding: list[float],
+        limit: int = 5,
+    ) -> list[VectorSearchResult]:
         results = [
             VectorSearchResult(document, cosine(embedding, document.embedding))
             for document in self.documents.values()
         ]
-        return sorted(results, key=lambda result: result.score, reverse=True)[:limit]
+        return sorted(
+            results,
+            key=lambda result: result.score,
+            reverse=True,
+        )[:limit]
 
     def delete(self, document_ids: list[str]) -> int:
         removed = 0
