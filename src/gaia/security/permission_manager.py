@@ -8,6 +8,7 @@ from enum import StrEnum
 from fnmatch import fnmatch
 
 from gaia.security.audit_log import AuditEvent, AuditLog, AuditOutcome
+from gaia.security.autonomy import AutonomyKillSwitch
 
 
 class Permission(StrEnum):
@@ -71,7 +72,12 @@ class PermissionManager:
 
     audit_log: AuditLog = field(default_factory=AuditLog)
     rules: list[PermissionRule] = field(default_factory=list)
-    autonomy_kill_switch: bool = False
+    kill_switch: AutonomyKillSwitch = field(default_factory=AutonomyKillSwitch)
+
+    @property
+    def autonomy_kill_switch(self) -> bool:
+        """Backward-compatible Boolean view of the shared kill switch."""
+        return self.kill_switch.enabled
 
     def grant(
         self,
@@ -87,7 +93,10 @@ class PermissionManager:
         )
 
     def deny(
-        self, permission: Permission, resource_pattern: str = "*", reason: str = "deny"
+        self,
+        permission: Permission,
+        resource_pattern: str = "*",
+        reason: str = "deny",
     ) -> None:
         """Deny a permission for a resource pattern."""
         self.rules.append(PermissionRule(permission, resource_pattern, False, reason))
@@ -96,30 +105,34 @@ class PermissionManager:
         """Append multiple permission rules."""
         self.rules.extend(rules)
 
-    def activate_kill_switch(self) -> None:
+    def activate_kill_switch(self, reason: str = "permission manager kill switch") -> None:
         """Stop all autonomous risky action approvals."""
-        self.autonomy_kill_switch = True
+        self.kill_switch.trigger(reason)
 
     def deactivate_kill_switch(self) -> None:
         """Allow policy evaluation to resume after human intervention."""
-        self.autonomy_kill_switch = False
+        self.kill_switch.reset()
 
     def check(
-        self, permission: Permission, resource: str, actor: str = "system"
+        self,
+        permission: Permission,
+        resource: str,
+        actor: str = "system",
     ) -> PermissionDecision:
         """Evaluate permission with deny-by-default and risky-action approval rules."""
-        if self.autonomy_kill_switch and permission in RISKY_PERMISSIONS:
+        if self.kill_switch.enabled and permission in RISKY_PERMISSIONS:
             return self._record(
                 PermissionDecision(
-                    False,
-                    permission,
-                    resource,
-                    actor,
-                    "autonomy kill switch active",
-                    True,
-                    True,
+                    allowed=False,
+                    permission=permission,
+                    resource=resource,
+                    actor=actor,
+                    reason="autonomy kill switch active",
+                    requires_human_approval=True,
+                    kill_switch_active=True,
                 )
             )
+
         matched = [
             rule
             for rule in self.rules
@@ -128,33 +141,48 @@ class PermissionManager:
         if not matched:
             return self._record(
                 PermissionDecision(
-                    False,
-                    permission,
-                    resource,
-                    actor,
-                    "no matching allow rule",
-                    permission in RISKY_PERMISSIONS,
+                    allowed=False,
+                    permission=permission,
+                    resource=resource,
+                    actor=actor,
+                    reason="no matching allow rule",
+                    requires_human_approval=permission in RISKY_PERMISSIONS,
                 )
             )
+
         rule = matched[-1]
         requires_approval = permission in RISKY_PERMISSIONS and not rule.human_approved
         allowed = rule.allowed and not requires_approval
-        reason = (
-            rule.reason
-            if allowed
-            else "human approval required"
-            if requires_approval
-            else rule.reason
-        )
+        if allowed:
+            reason = rule.reason
+        elif requires_approval:
+            reason = "human approval required"
+        else:
+            reason = rule.reason
+
         return self._record(
-            PermissionDecision(allowed, permission, resource, actor, reason, requires_approval)
+            PermissionDecision(
+                allowed=allowed,
+                permission=permission,
+                resource=resource,
+                actor=actor,
+                reason=reason,
+                requires_human_approval=requires_approval,
+            )
         )
 
-    def require(self, permission: Permission, resource: str, actor: str = "system") -> None:
-        """Raise PermissionError when a permission is denied."""
+    def require(
+        self,
+        permission: Permission,
+        resource: str,
+        actor: str = "system",
+    ) -> None:
+        """Raise ``PermissionError`` when a permission is denied."""
         decision = self.check(permission, resource, actor)
         if not decision.allowed:
-            raise PermissionError(f"{permission.value} denied for {resource}: {decision.reason}")
+            raise PermissionError(
+                f"{permission.value} denied for {resource}: {decision.reason}"
+            )
 
     def _record(self, decision: PermissionDecision) -> PermissionDecision:
         self.audit_log.record(
@@ -162,7 +190,9 @@ class PermissionManager:
                 action=decision.permission.value,
                 actor=decision.actor,
                 resource=decision.resource,
-                outcome=AuditOutcome.ALLOWED if decision.allowed else AuditOutcome.DENIED,
+                outcome=(
+                    AuditOutcome.ALLOWED if decision.allowed else AuditOutcome.DENIED
+                ),
                 reason=decision.reason,
                 metadata={
                     "requires_human_approval": decision.requires_human_approval,
