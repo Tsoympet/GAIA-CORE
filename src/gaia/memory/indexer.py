@@ -24,6 +24,7 @@ class MemoryIndexer:
     def index(self, records: list[MemoryRecord]) -> int:
         documents = [
             VectorDocument(
+                document_id=record.record_id,
                 text=record.content,
                 embedding=simple_embedding(record.content),
                 metadata={**record.metadata, "record_id": record.record_id, "scope": record.scope.value},
