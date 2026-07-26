@@ -31,10 +31,24 @@ class ScopedMemory:
     scope: MemoryScope
     records: dict[str, MemoryRecord] = field(default_factory=dict)
 
-    def add(self, content: str, owner_id: str, metadata: dict[str, Any] | None = None) -> MemoryRecord:
-        record = MemoryRecord(content=content, scope=self.scope, owner_id=owner_id, metadata=metadata or {})
+    def add(
+        self,
+        content: str,
+        owner_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> MemoryRecord:
+        record = MemoryRecord(
+            content=content,
+            scope=self.scope,
+            owner_id=owner_id,
+            metadata=metadata or {},
+        )
         self.records[record.record_id] = record
         return record
 
     def list_for_owner(self, owner_id: str) -> list[MemoryRecord]:
-        return [record for record in self.records.values() if record.owner_id == owner_id]
+        return [
+            record
+            for record in self.records.values()
+            if record.owner_id == owner_id
+        ]

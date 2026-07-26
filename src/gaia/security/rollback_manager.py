@@ -1,6 +1,9 @@
 """GAIA rollback manager."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class RollbackManager(BaseModel):
     """Safe engineering simulation component for rollback manager."""

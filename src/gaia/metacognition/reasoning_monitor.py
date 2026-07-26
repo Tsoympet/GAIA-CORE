@@ -1,6 +1,9 @@
 """GAIA reasoning monitor."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class ReasoningMonitor(BaseModel):
     """Safe engineering simulation component for reasoning monitor."""

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .policies import MemoryPolicy
-from .scoped import MemoryRecord
-from .vector_store import VectorDocument, VectorStore
+from gaia.memory.policies import MemoryPolicy
+from gaia.memory.scoped import MemoryRecord
+from gaia.memory.vector_store import VectorDocument, VectorStore
 
 
 def simple_embedding(text: str, dimensions: int = 32) -> list[float]:
@@ -27,7 +27,11 @@ class MemoryIndexer:
                 document_id=record.record_id,
                 text=record.content,
                 embedding=simple_embedding(record.content),
-                metadata={**record.metadata, "record_id": record.record_id, "scope": record.scope.value},
+                metadata={
+                    **record.metadata,
+                    "record_id": record.record_id,
+                    "scope": record.scope.value,
+                },
             )
             for record in records
             if self.policy.should_index(record)

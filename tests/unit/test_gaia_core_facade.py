@@ -10,7 +10,10 @@ async def test_gaia_core_facade_uses_canonical_runtime(tmp_path: Path) -> None:
     core = GaiaCore(workspace=tmp_path / "workspace")
 
     status = await core.startup()
-    response = await core.submit_task("Research local-first model routing", capabilities=["research"])
+    response = await core.submit_task(
+        "Research local-first model routing",
+        capabilities=["research"],
+    )
 
     assert status.local_first is True
     assert core.workspace.exists()

@@ -8,8 +8,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from .session import Session
-
+from gaia.core.session import Session
 
 MemoryHook = Callable[[str, dict[str, Any]], Awaitable[Any] | Any]
 
@@ -38,16 +37,18 @@ class ExecutionContext:
     memory_hooks: list[MemoryHook] = field(default_factory=list)
     trace_id: str = field(default_factory=lambda: str(uuid4()))
 
-    def child(self, **updates: Any) -> "ExecutionContext":
-        """Create a derived context for sub-tasks while preserving traceability."""
-
+    def child(self, **updates: object) -> ExecutionContext:
+        """Create a derived context while preserving traceability."""
         if "trace_id" not in updates:
             updates["trace_id"] = self.trace_id
         return replace(self, **updates)
 
-    async def emit_memory_hook(self, name: str, payload: dict[str, Any]) -> list[Any]:
+    async def emit_memory_hook(
+        self,
+        name: str,
+        payload: dict[str, Any],
+    ) -> list[Any]:
         """Invoke configured memory hooks in order and return their results."""
-
         results: list[Any] = []
         for hook in self.memory_hooks:
             result = hook(name, payload)

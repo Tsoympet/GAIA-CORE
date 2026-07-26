@@ -1,6 +1,9 @@
 """GAIA self consistency checks."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class SelfConsistencyChecker(BaseModel):
     """Safe engineering simulation component for self consistency checks."""

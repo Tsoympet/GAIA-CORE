@@ -30,10 +30,25 @@ class ModelRegistry:
         self.models[descriptor.model_id] = descriptor
 
     def list(self, capability: str | None = None) -> list[ModelDescriptor]:
-        models = [model for model in self.models.values() if model.enabled]
+        models = [
+            model
+            for model in self.models.values()
+            if model.enabled
+        ]
         if capability:
-            models = [model for model in models if capability in model.capabilities]
-        return sorted(models, key=lambda model: (not model.local_first, model.provider.value, model.model_id))
+            models = [
+                model
+                for model in models
+                if capability in model.capabilities
+            ]
+        return sorted(
+            models,
+            key=lambda model: (
+                not model.local_first,
+                model.provider.value,
+                model.model_id,
+            ),
+        )
 
     def get(self, model_id: str) -> ModelDescriptor:
         return self.models[model_id]

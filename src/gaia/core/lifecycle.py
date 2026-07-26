@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-
 LifecycleHook = Callable[[], Awaitable[Any] | Any]
 
 
@@ -26,10 +25,10 @@ class RuntimeHealth:
     """Current runtime health snapshot."""
 
     status: HealthStatus = HealthStatus.STOPPED
-    details: dict[str, Any] = field(default_factory=dict)
+    details: dict[str, object] = field(default_factory=dict)
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def set(self, status: HealthStatus, **details: Any) -> None:
+    def set(self, status: HealthStatus, **details: object) -> None:
         self.status = status
         self.details = details
         self.updated_at = datetime.now(UTC)

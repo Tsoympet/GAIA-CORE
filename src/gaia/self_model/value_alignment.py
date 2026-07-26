@@ -1,6 +1,9 @@
 """GAIA value alignment constraints."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class ValueAlignment(BaseModel):
     """Safe engineering simulation component for value alignment constraints."""

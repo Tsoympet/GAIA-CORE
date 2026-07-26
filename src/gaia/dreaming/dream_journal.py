@@ -1,6 +1,9 @@
 """GAIA dream journal."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class DreamJournal(BaseModel):
     """Safe engineering simulation component for dream journal."""

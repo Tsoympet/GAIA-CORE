@@ -1,6 +1,9 @@
 """GAIA simulated identity state."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class IdentityState(BaseModel):
     """Safe engineering simulation component for simulated identity state."""

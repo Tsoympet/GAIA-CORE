@@ -1,6 +1,9 @@
 """GAIA idle sleep cycle manager."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class SleepCycleManager(BaseModel):
     """Safe engineering simulation component for idle sleep cycle manager."""

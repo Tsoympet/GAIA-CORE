@@ -1,6 +1,9 @@
 """GAIA initiative engine."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class InitiativeEngine(BaseModel):
     """Safe engineering simulation component for initiative engine."""
