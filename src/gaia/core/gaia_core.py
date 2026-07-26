@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from gaia.core.runtime import GaiaRuntime, RuntimeStatus, TaskRequest, create_runtime
 from gaia.core.session import Session
+from gaia.kernel import ResourceBudget
 from gaia.orchestrator.aggregator import AggregatedResponse
 
 
@@ -108,6 +109,8 @@ class GaiaCore:
         capabilities: list[str] | None = None,
         session_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        goal_id: str | None = None,
+        budget: ResourceBudget | None = None,
     ) -> AggregatedResponse:
         """Submit a task through the canonical recovered orchestration runtime."""
         request = TaskRequest(
@@ -115,5 +118,7 @@ class GaiaCore:
             session_id=session_id,
             capabilities=capabilities or [],
             metadata=metadata or {},
+            goal_id=goal_id,
+            budget=budget or ResourceBudget(),
         )
         return await self.runtime.submit_task(request)

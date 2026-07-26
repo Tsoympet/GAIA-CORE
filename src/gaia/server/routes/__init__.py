@@ -6,6 +6,7 @@ from . import (
     chat,
     dreaming,
     idle_cognition,
+    kernel,
     memory,
     metacognition,
     models,
@@ -30,6 +31,7 @@ ROUTERS = [
     metacognition.router,
     dreaming.router,
     idle_cognition.router,
+    kernel.router,
 ]
 
 __all__ = ["ROUTERS"]
