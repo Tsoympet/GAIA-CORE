@@ -169,7 +169,7 @@ class MemoryManager:
         )
         return MemoryStatus(
             scopes={scope.value: len(memory.records) for scope, memory in self.scoped.items()},
-            indexed_documents=len(self.vector_store.documents),
+            indexed_documents=self.vector_store.count(),
             symbolic_facts=len(self.symbolic.facts),
             consent_records={owner: state.value for owner, state in self.consent.items()},
             pending_deletion_requests=pending,
