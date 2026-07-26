@@ -20,32 +20,45 @@ from gaia.workspaces import SQLiteWorkspaceStore
 
 @dataclass(slots=True)
 class GaiaServices:
+    """Services used by modular API routes."""
+
     permissions: PermissionManager = field(default_factory=PermissionManager)
     memory: MemoryManager = field(default_factory=MemoryManager)
     registry: ModelRegistry = field(default_factory=ModelRegistry)
-    kill_switch: AutonomyKillSwitch = field(default_factory=AutonomyKillSwitch)
     workspaces: SQLiteWorkspaceStore = field(
         default_factory=lambda: SQLiteWorkspaceStore(Path(".gaia/workspaces.sqlite3"))
     )
 
     def __post_init__(self) -> None:
-        self.permissions.grant(Permission.FILE_READ, "*", "bootstrap local read")
-        self.registry.register(
-            ModelDescriptor(
-                "llama3.1",
-                ModelProvider.OLLAMA,
-                {"chat", "reasoning"},
-                local_first=True,
+        if not any(
+            rule.permission == Permission.FILE_READ and rule.resource_pattern == "*"
+            for rule in self.permissions.rules
+        ):
+            self.permissions.grant(Permission.FILE_READ, "*", "bootstrap local read")
+
+        if "llama3.1" not in self.registry.models:
+            self.registry.register(
+                ModelDescriptor(
+                    "llama3.1",
+                    ModelProvider.OLLAMA,
+                    {"chat", "reasoning"},
+                    local_first=True,
+                )
             )
-        )
-        self.registry.register(
-            ModelDescriptor(
-                "gaia-local-placeholder",
-                ModelProvider.LOCAL,
-                {"chat"},
-                local_first=True,
+        if "gaia-local-placeholder" not in self.registry.models:
+            self.registry.register(
+                ModelDescriptor(
+                    "gaia-local-placeholder",
+                    ModelProvider.LOCAL,
+                    {"chat"},
+                    local_first=True,
+                )
             )
-        )
+
+    @property
+    def kill_switch(self) -> AutonomyKillSwitch:
+        """Return the permission manager's canonical kill switch."""
+        return self.permissions.kill_switch
 
     @property
     def model_router(self) -> ModelRouter:
