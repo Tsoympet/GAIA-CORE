@@ -1,6 +1,20 @@
 """FastAPI route modules."""
 
-from . import agents, audio, chat, dreaming, idle_cognition, memory, metacognition, models, security, self_model, tools, voice, workspaces
+from . import (
+    agents,
+    audio,
+    chat,
+    dreaming,
+    idle_cognition,
+    memory,
+    metacognition,
+    models,
+    security,
+    self_model,
+    tools,
+    voice,
+    workspaces,
+)
 
 ROUTERS = [
     chat.router,
