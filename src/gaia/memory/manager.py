@@ -46,7 +46,7 @@ class MemoryDeletionRequest:
 
 @dataclass(frozen=True, slots=True)
 class MemoryStatus:
-    """Operational summary for Phase 4 memory and workspace readiness."""
+    """Operational summary for scoped memory readiness."""
 
     scopes: dict[str, int]
     indexed_documents: int
@@ -60,14 +60,16 @@ class MemoryStatus:
 
 @dataclass(slots=True)
 class MemoryManager:
-    """Scoped memory manager with local-first Phase 4 controls."""
+    """Scoped memory manager with local-first review controls."""
 
     vector_store: VectorStore = field(default_factory=InMemoryVectorStore)
     symbolic: SymbolicMemory = field(default_factory=SymbolicMemory)
     policy: MemoryPolicy = field(default_factory=MemoryPolicy)
     scoped: dict[MemoryScope, ScopedMemory] = field(default_factory=dict)
     consent: dict[str, MemoryConsent] = field(default_factory=dict)
-    deletion_requests: dict[str, MemoryDeletionRequest] = field(default_factory=dict)
+    deletion_requests: dict[str, MemoryDeletionRequest] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         for scope in MemoryScope:
@@ -103,16 +105,26 @@ class MemoryManager:
         self.consent[owner_id] = MemoryConsent.GRANTED
 
     def revoke_consent(self, owner_id: str) -> None:
-        """Block future memory writes for an owner without deleting existing records."""
+        """Block future memory writes without deleting existing records."""
         self.consent[owner_id] = MemoryConsent.REVOKED
 
     def add_fact(
-        self, subject: str, predicate: str, object: str, confidence: float = 1.0
+        self,
+        subject: str,
+        predicate: str,
+        object_value: str,
+        confidence: float = 1.0,
     ) -> SymbolicFact:
-        return self.symbolic.add(SymbolicFact(subject, predicate, object, confidence))
+        return self.symbolic.add(
+            SymbolicFact(subject, predicate, object_value, confidence)
+        )
 
-    def list_scope(self, scope: MemoryScope, owner_id: str) -> list[MemoryRecord]:
-        """List retained records for a scope/owner after applying retention policy."""
+    def list_scope(
+        self,
+        scope: MemoryScope,
+        owner_id: str,
+    ) -> list[MemoryRecord]:
+        """List retained records for a scope and owner."""
         return [
             record
             for record in self.scoped[scope].list_for_owner(owner_id)
@@ -135,17 +147,32 @@ class MemoryManager:
         return exported
 
     def request_deletion(
-        self, owner_id: str, scope: MemoryScope, reason: str
+        self,
+        owner_id: str,
+        scope: MemoryScope,
+        reason: str,
     ) -> MemoryDeletionRequest:
         """Create a deletion request; actual deletion requires approval."""
-        request = MemoryDeletionRequest(owner_id=owner_id, scope=scope, reason=reason)
+        request = MemoryDeletionRequest(
+            owner_id=owner_id,
+            scope=scope,
+            reason=reason,
+        )
         self.deletion_requests[request.request_id] = request
         return request
 
-    def review_deletion_request(self, request_id: str, approve: bool) -> MemoryDeletionRequest:
-        """Approve or deny a deletion request and apply approved scope deletion."""
+    def review_deletion_request(
+        self,
+        request_id: str,
+        approve: bool,
+    ) -> MemoryDeletionRequest:
+        """Review a deletion request and apply approved scope deletion."""
         request = self.deletion_requests[request_id]
-        status = DeletionRequestStatus.APPROVED if approve else DeletionRequestStatus.DENIED
+        status = (
+            DeletionRequestStatus.APPROVED
+            if approve
+            else DeletionRequestStatus.DENIED
+        )
         reviewed = MemoryDeletionRequest(
             owner_id=request.owner_id,
             scope=request.scope,
@@ -168,15 +195,25 @@ class MemoryManager:
             if request.status == DeletionRequestStatus.PENDING
         )
         return MemoryStatus(
-            scopes={scope.value: len(memory.records) for scope, memory in self.scoped.items()},
+            scopes={
+                scope.value: len(memory.records)
+                for scope, memory in self.scoped.items()
+            },
             indexed_documents=self.vector_store.count(),
             symbolic_facts=len(self.symbolic.facts),
-            consent_records={owner: state.value for owner, state in self.consent.items()},
+            consent_records={
+                owner: state.value
+                for owner, state in self.consent.items()
+            },
             pending_deletion_requests=pending,
             retention_days=self.policy.retention_days,
         )
 
-    def _delete_scope_for_owner(self, scope: MemoryScope, owner_id: str) -> None:
+    def _delete_scope_for_owner(
+        self,
+        scope: MemoryScope,
+        owner_id: str,
+    ) -> None:
         scoped_memory = self.scoped[scope]
         record_ids = [
             record_id
