@@ -33,8 +33,8 @@ Allowed states:
 
 | Capability | Current state | Existing foundation | Required implementation work |
 |---|---|---|---|
-| Repository integrity and CI | RECOVERY | Recovery PR, compile/lint/type/test workflow | Complete repository scan, obtain green validation, release clean baseline |
-| Cognitive Kernel | MISSING | Basic runtime composition and orchestration | Goal manager, context manager, resource budgets, verification, cancellation, interruption, lifecycle, policy integration |
+| Repository integrity and CI | RECOVERY | Validated R0 branch, compile/lint/type/test workflow, diagnostic artifacts | Merge and release the clean baseline; maintain branch protections and release checks |
+| Cognitive Kernel | PARTIAL | Goal lifecycle, execution ledger, wall-clock/step budgets, cancellation, verification, runtime/API integration | Durable persistence, migrations, restart recovery, full resource metering, approval nodes, scheduling, streaming events, evidence integration, desktop controls |
 | Cognitive Continuity | MISSING | In-memory sessions | Durable signed checkpoints, resume validation, repository/process state, crash recovery, model-replacement recovery |
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
