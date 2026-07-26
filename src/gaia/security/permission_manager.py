@@ -21,6 +21,7 @@ class Permission(StrEnum):
     PACKAGE_INSTALL = "package.install"
     API_KEY_USE = "api_key.use"
     CODE_EXECUTION = "code.execution"
+    SELF_MODIFY = "self.modify"
     SCHEDULED_AUTONOMY = "autonomy.scheduled"
     EXTERNAL_COMMUNICATION = "external.communication"
     FILE_READ = "file.read"
@@ -36,6 +37,7 @@ RISKY_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.PACKAGE_INSTALL,
         Permission.API_KEY_USE,
         Permission.CODE_EXECUTION,
+        Permission.SELF_MODIFY,
         Permission.SCHEDULED_AUTONOMY,
         Permission.EXTERNAL_COMMUNICATION,
     }
@@ -105,7 +107,10 @@ class PermissionManager:
         """Append multiple permission rules."""
         self.rules.extend(rules)
 
-    def activate_kill_switch(self, reason: str = "permission manager kill switch") -> None:
+    def activate_kill_switch(
+        self,
+        reason: str = "permission manager kill switch",
+    ) -> None:
         """Stop all autonomous risky action approvals."""
         self.kill_switch.trigger(reason)
 
@@ -119,7 +124,7 @@ class PermissionManager:
         resource: str,
         actor: str = "system",
     ) -> PermissionDecision:
-        """Evaluate permission with deny-by-default and risky-action approval rules."""
+        """Evaluate permission with deny-by-default and approval rules."""
         if self.kill_switch.enabled and permission in RISKY_PERMISSIONS:
             return self._record(
                 PermissionDecision(
@@ -136,7 +141,8 @@ class PermissionManager:
         matched = [
             rule
             for rule in self.rules
-            if rule.permission == permission and fnmatch(resource, rule.resource_pattern)
+            if rule.permission == permission
+            and fnmatch(resource, rule.resource_pattern)
         ]
         if not matched:
             return self._record(
@@ -146,12 +152,17 @@ class PermissionManager:
                     resource=resource,
                     actor=actor,
                     reason="no matching allow rule",
-                    requires_human_approval=permission in RISKY_PERMISSIONS,
+                    requires_human_approval=(
+                        permission in RISKY_PERMISSIONS
+                    ),
                 )
             )
 
         rule = matched[-1]
-        requires_approval = permission in RISKY_PERMISSIONS and not rule.human_approved
+        requires_approval = (
+            permission in RISKY_PERMISSIONS
+            and not rule.human_approved
+        )
         allowed = rule.allowed and not requires_approval
         if allowed:
             reason = rule.reason
@@ -191,7 +202,9 @@ class PermissionManager:
                 actor=decision.actor,
                 resource=decision.resource,
                 outcome=(
-                    AuditOutcome.ALLOWED if decision.allowed else AuditOutcome.DENIED
+                    AuditOutcome.ALLOWED
+                    if decision.allowed
+                    else AuditOutcome.DENIED
                 ),
                 reason=decision.reason,
                 metadata={
