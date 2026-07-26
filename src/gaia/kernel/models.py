@@ -18,6 +18,7 @@ class GoalStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    PAUSED = "paused"
 
 
 class ExecutionStatus(StrEnum):
@@ -30,6 +31,7 @@ class ExecutionStatus(StrEnum):
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
     BLOCKED = "blocked"
+    INTERRUPTED = "interrupted"
 
 
 class ResourceBudget(BaseModel):
@@ -64,6 +66,17 @@ class VerificationReport(BaseModel):
     passed: bool
     checks: list[VerificationCheck] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class KernelStorageStatus(BaseModel):
+    """Operator-facing status for kernel persistence."""
+
+    backend: str
+    durable: bool
+    location: str | None = None
+    schema_version: int = Field(ge=0)
+    goals: int = Field(default=0, ge=0)
+    executions: int = Field(default=0, ge=0)
 
 
 class GoalRecord(BaseModel):
@@ -108,3 +121,11 @@ class KernelStatus(BaseModel):
     executions: int = 0
     active_executions: int = 0
     cancellation_requests: int = 0
+    recovered_interruptions: int = 0
+    storage: KernelStorageStatus = Field(
+        default_factory=lambda: KernelStorageStatus(
+            backend="memory",
+            durable=False,
+            schema_version=1,
+        )
+    )

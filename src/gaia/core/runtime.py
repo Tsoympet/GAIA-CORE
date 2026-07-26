@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,11 +23,13 @@ from gaia.capabilities.capability_router import (
 from gaia.core.session import SessionManager
 from gaia.kernel import (
     CognitiveKernel,
+    InMemoryKernelStore,
     KernelBudgetError,
     KernelCancelledError,
     KernelStatus,
     KernelTimeoutError,
     ResourceBudget,
+    SQLiteKernelStore,
 )
 from gaia.memory.store import MemoryStore, create_memory_store
 from gaia.models.catalog import ModelCatalog, create_model_catalog
@@ -183,7 +186,10 @@ class GaiaRuntime(BaseModel):
         )
 
 
-def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
+def create_runtime(
+    config_dir: Path | str = Path("config"),
+    kernel_store_path: Path | str | None = None,
+) -> GaiaRuntime:
     """Create the default GAIA runtime composition."""
     agent_registry = create_default_agent_registry()
     capability_router = create_default_capability_router(
@@ -192,6 +198,12 @@ def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
     model_catalog = create_model_catalog()
     memory_store = create_memory_store()
     security_policy = create_security_policy()
+    configured_store = kernel_store_path or os.getenv("GAIA_KERNEL_DB")
+    kernel_store = (
+        SQLiteKernelStore(configured_store)
+        if configured_store is not None
+        else InMemoryKernelStore()
+    )
     orchestrator = create_orchestrator(
         capability_router=capability_router,
         memory_store=memory_store,
@@ -206,5 +218,5 @@ def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
         model_catalog=model_catalog,
         memory_store=memory_store,
         security_policy=security_policy,
-        kernel=CognitiveKernel(),
+        kernel=CognitiveKernel(store=kernel_store),
     )

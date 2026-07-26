@@ -24,6 +24,7 @@ from gaia.kernel.models import (
     ResourceBudget,
     ResourceUsage,
 )
+from gaia.kernel.store import InMemoryKernelStore, KernelStore
 from gaia.kernel.verification import VerificationEngine
 from gaia.orchestrator.aggregator import AggregatedResponse
 
@@ -39,11 +40,19 @@ class CognitiveKernel:
         goals: GoalManager | None = None,
         cancellations: CancellationRegistry | None = None,
         verifier: VerificationEngine | None = None,
+        store: KernelStore | None = None,
     ) -> None:
-        self.goals = goals or GoalManager()
+        self.store = store or (
+            goals.store if goals is not None else InMemoryKernelStore()
+        )
+        self.goals = goals or GoalManager(self.store)
         self.cancellations = cancellations or CancellationRegistry()
         self.verifier = verifier or VerificationEngine()
-        self._executions: dict[str, KernelExecution] = {}
+        self._executions = {
+            execution.execution_id: execution
+            for execution in self.store.load_executions()
+        }
+        self._recovered_interruptions = self._recover_interrupted()
 
     def status(self) -> KernelStatus:
         executions = list(self._executions.values())
@@ -59,6 +68,8 @@ class CognitiveKernel:
                 for execution in executions
             ),
             cancellation_requests=self.cancellations.requested_count(),
+            recovered_interruptions=self._recovered_interruptions,
+            storage=self.store.status(),
         )
 
     def begin_execution(
@@ -110,6 +121,7 @@ class CognitiveKernel:
             budget=execution_budget,
         )
         self._executions[execution.execution_id] = execution
+        self.store.save_execution(execution)
         self.cancellations.register(execution.execution_id)
         return execution
 
@@ -139,6 +151,22 @@ class CognitiveKernel:
                 execution.execution_id,
             ),
         )
+
+    def delete_execution(self, execution_id: str) -> bool:
+        execution = self.get_execution(execution_id)
+        if execution.status in {
+            ExecutionStatus.PENDING,
+            ExecutionStatus.RUNNING,
+        }:
+            raise ValueError("active kernel executions cannot be deleted")
+        removed = self._executions.pop(execution_id, None) is not None
+        if removed:
+            self.store.delete_execution(execution_id)
+        return removed
+
+    def backup_state(self, destination: str) -> str:
+        """Create a consistent backup of durable kernel state."""
+        return str(self.store.backup_to(destination))
 
     def request_cancellation(self, execution_id: str, reason: str) -> None:
         execution = self.get_execution(execution_id)
@@ -335,6 +363,33 @@ class CognitiveKernel:
         else:
             self.goals.fail(execution.goal_id, reason)
 
+    def _recover_interrupted(self) -> int:
+        """Mark unfinished persisted work as interrupted after restart."""
+        recovered = 0
+        for execution in list(self._executions.values()):
+            if execution.status not in {
+                ExecutionStatus.PENDING,
+                ExecutionStatus.RUNNING,
+            }:
+                continue
+            updated = execution.model_copy(
+                update={
+                    "status": ExecutionStatus.INTERRUPTED,
+                    "finished_at": datetime.now(UTC),
+                    "error": "execution interrupted by runtime restart",
+                }
+            )
+            self._executions[execution.execution_id] = updated
+            self.store.save_execution(updated)
+            goal = self.goals.get(execution.goal_id)
+            if goal.status in {GoalStatus.PLANNED, GoalStatus.ACTIVE}:
+                self.goals.pause(
+                    goal.goal_id,
+                    "execution interrupted by runtime restart",
+                )
+            recovered += 1
+        return recovered
+
     @staticmethod
     def _artifact_integer(value: object) -> int:
         """Return an integer artifact value without unsafe coercion."""
@@ -357,6 +412,7 @@ class CognitiveKernel:
         execution = self.get_execution(execution_id)
         updated = execution.model_copy(update=updates)
         self._executions[execution_id] = updated
+        self.store.save_execution(updated)
         if updated.status not in {
             ExecutionStatus.PENDING,
             ExecutionStatus.RUNNING,
