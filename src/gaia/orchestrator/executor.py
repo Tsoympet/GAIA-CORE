@@ -36,7 +36,11 @@ class MultiAgentExecutor:
         self.agent_registry = agent_registry
         self.capability_router = capability_router
 
-    async def execute(self, graph: TaskGraph, session_id: str) -> ExecutionReport:
+    async def execute(
+        self,
+        graph: TaskGraph,
+        session_id: str,
+    ) -> ExecutionReport:
         """Execute every graph node once in deterministic topological order."""
         report = ExecutionReport(graph_id=graph.id)
         for node in graph.execution_order():
@@ -62,8 +66,6 @@ class MultiAgentExecutor:
         node.assigned_agent = route.selected_agent
         node.assigned_model = route.selected_model
         node.assigned_tool = route.selected_tool
-        node.selected_model = route.selected_model
-        node.selected_tool = route.selected_tool
         node.execution_mode = route.execution_mode
 
         agent = self.agent_registry.get(route.selected_agent)
