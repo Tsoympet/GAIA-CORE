@@ -24,8 +24,6 @@ class TaskNode(BaseModel):
     assigned_agent: str | None = None
     assigned_model: str | None = None
     assigned_tool: str | None = None
-    selected_model: str | None = None
-    selected_tool: str | None = None
     execution_mode: str | None = None
     execution_status: str = "pending"
     result: dict[str, object] = Field(default_factory=dict)
@@ -40,7 +38,7 @@ class TaskGraph(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
-    def validate_dependencies(self) -> "TaskGraph":
+    def validate_dependencies(self) -> TaskGraph:
         """Ensure dependency references are valid and the graph is acyclic."""
         node_ids = [node.id for node in self.nodes]
         if len(node_ids) != len(set(node_ids)):
@@ -60,21 +58,25 @@ class TaskGraph(BaseModel):
         return self
 
     def execution_order(self) -> list[TaskNode]:
-        """Return nodes in deterministic dependency-respecting order."""
+        """Return nodes in stable dependency-respecting order."""
         ordered: list[TaskNode] = []
         remaining = {node.id: node for node in self.nodes}
+        positions = {node.id: index for index, node in enumerate(self.nodes)}
 
         while remaining:
             completed = {node.id for node in ordered}
             ready = [
                 node
                 for node in remaining.values()
-                if all(dependency in completed for dependency in node.dependencies)
+                if all(
+                    dependency in completed
+                    for dependency in node.dependencies
+                )
             ]
             if not ready:
                 raise ValueError("task graph contains a cycle")
 
-            for node in sorted(ready, key=lambda item: item.id):
+            for node in sorted(ready, key=lambda item: positions[item.id]):
                 ordered.append(node)
                 remaining.pop(node.id)
 
@@ -99,7 +101,11 @@ class TaskGraphBuilder:
             ],
         )
 
-    def build_from_steps(self, objective: str, steps: list["TaskStep"]) -> TaskGraph:
+    def build_from_steps(
+        self,
+        objective: str,
+        steps: list[TaskStep],
+    ) -> TaskGraph:
         """Build a validated graph from structured planner steps."""
         return TaskGraph(
             objective=objective,
@@ -107,7 +113,9 @@ class TaskGraphBuilder:
                 TaskNode(
                     id=step.id,
                     objective=step.objective,
-                    required_capabilities=step.required_capabilities or ["reasoning"],
+                    required_capabilities=(
+                        step.required_capabilities or ["reasoning"]
+                    ),
                     dependencies=step.dependencies,
                     execution_mode=step.execution_hint,
                 )
