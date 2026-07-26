@@ -1,75 +1,84 @@
 # GAIA Phase Status
 
-## Current Repository Position
+## Recovery state
 
-GAIA has a runnable Phase 1/2 backend foundation and an initial deterministic
-Phase 3 orchestration pipeline. Phase 4 memory/workspace work now has first-pass local controls for consent,
-export, retention policy checks, symbolic facts, vector indexing, deletion review,
-user-facing review APIs, and durable SQLite workspace metadata.
-Phase 3 orchestration pipeline. Phase 4 memory/workspace work is partially
-scaffolded and now has first-pass local controls for consent, export, retention
-policy checks, symbolic facts, vector indexing, and deletion review.
+The repository is in **Recovery R0**. New cognitive capabilities remain blocked until the existing foundation is coherent, testable, and protected by CI.
 
-## Phase 3 — Orchestration Status
+The recovery branch is `agent/recover-orchestrator-baseline` and is reviewed through draft pull request #16.
 
-Implemented:
+## R0.1 — Orchestration baseline
 
-- Structured `TaskStep` planner output.
-- Multi-capability task decomposition into dependency-ordered DAG nodes.
-- Task graph validation and dependency-respecting execution order.
-- Capability routing with selected agent, model profile, tool adapter, execution
-  mode, candidates, rationale, and approval signal.
-- Executor node state transitions and route metadata persistence.
-- Aggregated response artifacts for pipeline stages, routes, node statuses, and
-  reflection.
-- Simulated metacognitive reflection pass after aggregation.
+Completed on the recovery branch:
 
-Still needed:
+- one canonical `TaskStep` and `TaskPlan` contract;
+- deterministic dependency-ordered task planning;
+- validated DAG construction with duplicate-ID, missing-dependency, and cycle rejection;
+- one capability-router implementation with local-first model/tool metadata;
+- permission-gated execution modes for risky capabilities;
+- exactly one selected-agent invocation per task node;
+- coherent aggregation, route/status artifacts, reflection, and memory events;
+- regression coverage for single node execution.
 
-- Configurable model/tool registry scoring instead of fixed heuristic routing.
-- Parallel execution for independent graph branches.
-- Durable graph run persistence.
-- Streaming orchestration events and operator-visible traces.
+## R0.2 — Memory, tests, documentation, and CI
 
-## Phase 4 — Memory and Workspace Status
+Completed or in progress:
 
-Implemented/scaffolded:
+- Phase 4 memory/workspace source inspected for merge duplication;
+- stale duplicate Phase 3 test contract removed;
+- core pipeline expectations aligned with the single-execution invariant;
+- approved memory deletion now removes indexed vector derivatives as well as scoped records;
+- recovery and architecture documents normalized;
+- GitHub Actions validation added for compilation, linting, typing, and tests.
 
-- Scoped memory containers for project, user, session, and timeline memory.
-- Local in-memory vector indexing and retrieval.
-- Symbolic fact storage.
-- Retention policy checks.
-- Owner consent grant/revoke state.
-- Owner export grouped by memory scope.
-- Human-reviewable deletion requests before deletion is applied.
-- User-facing memory review, export, consent, and deletion-review API routes.
-- Durable local SQLite workspace create/list/get routes.
-- Phase 4 unit/integration tests for status, consent, indexing, facts, export-ready
-  records, deletion review, memory review APIs, and workspace persistence.
+## Current implemented foundation
 
-Still needed:
+### Phase 1/2 — Runtime foundation
 
-- Durable SQLite/PostgreSQL persistence for memory records themselves.
-- Workspace-scoped memory binding and workspace timeline events.
-- Memory audit events connected to the security audit log.
-- Vector backend adapters beyond in-memory bootstrap embeddings.
-- Phase 4 unit tests for status, consent, indexing, facts, export-ready records,
-  and deletion review.
+- FastAPI and CLI bootstrap;
+- local-first model registry and disabled-by-default cloud fallback;
+- agent and capability registries;
+- initial security policy, permission records, guards, audit scaffolding, and kill switch;
+- Tauri/React desktop shell;
+- synthetic voice abstractions and API scaffolding.
 
-Still needed:
+### Phase 3 — Orchestration
 
-- Durable SQLite/PostgreSQL persistence.
-- Workspace objects and workspace lifecycle APIs.
-- Memory audit events connected to the security audit log.
-- Vector backend adapters beyond in-memory bootstrap embeddings.
-- User-facing memory review/export/delete endpoints.
-- Migration scripts and backup/restore workflows.
+- structured task steps;
+- dependency-aware task graph;
+- capability routing;
+- deterministic local agent execution;
+- result aggregation;
+- internal metacognitive reflection;
+- auditable route and status artifacts.
 
-## Recommendation
+### Phase 4 — Memory and workspaces
 
-Continue Phase 4 by binding memory records to durable workspaces and adding audit
-events before expanding autonomous scheduled work. This keeps GAIA local-first,
-consent-aware, and auditable while the orchestrator becomes more capable.
-Finish Phase 4 next by adding durable workspace persistence and memory review API
-endpoints before expanding autonomous scheduled work. This keeps GAIA local-first
-and auditable while the orchestrator becomes more capable.
+- project, user, session, and timeline scopes;
+- local in-memory vector indexing and retrieval;
+- symbolic facts;
+- retention checks;
+- owner consent grant/revoke state;
+- export grouped by scope;
+- review-gated deletion including indexed derivatives;
+- memory review APIs;
+- durable local SQLite workspace metadata and lifecycle APIs.
+
+## Validation gate
+
+Recovery R0 is complete only when the branch passes:
+
+1. Python bytecode compilation;
+2. Ruff checks;
+3. strict mypy checks;
+4. the complete pytest suite;
+5. FastAPI route smoke tests;
+6. a repository-wide duplicate-definition scan;
+7. review of all remaining overlapping PR files.
+
+## Work blocked until R0 is green
+
+Do not add the Cognitive Kernel, Cognitive Continuity, Memory Organism, Living Project Intelligence, GAIA Forge, Research Laboratory, autonomous tools, or physical-AI adapters before the recovery baseline is validated.
+
+## Next action
+
+Run CI on PR #16, repair any remaining failures, scan untouched source and test files for merge artifacts, and issue the first versioned clean GAIA baseline.
