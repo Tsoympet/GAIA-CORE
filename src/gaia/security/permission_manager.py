@@ -20,6 +20,7 @@ class Permission(StrEnum):
     GITHUB_PUSH = "github.push"
     PACKAGE_INSTALL = "package.install"
     API_KEY_USE = "api_key.use"
+    SECRET_READ = "secret.read"
     CODE_EXECUTION = "code.execution"
     SELF_MODIFY = "self.modify"
     SCHEDULED_AUTONOMY = "autonomy.scheduled"
@@ -36,6 +37,7 @@ RISKY_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.GITHUB_PUSH,
         Permission.PACKAGE_INSTALL,
         Permission.API_KEY_USE,
+        Permission.SECRET_READ,
         Permission.CODE_EXECUTION,
         Permission.SELF_MODIFY,
         Permission.SCHEDULED_AUTONOMY,
