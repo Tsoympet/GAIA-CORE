@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from gaia.core.runtime import GaiaRuntime, TaskRequest, create_runtime
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import OrchestrationPlan
+from gaia.server.deps import GaiaServices, get_services
 from gaia.server.routes import ROUTERS
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,12 @@ def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
     runtime = runtime or create_runtime(config_dir=Path("config"))
     app = FastAPI(title="GAIA Core Runtime", version="0.1.0")
     app.state.runtime = runtime
+    app.state.services = GaiaServices(
+        permissions=runtime.permission_manager,
+        security_policy=runtime.security_policy,
+    )
+    app.dependency_overrides[get_services] = lambda: app.state.services
+
     for router in ROUTERS:
         app.include_router(router)
 
@@ -80,23 +87,18 @@ def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
             ]
         }
 
-    @app.get("/memory/status")
-    async def memory_status() -> dict[str, Any]:
+    @app.get("/runtime/memory/status")
+    async def runtime_memory_status() -> dict[str, Any]:
+        """Return append-only orchestration-event memory status.
+
+        Scoped user/project memory remains available at ``/memory/status`` through
+        the canonical memory router.
+        """
         return {
             "status": "ok",
             "backend": "in-memory",
             "records": len(runtime.memory_store.records),
             "append_only": True,
-        }
-
-    @app.get("/security/status")
-    async def security_status() -> dict[str, Any]:
-        return {
-            "status": "ok",
-            "sandbox_required": runtime.security_policy.sandbox_required,
-            "human_override_available": runtime.security_policy.human_override_available,
-            "autonomy_kill_switch": runtime.permission_manager.autonomy_kill_switch,
-            "risky_actions_require_permission": True,
         }
 
     @app.post("/tasks", response_model=TaskResponse)

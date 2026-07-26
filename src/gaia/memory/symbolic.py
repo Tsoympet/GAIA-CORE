@@ -27,8 +27,14 @@ class SymbolicMemory:
         self.facts[fact.fact_id] = fact
         return fact
 
-    def query(self, subject: str | None = None, predicate: str | None = None) -> list[SymbolicFact]:
+    def query(
+        self,
+        subject: str | None = None,
+        predicate: str | None = None,
+    ) -> list[SymbolicFact]:
         return [
-            fact for fact in self.facts.values()
-            if (subject is None or fact.subject == subject) and (predicate is None or fact.predicate == predicate)
+            fact
+            for fact in self.facts.values()
+            if (subject is None or fact.subject == subject)
+            and (predicate is None or fact.predicate == predicate)
         ]

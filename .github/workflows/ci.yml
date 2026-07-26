@@ -1,0 +1,88 @@
+name: GAIA CI
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run complete validation suite
+        id: validation
+        shell: bash
+        run: |
+          mkdir -p ci-logs
+          set +e
+
+          python -m compileall -q src tests >ci-logs/compile.log 2>&1
+          compile_status=$?
+
+          python -m ruff check src tests >ci-logs/ruff.log 2>&1
+          ruff_status=$?
+
+          python -m mypy src >ci-logs/mypy.log 2>&1
+          mypy_status=$?
+
+          python -m pytest -q >ci-logs/pytest.log 2>&1
+          pytest_status=$?
+
+          {
+            echo "compile=$compile_status"
+            echo "ruff=$ruff_status"
+            echo "mypy=$mypy_status"
+            echo "pytest=$pytest_status"
+          } | tee ci-logs/summary.txt
+
+          tar -czf ci-logs/source-snapshot.tar.gz \
+            src \
+            tests \
+            pyproject.toml
+
+          failed=false
+          for status in \
+            "$compile_status" \
+            "$ruff_status" \
+            "$mypy_status" \
+            "$pytest_status"; do
+            if [ "$status" -ne 0 ]; then
+              failed=true
+            fi
+          done
+          echo "failed=$failed" >>"$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaia-ci-logs
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Fail when validation reports errors
+        if: steps.validation.outputs.failed == 'true'
+        run: exit 1

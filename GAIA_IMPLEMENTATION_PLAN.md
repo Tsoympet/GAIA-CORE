@@ -1,78 +1,114 @@
 # GAIA Implementation Plan
 
-## Phase 1: Repository cleanup and runnable backend
-- Keep FastAPI app importable and covered by tests.
-- Maintain typed runtime composition and `/tasks` endpoint.
-- Add CI checks, linting, and baseline packaging.
+GAIA is developed as an original, local-first Cognitive Operating System. Language models are replaceable reasoning components; the permanent platform consists of the cognitive kernel, memory, project intelligence, permissions, tools, evidence, and controlled learning systems.
 
-## Phase 2: OpenJarvis-derived runtime foundation
-- Expand CLI/server/desktop lifecycle.
-- Add skills/tools registry and local connector ingestion.
-- Add Ollama and local model health checks.
+No new autonomous capability may bypass the recovery, validation, permission, or human-approval gates defined below.
 
-## Phase 3: JARVIS-style planner/router/executor
-- Status: initial deterministic foundation implemented.
-- Evolve single-node plans into multi-node DAG decomposition.
-- Add model/tool/execution-mode routing metadata for each task node.
-- Add response synthesis over artifacts and a simulated reflection pass.
-- Next: replace heuristic scoring with configurable local model/tool profiles.
+## R0 — Repository recovery and clean baseline
 
-## Phase 4: Memory and workspace system
-- Status: initial local-first memory controls, review APIs, and durable workspace metadata implemented.
-- Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.
-- Add memory consent, retention, export, and deletion review.
-- Next: bind memory to workspaces, persist memory records durably, add audit hooks, and add backup/restore workflows.
-- Evolve single-node plans into multi-node DAG decomposition.
-- Add model/tool/execution-mode routing metadata for each task node.
-- Add response synthesis over artifacts and a simulated reflection pass.
-- Next: replace heuristic scoring with configurable local model/tool profiles.
-- Evolve single-node plans into multi-node DAG decomposition.
-- Add model/tool/execution-mode routing metadata for each task node.
-- Add response synthesis over artifacts and a simulated reflection pass.
-- Next: replace heuristic scoring with configurable local model/tool profiles.
-- Status: initial implementation added.
-- Evolve single-node plans into multi-node DAG decomposition.
-- Add model/capability scoring and execution traces.
-- Add response synthesis over artifacts.
-- Current foundation supports structured planner steps, dependency-backed task
-  graph nodes, agent/model/tool/execution-mode routing hints, aggregation, and
-  a metacognitive reflection pass in the runtime response artifacts.
-- Next refinements: replace heuristic decomposition with configurable planners,
-  add route scoring weights, persist execution traces, and introduce streaming
-  task events.
-- Status: initial bootstrap implemented.
-- Structured `PlanStep` objects now build dependency-aware DAGs.
-- Capability routes now include selected agent, local-first model family, safe tool metadata, and execution mode.
-- Runtime execution now performs aggregation followed by a reflection pass with confidence/uncertainty artifacts.
-- Next: replace deterministic heuristics with configurable scoring, richer task decomposition, streaming graph events, and human approval checkpoints.
+Status: in progress on `agent/recover-orchestrator-baseline`.
 
-## Phase 4: Memory and workspace system
-- Status: initial local-first memory controls implemented; durable workspace persistence remains next.
-- Add scoped workspace stores, timeline memory, symbolic memory, and vector backends.
-- Add memory consent, retention, export, and deletion review.
-- Next: add workspace lifecycle APIs, durable storage, audit hooks, and memory review endpoints.
+Required outcomes:
 
-## Phase 5: Desktop UI
-- Build mission-control navigation for tasks, agents, graphs, memory, models, security, voice, and settings.
-- Add streaming status and human override controls.
+- remove duplicate merge fragments and conflicting implementations;
+- restore one canonical orchestration contract;
+- guarantee one agent invocation per graph node;
+- normalize tests and documentation;
+- repair deletion, provenance, and audit invariants;
+- add CI for compile, lint, type, and test checks;
+- issue a versioned clean baseline before feature expansion.
 
-## Phase 6: Self-model and metacognition
-- Implement simulated self-model, capability maps, limitation registry, confidence, uncertainty, and reflective review.
-- Keep terminology explicit: engineering simulation, not biological consciousness.
+## R1 — Cognitive Kernel
 
-## Phase 7: Idle cognition / dreaming simulation
-- Add no-action idle scheduler, memory consolidation, session summarization, replay, synthetic scenarios, and dream journal.
-- Enforce no external actions, no deletion, no package install, no GitHub push, and no external communication.
+Build the stable platform center responsible for:
 
-## Phase 8: Voice system
-- Integrate Piper/Coqui/XTTS/Bark/OpenVoice only after license and consent review.
-- Add Whisper/faster-whisper STT, wake word, microphone/speaker sessions, voice logs, and text fallback.
+- goals and task state;
+- context and resource management;
+- planning and task graphs;
+- model, agent, and tool routing;
+- verification and uncertainty;
+- permissions and policy enforcement;
+- cancellation, interruption, and safe recovery.
 
-## Phase 9: Security hardening
-- Enforce permission manager, policy engine, command/file/network guards, secrets manager, audit log, rollback, self-modification guard, and kill switch.
+## R2 — Cognitive Continuity
 
-## Phase 10: Plugin ecosystem
-- Define plugin manifests, signatures, capability declarations, sandbox policies, and marketplace governance.
+Implement structured durable checkpoints containing objectives, plans, decisions, failures, open questions, repository state, permissions, evidence, and the next safe action. Support recovery after restarts, crashes, context compression, and model replacement.
 
-## Phase 11: Production deployment
-- Add Docker images, worker services, reverse proxy, systemd units, observability, backups, and release automation.
+## R3 — Memory Organism and Provenance Ledger
+
+Separate and govern:
+
+- working memory;
+- episodic memory;
+- semantic memory;
+- procedural memory;
+- project memory;
+- correction memory;
+- user-preference memory;
+- simulation memory;
+- identity memory;
+- timeline memory.
+
+Every important record must include provenance, confidence, validation state, retention policy, contradictions, dependencies, and derived-record lineage. Deletion must include derived summaries and indexes.
+
+## R4 — Living Project Intelligence
+
+Represent each project as a versioned knowledge structure containing objectives, requirements, files, repositories, decisions, dependencies, risks, tests, evidence, unresolved questions, and future actions.
+
+## R5 — Skill Registry and GAIA Forge
+
+Create immutable, signed, versioned skills with compatibility, permissions, evaluations, promotion states, and rollback targets.
+
+Forge may observe repeated workflows, generate candidate skills, test them in isolation, compare performance, and request approval. It may not promote its own output or change safety policy.
+
+## R6 — Research Laboratory
+
+Implement controlled research campaigns with:
+
+- frozen baselines;
+- hypotheses;
+- isolated experiment branches;
+- paper ingestion and algorithm extraction;
+- paper-to-code translation;
+- reproducibility checks;
+- metric and evidence ledgers;
+- compute and time budgets;
+- independent review;
+- approval-gated promotion.
+
+## R7 — Voice and multimodal runtime
+
+Complete the unique synthetic GAIA voice, local speech recognition, wake word, interruption handling, full-duplex session design, vision, document, image, and audio routing. Retain text fallback and explicit consent for voice export or biometric processing.
+
+## R8 — Desktop mission-control interface
+
+Build the production Tauri/React workstation for tasks, graphs, projects, memory, evidence, models, agents, skills, research campaigns, dreaming, voice, permissions, security, resources, audit, and rollback.
+
+## R9 — Secure tools and computer use
+
+Enable files, terminal, Python, browser, Git, GitHub, Docker, documents, spreadsheets, media, APIs, and CAD/CAE only through declared capabilities, sandboxes, resource limits, audit logs, dry-run support, confirmation gates, and rollback.
+
+## R10 — Dream Laboratory and controlled self-improvement
+
+Idle cognition may consolidate memory, replay failures, test alternatives, identify contradictions, and generate hypotheses inside an isolated no-action environment. Simulation output remains untrusted until independently validated.
+
+## R11 — Physical-AI simulation adapters
+
+Add robotics, world-model, digital-twin, and visual-maintenance adapters in simulation only. Physical actuation remains prohibited until deterministic interlocks, emergency stop, operator presence, and independent safety validation exist.
+
+## R12 — Production deployment and plugin ecosystem
+
+Add signed plugins, package governance, migration tools, backup and restore, observability, Docker images, system services, release automation, and supported Windows/Linux installers.
+
+## Non-negotiable rules
+
+- local-first and offline-capable by default;
+- human override always available;
+- no hidden goals or concealed actions;
+- no automatic permission expansion;
+- no automatic production merge or self-promotion;
+- no cloud transfer of private project data without approval;
+- no simulated result represented as fact;
+- no deletion that leaves searchable derived data;
+- no external communication, installation, GitHub mutation, or destructive file action without policy approval;
+- no claim of biological consciousness or legal/moral independence.

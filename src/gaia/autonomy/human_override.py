@@ -1,6 +1,9 @@
 """GAIA human override."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class HumanOverride(BaseModel):
     """Safe engineering simulation component for human override."""

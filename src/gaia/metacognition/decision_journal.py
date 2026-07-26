@@ -1,6 +1,9 @@
 """GAIA decision journal."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class DecisionJournal(BaseModel):
     """Safe engineering simulation component for decision journal."""

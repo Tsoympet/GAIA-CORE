@@ -1,6 +1,9 @@
 """GAIA goal manager."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class GoalManager(BaseModel):
     """Safe engineering simulation component for goal manager."""

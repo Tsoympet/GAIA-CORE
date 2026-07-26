@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-import json
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -41,7 +41,7 @@ class AuditEvent:
 
 
 class AuditLog:
-    """Small append-only JSONL audit log suitable for local-first deployments."""
+    """Append-only JSONL audit log for local-first deployments."""
 
     def __init__(self, path: Path | str = ".gaia/audit/security.jsonl") -> None:
         self.path = Path(path)

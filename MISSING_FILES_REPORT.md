@@ -1,49 +1,72 @@
-# Missing Files Report
+# GAIA Implementation Gap Report
 
-## Phase 1/2 Repository Scan Summary
+## Current assessment
 
-The repository now contains the first runnable GAIA foundation rather than a raw
-OpenJarvis-branded application. Core package paths live under `src/gaia`, the
-FastAPI service is titled GAIA, and the project metadata names `gaia-core`.
+The repository is an unfinished foundation. It contains useful runtime, orchestration, memory, security, voice, server, and desktop scaffolding, but most advanced GAIA capabilities discussed for the Cognitive Operating System are not yet production implementations.
 
-## Created or Confirmed Foundation Files
+The authoritative feature status and completion criteria are maintained in `CAPABILITY_IMPLEMENTATION_REGISTER.md`.
 
-- Core runtime/session modules under `src/gaia/core/`.
-- Orchestrator planner, task graph, executor, and aggregator under
-  `src/gaia/orchestrator/`.
-- Capability registry/router modules under `src/gaia/capabilities/`.
-- Base agent and default agent registry under `src/gaia/agents/`.
-- In-memory memory manager and permission manager under `src/gaia/memory/` and
-  `src/gaia/security/`.
-- FastAPI application entry point under `src/gaia/server/app.py`.
-- CLI entry point under `src/gaia/cli.py`.
-- Project documents: `README.md`, `ARCHITECTURE_COMPARISON.md`,
-  `MODULE_MAPPING.md`, `GAIA_IMPLEMENTATION_PLAN.md`, `NOTICE`, and this report.
+## Recovery findings
 
-## Required API Surface
+Recovery R0 has confirmed that earlier overlapping pull requests introduced more than documentation duplication. The recovered branch has found and repaired or removed:
 
-The backend exposes the Phase 2 endpoints:
+- duplicate planner, task graph, router, executor, and aggregation implementations;
+- repeated execution of the same agent for one graph node;
+- stale test contracts that expected duplicate execution;
+- incomplete memory deletion that retained searchable vector derivatives;
+- duplicate FastAPI method/path registrations;
+- a redundant pytest async shim that overrode the declared plugin;
+- a broken high-level `GaiaCore` facade targeting a removed runtime API;
+- an obsolete second orchestration framework;
+- obsolete standalone agent classes targeting a removed base-agent API;
+- duplicate placeholder security guards beside the functional guards;
+- invalid permission enum references in functional guards;
+- separate API and permission-manager kill-switch states;
+- conflicting security package exports.
 
-- `GET /health`
-- `GET /version`
-- `POST /tasks`
-- `GET /agents`
-- `GET /capabilities`
-- `GET /memory/status`
-- `GET /security/status`
+## Working foundation retained
 
-## Phase 3 Progress
+The recovery branch retains and strengthens:
 
-- Added structured planner steps for the bootstrap HuggingGPT-style pipeline.
-- Added route metadata for selected model, selected tool, and execution mode.
-- Added reflection artifacts to final task responses.
+- the canonical `GaiaRuntime` composition root;
+- deterministic task planning and validated DAG execution;
+- capability routing and specialist agent registration;
+- local-first model catalog and disabled-by-default cloud fallback;
+- append-only runtime event memory;
+- scoped memory, consent, review, export, deletion, vector indexing, and symbolic facts;
+- durable SQLite workspace metadata;
+- permission manager, audit log, functional guards, shared kill switch, and objective policy;
+- FastAPI task, status, memory, workspace, security, voice, and audio routes;
+- synthetic voice abstractions and safety controls;
+- dreaming, self-model, metacognition, autonomy, deployment, and desktop scaffolding.
 
-## Known Remaining Gaps
+## Major capabilities still requiring real code
 
-- Real model backends, tool execution, workspace persistence, and external action
-  adapters remain placeholders pending explicit security policy and provider
-  integration work.
-- The task graph is intentionally minimal and single-node by default, but it now
-  stores node status and result payloads so multi-step execution can be expanded.
-- Voice, dreaming, self-modeling, and advanced security modules are scaffolded,
-  but production integrations are future phases.
+The following are missing or incomplete and must be implemented after the clean recovery baseline:
+
+- Cognitive Kernel;
+- Cognitive Continuity and crash-safe task resumption;
+- full Memory Organism and Evidence/Provenance Ledger;
+- Living Project Intelligence;
+- real specialist agents backed by models and tools;
+- complete local Model Fabric;
+- signed Skill Registry;
+- GAIA Forge;
+- Research Laboratory and paper-to-code reproduction pipeline;
+- secure Tool Runtime;
+- file, terminal, browser, desktop, GitHub, document, spreadsheet, and CAD/CAE adapters;
+- real local speech recognition and speech synthesis;
+- realtime full-duplex voice interaction;
+- production multimodal and vision routing;
+- implemented Dream Laboratory and controlled idle learning;
+- complete desktop mission-control interface;
+- observability, migrations, backup, restore, plugins, installers, and release automation;
+- simulation-first robotics and physical-AI adapters.
+
+## Rule for future completion claims
+
+A class name, route stub, static status response, provider placeholder, empty desktop panel, or architecture document does not make a feature complete. Each capability must satisfy the code, persistence, security, testing, API, desktop, licensing, and rollback requirements in `CAPABILITY_IMPLEMENTATION_REGISTER.md` before it can be marked implemented.
+
+## Immediate next step
+
+Finish Recovery R0, obtain a clean validated baseline, and then begin R1 by implementing the Cognitive Kernel as the canonical platform center. No new subsystem should create another parallel runtime, memory, security, or orchestration contract.

@@ -1,181 +1,119 @@
-"""High-level facade for configuring and operating GAIA Core."""
+"""High-level compatibility facade for configuring and operating GAIA Core."""
 
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from .context import ExecutionContext, MemoryHook, SecurityContext
-from .event_bus import EventBus
-from .lifecycle import LifecycleHook, LifecycleManager
-from .runtime import GaiaRuntime, TaskCallable, TaskRecord
-from .session import Session, SessionManager
-
-AgentHandler = TaskCallable
-OrchestratorHandler = Callable[[Any, ExecutionContext, dict[str, AgentHandler]], Awaitable[Any] | Any]
+from gaia.core.runtime import GaiaRuntime, RuntimeStatus, TaskRequest, create_runtime
+from gaia.core.session import Session
+from gaia.orchestrator.aggregator import AggregatedResponse
 
 
 class GaiaCore:
-    """Convenience facade for applications embedding the GAIA runtime."""
+    """Small application facade over the canonical recovered ``GaiaRuntime``.
+
+    Earlier repository revisions exposed a second, incompatible runtime through
+    this module. The recovery baseline keeps one runtime implementation and uses
+    this class only as a convenience wrapper for embedding applications.
+    """
 
     def __init__(
         self,
         *,
-        config: dict[str, Any] | None = None,
+        config: Mapping[str, Any] | None = None,
         workspace: str | Path | None = None,
-        event_bus: EventBus | None = None,
         runtime: GaiaRuntime | None = None,
-        sessions: SessionManager | None = None,
     ) -> None:
-        self.config = config or {}
-        self.workspace = Path(workspace or self.config.get("workspace", ".gaia")).expanduser().resolve()
-        self.event_bus = event_bus or EventBus()
-        self.lifecycle = LifecycleManager()
-        self.runtime = runtime or GaiaRuntime(event_bus=self.event_bus, lifecycle=self.lifecycle)
-        self.sessions = sessions or SessionManager()
-        self.agents: dict[str, AgentHandler] = {}
-        self.orchestrators: dict[str, OrchestratorHandler] = {}
-        self.memory_hooks: list[MemoryHook] = []
+        self.config: dict[str, Any] = dict(config or {})
+        configured_workspace = workspace or self.config.get("workspace", ".gaia")
+        self.workspace = (
+            Path(cast(str | Path, configured_workspace)).expanduser().resolve()
+        )
+        config_dir = cast(str | Path, self.config.get("config_dir", "config"))
+        self.runtime = runtime or create_runtime(config_dir)
 
     @classmethod
-    def from_config_file(cls, path: str | Path, **overrides: Any) -> "GaiaCore":
+    def from_config_file(
+        cls,
+        path: str | Path,
+        *,
+        config_overrides: Mapping[str, Any] | None = None,
+        workspace: str | Path | None = None,
+        runtime: GaiaRuntime | None = None,
+    ) -> GaiaCore:
         """Create a facade from a JSON or TOML configuration file."""
-
-        config_path = Path(path).expanduser()
-        data = cls.load_config(config_path)
-        data.update(overrides.pop("config", {}))
-        return cls(config=data, **overrides)
+        config = cls.load_config(path)
+        config.update(config_overrides or {})
+        return cls(config=config, workspace=workspace, runtime=runtime)
 
     @staticmethod
     def load_config(path: str | Path) -> dict[str, Any]:
-        """Load JSON or TOML configuration from disk."""
-
+        """Load a JSON or TOML configuration object from disk."""
         config_path = Path(path).expanduser()
         if not config_path.exists():
             raise FileNotFoundError(config_path)
+
         text = config_path.read_text(encoding="utf-8")
         if config_path.suffix.lower() == ".json":
-            loaded = json.loads(text)
+            loaded: object = json.loads(text)
         elif config_path.suffix.lower() in {".toml", ".tml"}:
             import tomllib
 
             loaded = tomllib.loads(text)
         else:
             raise ValueError("unsupported config format; use .json or .toml")
+
         if not isinstance(loaded, dict):
             raise ValueError("configuration root must be an object")
-        return loaded
+        return cast(dict[str, Any], loaded)
 
-    async def startup(self) -> None:
-        """Prepare workspace storage and start the async runtime."""
-
+    async def startup(self) -> RuntimeStatus:
+        """Prepare the local workspace and return runtime status."""
         self.workspace.mkdir(parents=True, exist_ok=True)
-        await self.runtime.start()
+        return self.runtime.status()
 
     async def shutdown(self) -> None:
-        """Shut down runtime services."""
+        """Compatibility shutdown hook for embedding applications.
 
-        await self.runtime.shutdown()
+        The current bootstrap runtime owns no background process. Future kernel
+        lifecycle services can be connected here without introducing a second
+        runtime implementation.
+        """
 
-    def register_agent(
-        self,
-        name: str,
-        handler: AgentHandler | None = None,
-    ) -> AgentHandler | Callable[[AgentHandler], AgentHandler]:
-        """Register an agent callable by name, directly or as a decorator."""
-
-        def decorator(agent_handler: AgentHandler) -> AgentHandler:
-            self.agents[name] = agent_handler
-            return agent_handler
-
-        if handler is None:
-            return decorator
-        return decorator(handler)
-
-    def register_orchestrator(
-        self,
-        name: str,
-        handler: OrchestratorHandler | None = None,
-    ) -> OrchestratorHandler | Callable[[OrchestratorHandler], OrchestratorHandler]:
-        """Register an orchestrator callable by name, directly or as a decorator."""
-
-        def decorator(orchestrator_handler: OrchestratorHandler) -> OrchestratorHandler:
-            self.orchestrators[name] = orchestrator_handler
-            return orchestrator_handler
-
-        if handler is None:
-            return decorator
-        return decorator(handler)
-
-    def register_memory_hook(self, hook: MemoryHook) -> MemoryHook:
-        """Register a hook invoked by execution contexts for memory side effects."""
-
-        self.memory_hooks.append(hook)
-        return hook
-
-    def on_startup(self, hook: LifecycleHook) -> LifecycleHook:
-        return self.lifecycle.on_startup(hook)
-
-    def on_shutdown(self, hook: LifecycleHook) -> LifecycleHook:
-        return self.lifecycle.on_shutdown(hook)
+    def status(self) -> RuntimeStatus:
+        """Return the canonical runtime status."""
+        return self.runtime.status()
 
     async def create_session(
         self,
         user_id: str = "anonymous",
         *,
+        workspace_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Session:
-        return await self.sessions.create_session(user_id=user_id, metadata=metadata)
-
-    async def build_context(
-        self,
-        *,
-        session: Session | None = None,
-        session_id: str | None = None,
-        security: SecurityContext | None = None,
-    ) -> ExecutionContext:
-        """Build an execution context for a request."""
-
-        if session is None and session_id is not None:
-            session = await self.sessions.require_session(session_id)
-        if session is None:
-            session = await self.create_session()
-        return ExecutionContext(
-            session=session,
-            workspace=self.workspace,
-            config=self.config,
-            security=security or SecurityContext(principal=session.user_id),
-            memory_hooks=list(self.memory_hooks),
+        """Create a session through the canonical runtime session manager."""
+        return await self.runtime.sessions.create_session(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            metadata=metadata,
         )
 
     async def submit_task(
         self,
-        name: str,
-        payload: Any,
+        task: str,
         *,
-        agent: str | None = None,
-        orchestrator: str | None = None,
-        context: ExecutionContext | None = None,
+        capabilities: list[str] | None = None,
         session_id: str | None = None,
-    ) -> TaskRecord:
-        """Submit work to an agent or orchestrator."""
-
-        if (agent is None) == (orchestrator is None):
-            raise ValueError("provide exactly one of agent or orchestrator")
-        context = context or await self.build_context(session_id=session_id)
-        if agent is not None:
-            handler = self.agents[agent]
-            task_name = f"agent:{agent}:{name}"
-        else:
-            orchestrator_handler = self.orchestrators[orchestrator or ""]
-
-            async def handler(data: Any, ctx: ExecutionContext) -> Any:
-                result = orchestrator_handler(data, ctx, self.agents)
-                if hasattr(result, "__await__"):
-                    return await result
-                return result
-
-            task_name = f"orchestrator:{orchestrator}:{name}"
-        return await self.runtime.submit(task_name, handler, payload, context)
+        metadata: dict[str, Any] | None = None,
+    ) -> AggregatedResponse:
+        """Submit a task through the canonical recovered orchestration runtime."""
+        request = TaskRequest(
+            task=task,
+            session_id=session_id,
+            capabilities=capabilities or [],
+            metadata=metadata or {},
+        )
+        return await self.runtime.submit_task(request)

@@ -1,75 +1,131 @@
 # GAIA Phase Status
 
-## Current Repository Position
+## Recovery state
 
-GAIA has a runnable Phase 1/2 backend foundation and an initial deterministic
-Phase 3 orchestration pipeline. Phase 4 memory/workspace work now has first-pass local controls for consent,
-export, retention policy checks, symbolic facts, vector indexing, deletion review,
-user-facing review APIs, and durable SQLite workspace metadata.
-Phase 3 orchestration pipeline. Phase 4 memory/workspace work is partially
-scaffolded and now has first-pass local controls for consent, export, retention
-policy checks, symbolic facts, vector indexing, and deletion review.
+**Recovery R0 is validated on the recovery branch.**
 
-## Phase 3 — Orchestration Status
+Branch: `agent/recover-orchestrator-baseline`  
+Review: pull request #16  
+Validated head: `33fc630c184ad3cd7956ef5b96de815cdf9f0ce7`
 
-Implemented:
+The complete post-recovery implementation backlog and completion standard are recorded in `CAPABILITY_IMPLEMENTATION_REGISTER.md`.
 
-- Structured `TaskStep` planner output.
-- Multi-capability task decomposition into dependency-ordered DAG nodes.
-- Task graph validation and dependency-respecting execution order.
-- Capability routing with selected agent, model profile, tool adapter, execution
-  mode, candidates, rationale, and approval signal.
-- Executor node state transitions and route metadata persistence.
-- Aggregated response artifacts for pipeline stages, routes, node statuses, and
-  reflection.
-- Simulated metacognitive reflection pass after aggregation.
+## R0.1 — Orchestration baseline
 
-Still needed:
+Completed:
 
-- Configurable model/tool registry scoring instead of fixed heuristic routing.
-- Parallel execution for independent graph branches.
-- Durable graph run persistence.
-- Streaming orchestration events and operator-visible traces.
+- one canonical `TaskStep` and `TaskPlan` contract;
+- deterministic dependency-ordered task planning;
+- validated DAG construction with duplicate-ID, missing-dependency, and cycle rejection;
+- one capability-router implementation with local-first model/tool metadata;
+- permission-gated execution modes for risky capabilities;
+- exactly one selected-agent invocation per task node;
+- coherent aggregation, route/status artifacts, reflection, and memory events;
+- regression coverage for single node execution.
 
-## Phase 4 — Memory and Workspace Status
+## R0.2 — Memory, tests, documentation, and CI
 
-Implemented/scaffolded:
+Completed:
 
-- Scoped memory containers for project, user, session, and timeline memory.
-- Local in-memory vector indexing and retrieval.
-- Symbolic fact storage.
-- Retention policy checks.
-- Owner consent grant/revoke state.
-- Owner export grouped by memory scope.
-- Human-reviewable deletion requests before deletion is applied.
-- User-facing memory review, export, consent, and deletion-review API routes.
-- Durable local SQLite workspace create/list/get routes.
-- Phase 4 unit/integration tests for status, consent, indexing, facts, export-ready
-  records, deletion review, memory review APIs, and workspace persistence.
+- Phase 4 memory/workspace source inspected for merge duplication;
+- stale duplicate Phase 3 test contract removed;
+- core pipeline expectations aligned with the single-execution invariant;
+- approved memory deletion removes indexed vector derivatives as well as scoped records;
+- vector store deletion and count contracts added;
+- recovery, memory, orchestration, and implementation documents normalized;
+- GitHub Actions validation added for compilation, linting, typing, tests, diagnostics, and source snapshots.
 
-Still needed:
+## R0.3 — Runtime, API, agents, and security
 
-- Durable SQLite/PostgreSQL persistence for memory records themselves.
-- Workspace-scoped memory binding and workspace timeline events.
-- Memory audit events connected to the security audit log.
-- Vector backend adapters beyond in-memory bootstrap embeddings.
-- Phase 4 unit tests for status, consent, indexing, facts, export-ready records,
-  and deletion review.
+Completed:
 
-Still needed:
+- duplicate FastAPI method/path registrations removed;
+- runtime event-memory status separated from scoped memory status;
+- redundant pytest async compatibility hook removed;
+- broken legacy `GaiaCore` facade replaced with a wrapper over the canonical runtime;
+- obsolete second orchestration framework removed;
+- obsolete standalone agent framework removed while preserving specialist agents in the canonical registry;
+- functional command, file, and network guards repaired;
+- duplicate placeholder guard modules removed;
+- permission and API kill-switch state unified;
+- self-modification and secret-read permissions repaired and approval-gated;
+- security package exports normalized;
+- API services bound to the runtime permission manager and security policy;
+- duplicate task-node routing fields removed;
+- capability-registry type shadowing removed;
+- strict typing restored for agent capabilities and execution-context derivation;
+- route uniqueness, shared kill-switch, facade, memory deletion, execution-count, secret, self-modification, and guard regression tests added;
+- authoritative capability implementation register created;
+- obsolete missing-files report replaced with a current implementation gap assessment.
 
-- Durable SQLite/PostgreSQL persistence.
-- Workspace objects and workspace lifecycle APIs.
-- Memory audit events connected to the security audit log.
-- Vector backend adapters beyond in-memory bootstrap embeddings.
-- User-facing memory review/export/delete endpoints.
-- Migration scripts and backup/restore workflows.
+## Validation result
 
-## Recommendation
+GitHub Actions run `30212673071` completed successfully on the validated head.
 
-Continue Phase 4 by binding memory records to durable workspaces and adding audit
-events before expanding autonomous scheduled work. This keeps GAIA local-first,
-consent-aware, and auditable while the orchestrator becomes more capable.
-Finish Phase 4 next by adding durable workspace persistence and memory review API
-endpoints before expanding autonomous scheduled work. This keeps GAIA local-first
-and auditable while the orchestrator becomes more capable.
+- dependency installation: passed;
+- Python bytecode compilation: passed;
+- Ruff repository checks: passed;
+- strict mypy checks: passed;
+- complete pytest suite: **54 passed**;
+- validation diagnostics artifact: generated successfully.
+
+The current test environment reports one upstream Starlette/httpx deprecation warning. It is not a failing GAIA test and should be tracked during dependency maintenance.
+
+## Current working foundation
+
+### Runtime and API
+
+- FastAPI and CLI bootstrap;
+- canonical `GaiaRuntime` composition root;
+- high-level `GaiaCore` compatibility facade;
+- app-scoped API services sharing runtime security state;
+- health, version, task, planning, agent, capability, memory, workspace, security, voice, and audio routes.
+
+### Orchestration
+
+- structured task steps;
+- dependency-aware validated task graph;
+- capability routing;
+- deterministic local agent execution;
+- result aggregation;
+- internal metacognitive reflection;
+- auditable route and status artifacts.
+
+### Memory and workspaces
+
+- append-only runtime event memory;
+- project, user, session, and timeline scopes;
+- local in-memory vector indexing and retrieval;
+- symbolic facts;
+- retention checks;
+- owner consent grant/revoke state;
+- export grouped by scope;
+- review-gated deletion including indexed derivatives;
+- memory review APIs;
+- durable local SQLite workspace metadata and lifecycle APIs.
+
+### Security
+
+- objective security policy;
+- deny-by-default permission manager;
+- explicit human approval for risky permissions;
+- functional command, file, and network guards;
+- approval-gated secret reads and self-modification;
+- audit events;
+- one shared autonomy kill switch;
+- API controls and runtime status using the same security state.
+
+### Models, agents, voice, and desktop
+
+- local-first model catalog and disabled-by-default cloud fallback;
+- canonical agent registry with specialist capability agents;
+- synthetic voice abstractions and safety controls;
+- Tauri/React desktop shell and voice panels.
+
+## Implementation commitment after R0
+
+The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` must be implemented as real code with runtime wiring, persistence, migrations, security, tests, APIs, desktop integration, and rollback where applicable. Documentation, placeholders, static responses, and empty panels do not count as completed features.
+
+## Next phase
+
+R1 begins with the **Cognitive Kernel** on a separate implementation branch so the validated recovery baseline remains stable and reviewable.

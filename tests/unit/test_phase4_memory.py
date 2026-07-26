@@ -24,9 +24,9 @@ def test_phase4_memory_status_tracks_scopes_indexes_and_consent() -> None:
     assert status.local_first is True
 
 
-def test_phase4_memory_deletion_requires_review_before_removal() -> None:
+def test_phase4_memory_deletion_requires_review_and_removes_indexed_derivatives() -> None:
     memory = MemoryManager()
-    memory.remember("temporary workspace memory", MemoryScope.SESSION, "session-1")
+    record = memory.remember("temporary workspace memory", MemoryScope.SESSION, "session-1")
 
     request = memory.request_deletion(
         "session-1",
@@ -36,12 +36,15 @@ def test_phase4_memory_deletion_requires_review_before_removal() -> None:
 
     assert memory.status().pending_deletion_requests == 1
     assert len(memory.list_scope(MemoryScope.SESSION, "session-1")) == 1
+    assert record.record_id in memory.vector_store.documents
 
     reviewed = memory.review_deletion_request(request.request_id, approve=True)
 
     assert reviewed.status == DeletionRequestStatus.APPROVED
     assert memory.status().pending_deletion_requests == 0
+    assert memory.status().indexed_documents == 0
     assert memory.list_scope(MemoryScope.SESSION, "session-1") == []
+    assert record.record_id not in memory.vector_store.documents
 
 
 def test_phase4_memory_revoked_consent_blocks_new_writes() -> None:

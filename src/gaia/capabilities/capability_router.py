@@ -1,4 +1,4 @@
-"""Capability routing inspired by HuggingGPT model selection and OpenJarvis registries."""
+"""Capability routing for GAIA agents, model profiles, and safe tool adapters."""
 
 from __future__ import annotations
 
@@ -15,11 +15,6 @@ class RouteDecision(BaseModel):
     selected_agent: str
     selected_model: str
     selected_tool: str
-    selected_model: str = "local-bootstrap-reasoner"
-    selected_tool: str = "none"
-    execution_mode: str = "local_sync"
-    selected_model: str
-    selected_tool: str | None = None
     execution_mode: str = "local"
     candidate_agents: list[str] = Field(default_factory=list)
     requires_human_approval: bool = False
@@ -27,66 +22,101 @@ class RouteDecision(BaseModel):
 
     @property
     def requested(self) -> list[str]:
-        """Backward-compatible alias for older tests."""
+        """Backward-compatible alias for earlier callers."""
         return self.requested_capabilities
 
 
 class CapabilityRouter:
-    """Route planned tasks to agents, models, tools, and execution modes."""
+    """Route tasks to the highest-overlap registered local agent."""
+
+    _RISKY_CAPABILITIES = {
+        "coding",
+        "tooling",
+        "repo",
+        "plugins",
+        "self_evolve",
+    }
 
     def __init__(
-        self, capability_registry: CapabilityRegistry, agent_registry: AgentRegistry
+        self,
+        capability_registry: CapabilityRegistry,
+        agent_registry: AgentRegistry,
     ) -> None:
         self.capability_registry = capability_registry
         self.agent_registry = agent_registry
 
     def list_capabilities(self) -> list[Capability]:
         """Return known capabilities."""
-        return self.capability_registry.list()
+        return self.capability_registry.list_capabilities()
 
     def route(
-        self, requested_capabilities: list[str] | tuple[str, ...] | None = None
+        self,
+        requested_capabilities: list[str] | tuple[str, ...] | None = None,
     ) -> RouteDecision:
-        """Choose the best currently registered agent/model/tool tuple for a node."""
-        requested = list(requested_capabilities or ["reasoning"])
-        """Choose the best currently registered target for requested capabilities."""
-        requested = [capability.strip().lower() for capability in requested_capabilities or []]
-        requested = [capability for capability in requested if capability] or ["reasoning"]
+        """Choose one agent and local-first execution profile."""
+        requested = self._normalize(requested_capabilities)
         candidates: dict[str, int] = {}
-        approval = self._capabilities_require_approval(requested)
+        requires_approval = self._capabilities_require_approval(requested)
+
         for capability in requested:
             for agent in self.agent_registry.find_by_capability(capability):
                 candidates[agent.name] = candidates.get(agent.name, 0) + 1
-                approval = approval or agent.requires_human_approval
-        if not candidates:
-            fallback = self.agent_registry.get("gaia_core_agent")
-            candidates[fallback.name] = 0
-            rationale = "No exact capability match; fell back to the GAIA core agent."
-        else:
+                requires_approval = (
+                    requires_approval or agent.requires_human_approval
+                )
+
+        if candidates:
+            selected_agent = sorted(
+                candidates.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[0][0]
             rationale = (
-                "Selected the highest-overlap local agent, model, and tool adapter "
-                "for the requested capabilities."
-                "Selected the highest-overlap local agent plus local-first bootstrap "
-                "model/tool hints for the requested capabilities."
+                "Selected the highest-overlap registered local agent and "
+                "a capability-specific local model/tool profile."
             )
-        selected = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        else:
+            selected_agent = self.agent_registry.get("gaia_core_agent").name
+            candidates[selected_agent] = 0
+            rationale = (
+                "No exact capability match was available; "
+                "fell back to the GAIA core agent."
+            )
+
         return RouteDecision(
             requested_capabilities=requested,
-            selected_agent=selected,
+            selected_agent=selected_agent,
             selected_model=self._select_model(requested),
             selected_tool=self._select_tool(requested),
-            execution_mode=self._select_execution_mode(requested),
-            execution_mode=self._select_execution_mode(requested, approval),
+            execution_mode=self._select_execution_mode(
+                requested,
+                requires_approval,
+            ),
             candidate_agents=sorted(candidates),
-            requires_human_approval=approval,
+            requires_human_approval=requires_approval,
             rationale=rationale,
         )
 
+    def _normalize(
+        self,
+        requested_capabilities: list[str] | tuple[str, ...] | None,
+    ) -> list[str]:
+        normalized: list[str] = []
+        for capability in requested_capabilities or ("reasoning",):
+            value = capability.strip().lower()
+            if value and value not in normalized:
+                normalized.append(value)
+        return normalized or ["reasoning"]
+
     def _select_model(self, capabilities: list[str]) -> str:
-        """Select a local-first model profile for a capability bundle."""
-        if any(capability in capabilities for capability in ("coding", "repo")):
+        if any(
+            capability in capabilities
+            for capability in ("coding", "repo")
+        ):
             return "local-code-reasoner"
-        if any(capability in capabilities for capability in ("vision", "documents")):
+        if any(
+            capability in capabilities
+            for capability in ("vision", "documents", "cad")
+        ):
             return "local-multimodal-reasoner"
         if any(
             capability in capabilities
@@ -96,55 +126,48 @@ class CapabilityRouter:
         return "local-general-reasoner"
 
     def _select_tool(self, capabilities: list[str]) -> str:
-        """Select the safest default tool adapter for a capability bundle."""
-        if "coding" in capabilities or "repo" in capabilities:
+        if any(
+            capability in capabilities
+            for capability in ("coding", "repo", "tooling")
+        ):
             return "permission_checked_repo_tools"
         if "research" in capabilities:
             return "local_research_scratchpad"
         if "memory" in capabilities:
             return "memory_manager"
-        if any(capability in capabilities for capability in ("voice", "speech", "tts", "stt")):
+        if "security" in capabilities:
+            return "policy_review"
+        if any(
+            capability in capabilities
+            for capability in ("voice", "speech", "tts", "stt")
+        ):
             return "voice_router"
         return "no_external_tool"
 
-    def _select_execution_mode(self, capabilities: list[str]) -> str:
-        """Select an execution mode without granting unsafe autonomy."""
-        if any(capability in capabilities for capability in ("coding", "tooling", "repo")):
+    def _select_execution_mode(
+        self,
+        capabilities: list[str],
+        requires_approval: bool,
+    ) -> str:
+        if (
+            requires_approval
+            or self._RISKY_CAPABILITIES.intersection(capabilities)
+        ):
             return "permission_gated"
-        if any(capability in capabilities for capability in ("voice", "audio", "speech")):
+        if any(
+            capability in capabilities
+            for capability in ("voice", "audio", "speech")
+        ):
             return "local_with_text_fallback"
-        if "coding" in capabilities or "repo" in capabilities:
-            return "local-code-reasoner"
-        if "vision" in capabilities:
-            return "local-vision-adapter"
-        if "audio" in capabilities or "voice" in capabilities or "speech" in capabilities:
-            return "local-audio-voice-adapter"
-        if "research" in capabilities:
-            return "local-research-reasoner"
-        return "local-bootstrap-reasoner"
+        return "local"
 
-    def _select_tool(self, capabilities: list[str]) -> str:
-        if "coding" in capabilities or "repo" in capabilities:
-            return "repository_inspector"
-        if "memory" in capabilities:
-            return "memory_search"
-        if "security" in capabilities:
-            return "policy_review"
-        if "voice" in capabilities or "tts" in capabilities:
-            return "voice_synthesizer"
-        if "research" in capabilities:
-            return "local_reference_summarizer"
-        return "none"
+    def _capabilities_require_approval(
+        self,
+        capabilities: list[str],
+    ) -> bool:
+        if self._RISKY_CAPABILITIES.intersection(capabilities):
+            return True
 
-    def _select_execution_mode(self, capabilities: list[str], approval: bool) -> str:
-        if approval:
-            return "requires_approval"
-        if any(capability in capabilities for capability in ("coding", "tooling", "repo")):
-            return "sandboxed_local_sync"
-        return "local_sync"
-
-    def _capabilities_require_approval(self, capabilities: list[str]) -> bool:
-        risky = {"coding", "tooling", "repo", "self_evolve", "plugins"}
         for capability in capabilities:
             try:
                 registered = self.capability_registry.get(capability)
@@ -152,36 +175,19 @@ class CapabilityRouter:
                 continue
             if registered.risky_actions:
                 return True
-        return bool(risky.intersection(capabilities))
-    def _select_model(self, requested: list[str]) -> str:
-        """Select a local-first model family for the capability request."""
-        if any(capability in requested for capability in ("coding", "repo")):
-            return "local-code-model"
-        if any(capability in requested for capability in ("vision", "audio", "voice")):
-            return "local-multimodal-model"
-        return "local-reasoning-model"
 
-    def _select_tool(self, requested: list[str]) -> str | None:
-        """Select a safe internal tool adapter without performing external actions."""
-        if "memory" in requested:
-            return "memory_search"
-        if "coding" in requested or "repo" in requested:
-            return "repo_inspector"
-        if "research" in requested:
-            return "research_summarizer"
-        return None
-
-    def _select_execution_mode(self, requested: list[str], approval: bool) -> str:
-        """Select execution mode while preserving human approval gates."""
-        if approval:
-            return "human_approval_required"
-        if any(capability in requested for capability in ("coding", "tooling", "repo")):
-            return "sandboxed"
-        return "local"
+        return False
 
 
-def create_default_capability_router(agent_registry: AgentRegistry) -> CapabilityRouter:
+def create_default_capability_router(
+    agent_registry: AgentRegistry,
+) -> CapabilityRouter:
     """Create the default capability router."""
-    from gaia.capabilities.capability_registry import create_default_capability_registry
+    from gaia.capabilities.capability_registry import (
+        create_default_capability_registry,
+    )
 
-    return CapabilityRouter(create_default_capability_registry(), agent_registry)
+    return CapabilityRouter(
+        create_default_capability_registry(),
+        agent_registry,
+    )

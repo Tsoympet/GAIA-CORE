@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from gaia.orchestrator.planner import TaskStep
-    from gaia.orchestrator.planner import PlanStep
 
 
 class TaskNode(BaseModel):
@@ -25,15 +24,13 @@ class TaskNode(BaseModel):
     assigned_agent: str | None = None
     assigned_model: str | None = None
     assigned_tool: str | None = None
-    selected_model: str | None = None
-    selected_tool: str | None = None
     execution_mode: str | None = None
     execution_status: str = "pending"
     result: dict[str, object] = Field(default_factory=dict)
 
 
 class TaskGraph(BaseModel):
-    """A simple acyclic graph for auditable task execution."""
+    """A validated acyclic graph for auditable task execution."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     objective: str
@@ -42,88 +39,85 @@ class TaskGraph(BaseModel):
 
     @model_validator(mode="after")
     def validate_dependencies(self) -> TaskGraph:
-        """Ensure every dependency points to a known node."""
-        ids = {node.id for node in self.nodes}
-        missing = [dep for node in self.nodes for dep in node.dependencies if dep not in ids]
+        """Ensure dependency references are valid and the graph is acyclic."""
+        node_ids = [node.id for node in self.nodes]
+        if len(node_ids) != len(set(node_ids)):
+            raise ValueError("task graph contains duplicate node ids")
+
+        known_ids = set(node_ids)
+        missing = [
+            dependency
+            for node in self.nodes
+            for dependency in node.dependencies
+            if dependency not in known_ids
+        ]
         if missing:
             raise ValueError(f"unknown task dependencies: {missing}")
+
+        self.execution_order()
         return self
 
     def execution_order(self) -> list[TaskNode]:
-        """Return nodes in dependency-respecting order."""
+        """Return nodes in stable dependency-respecting order."""
         ordered: list[TaskNode] = []
         remaining = {node.id: node for node in self.nodes}
+        positions = {node.id: index for index, node in enumerate(self.nodes)}
+
         while remaining:
             completed = {node.id for node in ordered}
             ready = [
                 node
                 for node in remaining.values()
-                if all(dep in completed for dep in node.dependencies)
+                if all(
+                    dependency in completed
+                    for dependency in node.dependencies
+                )
             ]
             if not ready:
                 raise ValueError("task graph contains a cycle")
-            for node in sorted(ready, key=lambda item: item.id):
+
+            for node in sorted(ready, key=lambda item: positions[item.id]):
                 ordered.append(node)
                 remaining.pop(node.id)
+
         return ordered
 
 
 class TaskGraphBuilder:
-    """Build bootstrap DAGs from planner output."""
+    """Build task graphs from planner output."""
 
     def build(self, objective: str, capabilities: list[str]) -> TaskGraph:
-        """Build a DAG from capabilities for backward-compatible callers."""
+        """Build a one-step graph for backward-compatible callers."""
         from gaia.orchestrator.planner import TaskStep
 
-        steps = [
-            TaskStep(
-                id="step-1",
-                objective=objective,
-                required_capabilities=capabilities or ["reasoning"],
-            )
-        ]
-        return self.build_from_steps(objective, steps)
-
-    def build_from_steps(self, objective: str, steps: list[TaskStep]) -> TaskGraph:
-        """Build a DAG from structured planner steps."""
-        """Build a one-node DAG for compatibility with earlier callers."""
-        """Build a one-node DAG for compatibility with early callers."""
-        return TaskGraph(
-            objective=objective,
-            nodes=[
-                TaskNode(
-                    id=step.id,
-                    objective=step.objective,
-                    required_capabilities=step.required_capabilities or ["reasoning"],
-                    dependencies=step.dependencies,
-                    execution_mode=step.execution_hint,
-                )
-                for step in steps
-                )
-                for step in steps
+        return self.build_from_steps(
+            objective,
+            [
+                TaskStep(
+                    id="step-1",
                     objective=objective,
-                    title="Execute requested task",
                     required_capabilities=capabilities or ["reasoning"],
                 )
-                for step in steps
             ],
         )
 
-    def build_from_steps(self, objective: str, steps: list[TaskStep]) -> TaskGraph:
-        """Build a DAG from structured planner steps."""
-        from gaia.orchestrator.planner import steps_to_nodes
-
-        return TaskGraph(objective=objective, nodes=steps_to_nodes(steps))
-    def build_from_steps(self, objective: str, steps: list[PlanStep]) -> TaskGraph:
-        """Build an auditable DAG from structured planner steps."""
+    def build_from_steps(
+        self,
+        objective: str,
+        steps: list[TaskStep],
+    ) -> TaskGraph:
+        """Build a validated graph from structured planner steps."""
         return TaskGraph(
             objective=objective,
             nodes=[
                 TaskNode(
                     id=step.id,
                     objective=step.objective,
-                    required_capabilities=step.required_capabilities or ["reasoning"],
+                    required_capabilities=(
+                        step.required_capabilities or ["reasoning"]
+                    ),
                     dependencies=step.dependencies,
+                    execution_mode=step.execution_hint,
                 )
                 for step in steps
             ],

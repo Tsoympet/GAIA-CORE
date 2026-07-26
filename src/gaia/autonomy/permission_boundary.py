@@ -1,6 +1,9 @@
 """GAIA permission boundary."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class PermissionBoundary(BaseModel):
     """Safe engineering simulation component for permission boundary."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from .scoped import MemoryRecord
+from gaia.memory.scoped import MemoryRecord
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +20,11 @@ class MemoryPolicy:
             return False
         if self.retention_days is None:
             return True
-        return record.created_at >= datetime.now(UTC) - timedelta(days=self.retention_days)
+        threshold = datetime.now(UTC) - timedelta(days=self.retention_days)
+        return record.created_at >= threshold
 
     def should_index(self, record: MemoryRecord) -> bool:
-        return bool(record.metadata.get("index", self.index_by_default)) and self.should_keep(record)
+        enabled = bool(
+            record.metadata.get("index", self.index_by_default)
+        )
+        return enabled and self.should_keep(record)

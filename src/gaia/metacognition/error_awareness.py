@@ -1,6 +1,9 @@
 """GAIA error awareness."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class ErrorAwareness(BaseModel):
     """Safe engineering simulation component for error awareness."""

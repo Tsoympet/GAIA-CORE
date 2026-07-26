@@ -1,6 +1,9 @@
 """GAIA uncertainty tracker."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class UncertaintyTracker(BaseModel):
     """Safe engineering simulation component for uncertainty tracker."""

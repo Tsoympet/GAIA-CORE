@@ -1,6 +1,9 @@
 """GAIA action review."""
+
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
+
 
 class ActionReview(BaseModel):
     """Safe engineering simulation component for action review."""

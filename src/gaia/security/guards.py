@@ -2,20 +2,32 @@
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-import shlex
 from urllib.parse import urlparse
 
-from .permission_manager import Permission, PermissionManager
+from gaia.security.permission_manager import Permission, PermissionManager
 
-DANGEROUS_COMMAND_PREFIXES = {"rm", "mkfs", "shutdown", "reboot", "dd", "chmod", "chown"}
+DANGEROUS_COMMAND_PREFIXES = {
+    "rm",
+    "mkfs",
+    "shutdown",
+    "reboot",
+    "dd",
+    "chmod",
+    "chown",
+}
 
 
 @dataclass(slots=True)
 class CommandGuard:
+    """Validate shell commands against deny rules and explicit permissions."""
+
     permissions: PermissionManager
-    blocked_prefixes: set[str] = field(default_factory=lambda: set(DANGEROUS_COMMAND_PREFIXES))
+    blocked_prefixes: set[str] = field(
+        default_factory=lambda: set(DANGEROUS_COMMAND_PREFIXES)
+    )
 
     def validate(self, command: str, actor: str = "system") -> str:
         parts = shlex.split(command)
@@ -24,18 +36,26 @@ class CommandGuard:
         executable = Path(parts[0]).name
         if executable in self.blocked_prefixes:
             raise PermissionError(f"blocked command prefix: {executable}")
-        self.permissions.require(Permission.COMMAND_EXECUTE, executable, actor)
+        self.permissions.require(Permission.SHELL_COMMAND, command, actor)
         return command
 
 
 @dataclass(slots=True)
 class FileGuard:
+    """Confine file access to a workspace root and enforce permissions."""
+
     permissions: PermissionManager
-    root: Path = field(default_factory=lambda: Path.cwd())
+    root: Path = field(default_factory=Path.cwd)
 
     def resolve(self, path: Path | str) -> Path:
-        resolved = (self.root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
-        if self.root.resolve() not in (resolved, *resolved.parents):
+        candidate = Path(path)
+        resolved = (
+            (self.root / candidate).resolve()
+            if not candidate.is_absolute()
+            else candidate.resolve()
+        )
+        root = self.root.resolve()
+        if root not in (resolved, *resolved.parents):
             raise PermissionError(f"path escapes workspace root: {resolved}")
         return resolved
 
@@ -52,6 +72,8 @@ class FileGuard:
 
 @dataclass(slots=True)
 class NetworkGuard:
+    """Validate HTTP(S) destinations and enforce network permission."""
+
     permissions: PermissionManager
     blocked_hosts: set[str] = field(default_factory=set)
 
@@ -61,5 +83,9 @@ class NetworkGuard:
             raise PermissionError(f"unsupported network URL: {url}")
         if parsed.hostname in self.blocked_hosts:
             raise PermissionError(f"blocked network host: {parsed.hostname}")
-        self.permissions.require(Permission.NETWORK_CONNECT, parsed.hostname or parsed.netloc, actor)
+        self.permissions.require(
+            Permission.NETWORK_ACCESS,
+            parsed.hostname or parsed.netloc,
+            actor,
+        )
         return url
