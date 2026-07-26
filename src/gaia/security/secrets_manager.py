@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import os
+from dataclasses import dataclass, field
 
-from .permission_manager import Permission, PermissionManager
+from gaia.security.permission_manager import Permission, PermissionManager
 
 
 @dataclass(slots=True)
@@ -18,16 +18,34 @@ class SecretRecord:
     def redacted(self) -> str:
         if len(self.value) <= 4:
             return "****"
-        return f"{self.value[:2]}{'*' * max(4, len(self.value) - 4)}{self.value[-2:]}"
+        hidden_length = max(4, len(self.value) - 4)
+        return (
+            f"{self.value[:2]}"
+            f"{'*' * hidden_length}"
+            f"{self.value[-2:]}"
+        )
 
 
 @dataclass(slots=True)
 class SecretsManager:
+    """Store secrets locally and require approval-gated reads."""
+
     permissions: PermissionManager
     _secrets: dict[str, SecretRecord] = field(default_factory=dict)
 
-    def set(self, name: str, value: str, source: str = "memory") -> None:
-        self._secrets[name] = SecretRecord(name=name, value=value, source=source)
+    def set(
+        self,
+        name: str,
+        value: str,
+        source: str = "memory",
+    ) -> None:
+        if not name.strip():
+            raise ValueError("secret name must not be empty")
+        self._secrets[name] = SecretRecord(
+            name=name,
+            value=value,
+            source=source,
+        )
 
     def load_env(self, names: list[str]) -> None:
         for name in names:
@@ -39,4 +57,11 @@ class SecretsManager:
         return self._secrets[name].value
 
     def list_redacted(self) -> list[dict[str, str]]:
-        return [{"name": s.name, "value": s.redacted, "source": s.source} for s in self._secrets.values()]
+        return [
+            {
+                "name": secret.name,
+                "value": secret.redacted,
+                "source": secret.source,
+            }
+            for secret in self._secrets.values()
+        ]
