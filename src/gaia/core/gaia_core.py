@@ -29,8 +29,11 @@ class GaiaCore:
     ) -> None:
         self.config: dict[str, Any] = dict(config or {})
         configured_workspace = workspace or self.config.get("workspace", ".gaia")
-        self.workspace = Path(cast(str | Path, configured_workspace)).expanduser().resolve()
-        self.runtime = runtime or create_runtime(self.config.get("config_dir", "config"))
+        self.workspace = (
+            Path(cast(str | Path, configured_workspace)).expanduser().resolve()
+        )
+        config_dir = cast(str | Path, self.config.get("config_dir", "config"))
+        self.runtime = runtime or create_runtime(config_dir)
 
     @classmethod
     def from_config_file(
