@@ -14,7 +14,13 @@ from gaia.models import (
     ModelRegistry,
     ModelRouter,
 )
-from gaia.security import AutonomyKillSwitch, Permission, PermissionManager
+from gaia.security import (
+    AutonomyKillSwitch,
+    Permission,
+    PermissionManager,
+    SecurityPolicy,
+    create_security_policy,
+)
 from gaia.workspaces import SQLiteWorkspaceStore
 
 
@@ -23,6 +29,7 @@ class GaiaServices:
     """Services used by modular API routes."""
 
     permissions: PermissionManager = field(default_factory=PermissionManager)
+    security_policy: SecurityPolicy = field(default_factory=create_security_policy)
     memory: MemoryManager = field(default_factory=MemoryManager)
     registry: ModelRegistry = field(default_factory=ModelRegistry)
     workspaces: SQLiteWorkspaceStore = field(
