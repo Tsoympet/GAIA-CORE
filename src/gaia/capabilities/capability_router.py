@@ -29,7 +29,13 @@ class RouteDecision(BaseModel):
 class CapabilityRouter:
     """Route tasks to the highest-overlap registered local agent."""
 
-    _RISKY_CAPABILITIES = {"coding", "tooling", "repo", "plugins", "self_evolve"}
+    _RISKY_CAPABILITIES = {
+        "coding",
+        "tooling",
+        "repo",
+        "plugins",
+        "self_evolve",
+    }
 
     def __init__(
         self,
@@ -55,7 +61,9 @@ class CapabilityRouter:
         for capability in requested:
             for agent in self.agent_registry.find_by_capability(capability):
                 candidates[agent.name] = candidates.get(agent.name, 0) + 1
-                requires_approval = requires_approval or agent.requires_human_approval
+                requires_approval = (
+                    requires_approval or agent.requires_human_approval
+                )
 
         if candidates:
             selected_agent = sorted(
@@ -100,9 +108,15 @@ class CapabilityRouter:
         return normalized or ["reasoning"]
 
     def _select_model(self, capabilities: list[str]) -> str:
-        if any(capability in capabilities for capability in ("coding", "repo")):
+        if any(
+            capability in capabilities
+            for capability in ("coding", "repo")
+        ):
             return "local-code-reasoner"
-        if any(capability in capabilities for capability in ("vision", "documents", "cad")):
+        if any(
+            capability in capabilities
+            for capability in ("vision", "documents", "cad")
+        ):
             return "local-multimodal-reasoner"
         if any(
             capability in capabilities
@@ -112,7 +126,10 @@ class CapabilityRouter:
         return "local-general-reasoner"
 
     def _select_tool(self, capabilities: list[str]) -> str:
-        if any(capability in capabilities for capability in ("coding", "repo", "tooling")):
+        if any(
+            capability in capabilities
+            for capability in ("coding", "repo", "tooling")
+        ):
             return "permission_checked_repo_tools"
         if "research" in capabilities:
             return "local_research_scratchpad"
@@ -132,13 +149,22 @@ class CapabilityRouter:
         capabilities: list[str],
         requires_approval: bool,
     ) -> str:
-        if requires_approval or self._RISKY_CAPABILITIES.intersection(capabilities):
+        if (
+            requires_approval
+            or self._RISKY_CAPABILITIES.intersection(capabilities)
+        ):
             return "permission_gated"
-        if any(capability in capabilities for capability in ("voice", "audio", "speech")):
+        if any(
+            capability in capabilities
+            for capability in ("voice", "audio", "speech")
+        ):
             return "local_with_text_fallback"
         return "local"
 
-    def _capabilities_require_approval(self, capabilities: list[str]) -> bool:
+    def _capabilities_require_approval(
+        self,
+        capabilities: list[str],
+    ) -> bool:
         if self._RISKY_CAPABILITIES.intersection(capabilities):
             return True
 
