@@ -47,7 +47,7 @@ class CapabilityRouter:
 
     def list_capabilities(self) -> list[Capability]:
         """Return known capabilities."""
-        return self.capability_registry.list()
+        return self.capability_registry.list_capabilities()
 
     def route(
         self,
