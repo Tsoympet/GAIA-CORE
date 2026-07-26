@@ -2,15 +2,17 @@
 
 ## Recovery state
 
-The repository is in **Recovery R0**. New cognitive capabilities remain blocked until the existing foundation is coherent, testable, and protected by validation gates.
+**Recovery R0 is validated on the recovery branch.**
 
-The recovery branch is `agent/recover-orchestrator-baseline` and is reviewed through draft pull request #16.
+Branch: `agent/recover-orchestrator-baseline`  
+Review: pull request #16  
+Validated head: `33fc630c184ad3cd7956ef5b96de815cdf9f0ce7`
 
 The complete post-recovery implementation backlog and completion standard are recorded in `CAPABILITY_IMPLEMENTATION_REGISTER.md`.
 
 ## R0.1 — Orchestration baseline
 
-Completed on the recovery branch:
+Completed:
 
 - one canonical `TaskStep` and `TaskPlan` contract;
 - deterministic dependency-ordered task planning;
@@ -23,7 +25,7 @@ Completed on the recovery branch:
 
 ## R0.2 — Memory, tests, documentation, and CI
 
-Completed on the recovery branch:
+Completed:
 
 - Phase 4 memory/workspace source inspected for merge duplication;
 - stale duplicate Phase 3 test contract removed;
@@ -31,11 +33,11 @@ Completed on the recovery branch:
 - approved memory deletion removes indexed vector derivatives as well as scoped records;
 - vector store deletion and count contracts added;
 - recovery, memory, orchestration, and implementation documents normalized;
-- GitHub Actions validation added for compilation, linting, typing, and tests.
+- GitHub Actions validation added for compilation, linting, typing, tests, diagnostics, and source snapshots.
 
 ## R0.3 — Runtime, API, agents, and security
 
-Completed or in progress:
+Completed:
 
 - duplicate FastAPI method/path registrations removed;
 - runtime event-memory status separated from scoped memory status;
@@ -46,11 +48,28 @@ Completed or in progress:
 - functional command, file, and network guards repaired;
 - duplicate placeholder guard modules removed;
 - permission and API kill-switch state unified;
+- self-modification and secret-read permissions repaired and approval-gated;
 - security package exports normalized;
 - API services bound to the runtime permission manager and security policy;
-- route uniqueness, shared kill-switch, facade, memory deletion, execution-count, and guard regression tests added;
+- duplicate task-node routing fields removed;
+- capability-registry type shadowing removed;
+- strict typing restored for agent capabilities and execution-context derivation;
+- route uniqueness, shared kill-switch, facade, memory deletion, execution-count, secret, self-modification, and guard regression tests added;
 - authoritative capability implementation register created;
 - obsolete missing-files report replaced with a current implementation gap assessment.
+
+## Validation result
+
+GitHub Actions run `30212673071` completed successfully on the validated head.
+
+- dependency installation: passed;
+- Python bytecode compilation: passed;
+- Ruff repository checks: passed;
+- strict mypy checks: passed;
+- complete pytest suite: **54 passed**;
+- validation diagnostics artifact: generated successfully.
+
+The current test environment reports one upstream Starlette/httpx deprecation warning. It is not a failing GAIA test and should be tracked during dependency maintenance.
 
 ## Current working foundation
 
@@ -91,6 +110,7 @@ Completed or in progress:
 - deny-by-default permission manager;
 - explicit human approval for risky permissions;
 - functional command, file, and network guards;
+- approval-gated secret reads and self-modification;
 - audit events;
 - one shared autonomy kill switch;
 - API controls and runtime status using the same security state.
@@ -102,23 +122,10 @@ Completed or in progress:
 - synthetic voice abstractions and safety controls;
 - Tauri/React desktop shell and voice panels.
 
-## Validation gate
-
-Recovery R0 is complete only when the branch passes:
-
-1. Python bytecode compilation;
-2. Ruff checks;
-3. strict mypy checks;
-4. the complete pytest suite;
-5. FastAPI route smoke tests;
-6. a repository-wide duplicate-definition and stale-import scan;
-7. review of remaining overlapping PR files;
-8. a versioned clean-baseline release review.
-
 ## Implementation commitment after R0
 
 The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` must be implemented as real code with runtime wiring, persistence, migrations, security, tests, APIs, desktop integration, and rollback where applicable. Documentation, placeholders, static responses, and empty panels do not count as completed features.
 
-## Next action
+## Next phase
 
-Finish the remaining R0.3 scan, resolve validation failures, update PR #16 with the complete recovery record, and issue the first clean versioned GAIA baseline. Then begin R1 with the Cognitive Kernel.
+R1 begins with the **Cognitive Kernel** on a separate implementation branch so the validated recovery baseline remains stable and reviewable.
