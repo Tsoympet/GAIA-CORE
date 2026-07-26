@@ -30,6 +30,10 @@ class VectorStore(ABC):
     @abstractmethod
     def search(self, embedding: list[float], limit: int = 5) -> list[VectorSearchResult]: ...
 
+    @abstractmethod
+    def delete(self, document_ids: list[str]) -> int:
+        """Delete documents by stable ID and return the number removed."""
+
 
 def cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
@@ -47,5 +51,15 @@ class InMemoryVectorStore(VectorStore):
             self.documents[document.document_id] = document
 
     def search(self, embedding: list[float], limit: int = 5) -> list[VectorSearchResult]:
-        results = [VectorSearchResult(doc, cosine(embedding, doc.embedding)) for doc in self.documents.values()]
+        results = [
+            VectorSearchResult(document, cosine(embedding, document.embedding))
+            for document in self.documents.values()
+        ]
         return sorted(results, key=lambda result: result.score, reverse=True)[:limit]
+
+    def delete(self, document_ids: list[str]) -> int:
+        removed = 0
+        for document_id in document_ids:
+            if self.documents.pop(document_id, None) is not None:
+                removed += 1
+        return removed
