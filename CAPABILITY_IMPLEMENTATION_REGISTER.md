@@ -34,7 +34,7 @@ Allowed states:
 | Capability | Current state | Existing foundation | Required implementation work |
 |---|---|---|---|
 | Repository integrity and CI | RECOVERY | Validated R0 branch, compile/lint/type/test workflow, diagnostic artifacts | Merge and release the clean baseline; maintain branch protections and release checks |
-| Cognitive Kernel | PARTIAL | Goal lifecycle, execution ledger, wall-clock/step budgets, cancellation, verification, runtime/API integration | Durable persistence, migrations, restart recovery, full resource metering, approval nodes, scheduling, streaming events, evidence integration, desktop controls |
+| Cognitive Kernel | PARTIAL | Goal lifecycle, execution ledger, wall-clock/step budgets, cancellation, verification, versioned SQLite persistence, migration, backup, deletion, restart interruption recovery, runtime/API integration | Signed resumable checkpoints, full token/cost/RAM/VRAM/CPU/GPU metering, approval nodes, scheduling, streaming events, evidence integration, encrypted backup packaging, retention, desktop controls |
 | Cognitive Continuity | MISSING | In-memory sessions | Durable signed checkpoints, resume validation, repository/process state, crash recovery, model-replacement recovery |
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
@@ -69,7 +69,7 @@ Allowed states:
 | Observability | MISSING | Basic logging | Structured event schema, OpenTelemetry, metrics, traces, dashboards, privacy controls and retention |
 | Plugin ecosystem | MISSING | None | Signed manifests, capability declarations, dependency isolation, license checks and governance |
 | Deployment and installers | SCAFFOLD | Docker, Compose, NGINX and systemd placeholders | Reproducible images, migrations, health checks, Windows/Linux installers, update and rollback channels |
-| Backup, restore and migration | MISSING | SQLite workspace file only | Encrypted backups, schema migrations, integrity verification, selective restore and disaster recovery tests |
+| Backup, restore and migration | PARTIAL | SQLite workspace storage plus versioned Cognitive Kernel schema and consistent kernel backup | Encrypted backup packaging, workspace/memory migrations, integrity verification, selective restore and disaster recovery tests |
 | Robotics and physical AI | DEFERRED | None | Simulation adapters first; no actuation before deterministic interlocks, emergency stop and independent safety validation |
 
 ## Implementation order after Recovery R0
