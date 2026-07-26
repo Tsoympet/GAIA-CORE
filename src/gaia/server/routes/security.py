@@ -19,6 +19,8 @@ async def security_status(
     """Return the state used by permission checks and API controls."""
     return {
         "status": "ok",
+        "sandbox_required": services.security_policy.sandbox_required,
+        "human_override_available": services.security_policy.human_override_available,
         "autonomy_kill_switch": services.kill_switch.enabled,
         "kill_switch_reason": services.kill_switch.reason,
         "risky_actions_require_permission": True,
