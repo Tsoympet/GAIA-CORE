@@ -1,3 +1,4 @@
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from gaia.server import create_app
@@ -50,10 +51,38 @@ def test_phase_two_required_endpoints_are_registered() -> None:
         "/agents",
         "/capabilities",
         "/memory/status",
+        "/runtime/memory/status",
         "/security/status",
     ):
         response = client.get(path)
         assert response.status_code == 200
+
+
+def test_scoped_and_runtime_memory_status_are_distinct() -> None:
+    client = TestClient(create_app())
+
+    scoped = client.get("/memory/status").json()
+    runtime = client.get("/runtime/memory/status").json()
+
+    assert "scopes" in scoped
+    assert "records" not in scoped
+    assert runtime["backend"] == "in-memory"
+    assert runtime["append_only"] is True
+    assert "records" in runtime
+
+
+def test_application_has_no_duplicate_method_path_routes() -> None:
+    app = create_app()
+    route_keys = [
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        for method in sorted(route.methods or set())
+        if method not in {"HEAD", "OPTIONS"}
+    ]
+
+    duplicates = sorted({key for key in route_keys if route_keys.count(key) > 1})
+    assert duplicates == []
 
 
 def test_task_endpoint_rejects_empty_tasks() -> None:
