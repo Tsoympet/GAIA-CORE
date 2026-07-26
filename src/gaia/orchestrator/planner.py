@@ -28,7 +28,7 @@ class TaskPlan(BaseModel):
 
 
 class TaskPlanner:
-    """Rule-based bootstrap planner shaped for later model-assisted decomposition."""
+    """Rule-based bootstrap planner for later model-assisted decomposition."""
 
     def __init__(self, graph_builder: TaskGraphBuilder | None = None) -> None:
         self.graph_builder = graph_builder or TaskGraphBuilder()
@@ -43,7 +43,8 @@ class TaskPlanner:
         if not normalized:
             raise ValueError("objective must not be empty")
 
-        requested = self._deduplicate(capabilities or self._infer_capabilities(normalized))
+        inferred = capabilities or self._infer_capabilities(normalized)
+        requested = self._deduplicate(inferred)
         steps = self._build_steps(normalized, requested)
         graph = self.graph_builder.build_from_steps(normalized, steps)
 
@@ -61,12 +62,19 @@ class TaskPlanner:
             ],
         )
 
-    def _build_steps(self, objective: str, capabilities: list[str]) -> list[TaskStep]:
+    def _build_steps(
+        self,
+        objective: str,
+        capabilities: list[str],
+    ) -> list[TaskStep]:
         """Convert capabilities into deterministic dependency-ordered steps."""
         steps: list[TaskStep] = []
         previous_id: str | None = None
 
-        for index, capability in enumerate(capabilities or ["reasoning"], start=1):
+        for index, capability in enumerate(
+            capabilities or ["reasoning"],
+            start=1,
+        ):
             step_id = f"step-{index}"
             step_objective = (
                 objective
@@ -88,7 +96,13 @@ class TaskPlanner:
 
     def _execution_hint(self, capability: str) -> str:
         """Return a safe execution hint for the router and executor."""
-        if capability in {"coding", "repo", "tooling", "plugins", "self_evolve"}:
+        if capability in {
+            "coding",
+            "repo",
+            "tooling",
+            "plugins",
+            "self_evolve",
+        }:
             return "permission_gated"
         if capability in {"voice", "audio", "speech", "tts", "stt"}:
             return "local_with_text_fallback"
@@ -99,21 +113,36 @@ class TaskPlanner:
         lowered = objective.lower()
         capabilities: list[str] = []
 
-        if any(word in lowered for word in ("research", "compare", "study", "source")):
+        if any(
+            word in lowered
+            for word in ("research", "compare", "study", "source")
+        ):
             capabilities.append("research")
-        if any(word in lowered for word in ("code", "test", "bug", "repository", "software")):
+        if any(
+            word in lowered
+            for word in ("code", "test", "bug", "repository", "software")
+        ):
             capabilities.append("coding")
-        if any(word in lowered for word in ("memory", "remember", "recall")):
+        if any(
+            word in lowered
+            for word in ("memory", "remember", "recall")
+        ):
             capabilities.append("memory")
-        if any(word in lowered for word in ("voice", "speak", "audio", "transcribe")):
+        if any(
+            word in lowered
+            for word in ("voice", "speak", "audio", "transcribe")
+        ):
             capabilities.append("voice")
-        if any(word in lowered for word in ("secure", "permission", "policy", "risk")):
+        if any(
+            word in lowered
+            for word in ("secure", "permission", "policy", "risk")
+        ):
             capabilities.append("security")
 
         return capabilities or ["reasoning"]
 
     def _deduplicate(self, capabilities: list[str]) -> list[str]:
-        """Normalize capabilities while preserving their first-seen order."""
+        """Normalize capabilities while preserving first-seen order."""
         deduplicated: list[str] = []
         for capability in capabilities:
             normalized = capability.strip().lower()
