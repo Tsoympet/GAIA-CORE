@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from datetime import UTC, datetime
 from time import monotonic
@@ -27,7 +27,7 @@ from gaia.kernel.models import (
 from gaia.kernel.verification import VerificationEngine
 from gaia.orchestrator.aggregator import AggregatedResponse
 
-ExecutionOperation = Callable[[], Awaitable[AggregatedResponse]]
+ExecutionOperation = Callable[[], Coroutine[Any, Any, AggregatedResponse]]
 
 
 class CognitiveKernel:
@@ -170,8 +170,10 @@ class CognitiveKernel:
                 "started_at": datetime.now(UTC),
             },
         )
-        work_task = asyncio.create_task(operation())
-        cancel_task = asyncio.create_task(
+        work_task: asyncio.Task[AggregatedResponse] = asyncio.create_task(
+            operation()
+        )
+        cancel_task: asyncio.Task[bool] = asyncio.create_task(
             self.cancellations.get(execution_id).wait()
         )
 
@@ -232,7 +234,9 @@ class CognitiveKernel:
         elapsed_seconds: float,
     ) -> AggregatedResponse:
         execution = self.get_execution(execution_id)
-        steps = int(response.artifacts.get("node_count", 0))
+        steps = self._artifact_integer(
+            response.artifacts.get("node_count", 0)
+        )
         usage = ResourceUsage(
             elapsed_seconds=elapsed_seconds,
             steps=steps,
@@ -330,6 +334,20 @@ class CognitiveKernel:
             self.goals.cancel(execution.goal_id, reason)
         else:
             self.goals.fail(execution.goal_id, reason)
+
+    @staticmethod
+    def _artifact_integer(value: object) -> int:
+        """Return an integer artifact value without unsafe coercion."""
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                return 0
+        return 0
 
     def _update_execution(
         self,
