@@ -19,6 +19,7 @@ def test_kernel_status_and_goal_lifecycle_api() -> None:
 
     assert status.status_code == 200
     assert status.json()["state"] == "ready"
+    assert status.json()["storage"]["backend"] == "memory"
     assert created.status_code == 200
     assert created.json()["status"] == "planned"
     assert goals.status_code == 200
