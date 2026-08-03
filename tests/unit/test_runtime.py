@@ -14,3 +14,6 @@ def test_runtime_bootstraps_architecture_components() -> None:
     assert "gaia_self_evolve_agent" in status.agents
     assert "reasoning" in status.capabilities
     assert "self_evolve" in status.capabilities
+    assert status.kernel_status == "idle"
+    assert status.kernel_id
+    assert runtime.kernel is not None
