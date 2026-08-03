@@ -6,7 +6,7 @@ No new autonomous capability may bypass the recovery, validation, permission, or
 
 ## R0 — Repository recovery and clean baseline
 
-Status: in progress on `agent/recover-orchestrator-baseline`.
+Status: validated on `agent/recover-orchestrator-baseline` (merged baseline).
 
 Required outcomes:
 
@@ -20,6 +20,8 @@ Required outcomes:
 
 ## R1 — Cognitive Kernel
 
+Status: foundation in progress on `cursor/r1-cognitive-kernel-05ea`.
+
 Build the stable platform center responsible for:
 
 - goals and task state;
@@ -29,6 +31,10 @@ Build the stable platform center responsible for:
 - verification and uncertainty;
 - permissions and policy enforcement;
 - cancellation, interruption, and safe recovery.
+
+Foundation delivered: in-memory goal/context/budget/policy/verification/interrupt
+control plane wired through `GaiaRuntime` and `/kernel` APIs, preserving the
+recovered orchestrator as the execution engine.
 
 ## R2 — Cognitive Continuity
 

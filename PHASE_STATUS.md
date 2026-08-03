@@ -126,6 +126,25 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` must be implemented as real code with runtime wiring, persistence, migrations, security, tests, APIs, desktop integration, and rollback where applicable. Documentation, placeholders, static responses, and empty panels do not count as completed features.
 
+## R1 — Cognitive Kernel foundation
+
+In progress on branch `cursor/r1-cognitive-kernel-05ea`.
+
+Completed in this foundation slice:
+
+- `gaia.kernel` package with typed goal, context, budget, policy, verification, and interrupt modules;
+- `CognitiveKernel` composition root wrapping the recovered orchestrator;
+- runtime task submission routed through the kernel control plane;
+- operator API under `/kernel/*` for status, goals, cancel, interrupts, and kernel task submission;
+- unit and integration coverage for lifecycle, budgets, verification, policy gating, and API routes.
+
+Still required before Cognitive Kernel can be marked `IMPLEMENTED`:
+
+- durable goal/context persistence and migrations;
+- streaming run events and resumable interruption;
+- desktop mission-control surfaces;
+- broader failure/security regression matrix against the completion standard.
+
 ## Next phase
 
-R1 begins with the **Cognitive Kernel** on a separate implementation branch so the validated recovery baseline remains stable and reviewable.
+R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation) follows once the R1 kernel foundation is reviewed.

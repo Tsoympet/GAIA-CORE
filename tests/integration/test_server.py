@@ -43,6 +43,10 @@ def test_foundation_route_groups_are_registered() -> None:
         assert response.status_code == 200
         assert response.json()["accepted"] is True
 
+    kernel_status = client.get("/kernel/status")
+    assert kernel_status.status_code == 200
+    assert kernel_status.json()["status"] == "ok"
+
 
 def test_phase_two_required_endpoints_are_registered() -> None:
     client = TestClient(create_app())
