@@ -1,0 +1,22 @@
+kernel:
+  enabled: true
+  local_first: true
+  persistence:
+    db_path: .gaia/kernel.sqlite3
+    schema_version: 1
+  budgets:
+    max_steps: 32
+    max_model_calls: 16
+    max_tool_calls: 16
+    max_wall_ms: 120000
+    max_context_items: 64
+    max_memory_writes: 128
+  events:
+    memory_limit: 256
+    default_list_limit: 100
+  security:
+    read_permission: kernel.read
+    admin_permission: kernel.admin
+    delete_permission: kernel.delete
+    backup_permission: kernel.backup
+    risky_admin_requires_human_approval: true
