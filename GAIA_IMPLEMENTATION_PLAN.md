@@ -20,7 +20,7 @@ Required outcomes:
 
 ## R1 — Cognitive Kernel
 
-Status: foundation in progress on `cursor/r1-cognitive-kernel-05ea`.
+Status: **IMPLEMENTED** on `cursor/r1-cognitive-kernel-05ea`.
 
 Build the stable platform center responsible for:
 
@@ -32,12 +32,10 @@ Build the stable platform center responsible for:
 - permissions and policy enforcement;
 - cancellation, interruption, and safe recovery.
 
-Foundation delivered: in-memory goal/context/budget/policy/verification/interrupt
-control plane wired through `GaiaRuntime` and `/kernel` APIs, preserving the
-recovered orchestrator as the execution engine.
-
-Deepen delivered: SQLite persistence with schema migrations, durable event log,
-EventBus fan-out, and resumable interruption for interrupted goals.
+Delivered: typed control plane, SQLite persistence/migrations, backup/restore/
+delete/purge, SSE event streaming, resumable interrupts, permission-gated
+operator APIs, validated config, desktop kernel mission-control surface, and
+regression tests, preserving the recovered orchestrator as the execution engine.
 
 ## R2 — Cognitive Continuity
 

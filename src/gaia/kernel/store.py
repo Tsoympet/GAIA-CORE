@@ -263,6 +263,89 @@ class KernelStore:
             row = connection.execute("SELECT COUNT(*) AS n FROM kernel_events").fetchone()
         return int(row["n"]) if row is not None else 0
 
+    def delete_goal(self, goal_id: str) -> bool:
+        """Delete a goal and all durable derivatives (context, budget, events)."""
+        with self._connect_ctx() as connection:
+            existing = connection.execute(
+                "SELECT 1 FROM goals WHERE goal_id = ?",
+                (goal_id,),
+            ).fetchone()
+            if existing is None:
+                return False
+            connection.execute("DELETE FROM contexts WHERE goal_id = ?", (goal_id,))
+            connection.execute("DELETE FROM budgets WHERE goal_id = ?", (goal_id,))
+            connection.execute("DELETE FROM kernel_events WHERE goal_id = ?", (goal_id,))
+            connection.execute("DELETE FROM goals WHERE goal_id = ?", (goal_id,))
+        return True
+
+    def purge(self) -> dict[str, int]:
+        """Delete all durable kernel records and return removed counts."""
+        with self._connect_ctx() as connection:
+            goals = connection.execute("SELECT COUNT(*) AS n FROM goals").fetchone()
+            events = connection.execute("SELECT COUNT(*) AS n FROM kernel_events").fetchone()
+            contexts = connection.execute("SELECT COUNT(*) AS n FROM contexts").fetchone()
+            budgets = connection.execute("SELECT COUNT(*) AS n FROM budgets").fetchone()
+            connection.execute("DELETE FROM kernel_events")
+            connection.execute("DELETE FROM contexts")
+            connection.execute("DELETE FROM budgets")
+            connection.execute("DELETE FROM goals")
+        return {
+            "goals": int(goals["n"]) if goals is not None else 0,
+            "events": int(events["n"]) if events is not None else 0,
+            "contexts": int(contexts["n"]) if contexts is not None else 0,
+            "budgets": int(budgets["n"]) if budgets is not None else 0,
+        }
+
+    def backup(self, destination: Path | str) -> Path:
+        """Create a portable backup of the kernel database."""
+        dest = Path(destination)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if self._memory:
+            if dest.suffix == "":
+                dest = dest.with_suffix(".sql")
+            with self._connect_ctx() as connection, dest.open("w", encoding="utf-8") as handle:
+                for line in connection.iterdump():
+                    handle.write(f"{line}\n")
+            return dest
+
+        # Ensure pending writes are flushed before copying the file.
+        with self._connect_ctx() as connection:
+            connection.execute("PRAGMA wal_checkpoint(FULL)")
+        if dest.suffix == "":
+            dest = dest.with_suffix(".sqlite3")
+        import shutil
+
+        shutil.copy2(self.db_path, dest)
+        return dest
+
+    def restore(self, source: Path | str) -> None:
+        """Replace store contents from a backup created by ``backup``."""
+        src = Path(source)
+        if not src.exists():
+            raise FileNotFoundError(src)
+
+        if self._memory or src.suffix == ".sql":
+            sql = src.read_text(encoding="utf-8")
+            self.close()
+            self._connection = self._connect() if self._memory else None
+            with self._connect_ctx() as connection:
+                connection.executescript("PRAGMA foreign_keys = OFF;")
+                for table in ("kernel_events", "contexts", "budgets", "goals", "schema_migrations"):
+                    connection.execute(f"DROP TABLE IF EXISTS {table}")
+                connection.executescript(sql)
+                connection.executescript("PRAGMA foreign_keys = ON;")
+            if self.schema_version() < 1:
+                self._initialize()
+            return
+
+        if self._memory:
+            raise ValueError("cannot restore a binary sqlite backup into an in-memory store")
+        self.close()
+        import shutil
+
+        shutil.copy2(src, self.db_path)
+        self._initialize()
+
     def close(self) -> None:
         """Close the long-lived in-memory connection when present."""
         if self._connection is not None:

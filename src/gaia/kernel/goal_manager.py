@@ -178,6 +178,14 @@ class GoalManager:
         goal._touch()
         return goal
 
+    def remove(self, goal_id: str) -> Goal | None:
+        """Remove a goal from the live registry."""
+        return self._goals.pop(goal_id, None)
+
+    def clear(self) -> None:
+        """Remove all goals from the live registry."""
+        self._goals.clear()
+
     def count(self) -> int:
         """Return the number of tracked goals."""
         return len(self._goals)

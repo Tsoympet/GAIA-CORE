@@ -140,6 +140,10 @@ class ContextManager:
         self._contexts[goal_id] = context
         return context
 
+    def clear(self) -> None:
+        """Drop all working contexts."""
+        self._contexts.clear()
+
     def active_count(self) -> int:
         """Return the number of active working contexts."""
         return len(self._contexts)

@@ -126,33 +126,22 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` must be implemented as real code with runtime wiring, persistence, migrations, security, tests, APIs, desktop integration, and rollback where applicable. Documentation, placeholders, static responses, and empty panels do not count as completed features.
 
-## R1 — Cognitive Kernel foundation
+## R1 — Cognitive Kernel
 
-In progress on branch `cursor/r1-cognitive-kernel-05ea`.
+**Status: IMPLEMENTED** on branch `cursor/r1-cognitive-kernel-05ea`.
 
-Completed in this foundation slice:
+Completed:
 
-- `gaia.kernel` package with typed goal, context, budget, policy, verification, and interrupt modules;
-- `CognitiveKernel` composition root wrapping the recovered orchestrator;
-- runtime task submission routed through the kernel control plane;
-- operator API under `/kernel/*` for status, goals, cancel, interrupts, and kernel task submission;
-- unit and integration coverage for lifecycle, budgets, verification, policy gating, and API routes.
-
-Completed in the R1 deepen slice:
-
-- SQLite kernel store with schema migrations for goals, contexts, budgets, and events;
-- hydrate-on-startup for durable goal/context/budget recovery;
-- durable kernel event log with `EventDomain.KERNEL` bus fan-out;
-- resumable interruption via `CognitiveKernel.resume` and `POST /kernel/goals/{id}/resume`;
-- CLI/server durable path at `.gaia/kernel.sqlite3` while tests keep an in-memory default.
-
-Still required before Cognitive Kernel can be marked `IMPLEMENTED`:
-
-- streaming SSE/WebSocket run events for desktop consumers;
-- desktop mission-control surfaces for goals/events/budgets;
-- broader failure/security regression matrix against the completion standard;
-- backup/restore of the kernel database.
+- typed `gaia.kernel` control plane (goals, context, budgets, policy, verification, interrupts);
+- runtime task submission routed through the kernel while preserving the recovered orchestrator;
+- SQLite persistence with schema migrations, hydrate-on-startup, backup/restore/delete/purge;
+- durable event log, EventBus fan-out, and SSE stream at `/kernel/events/stream`;
+- resumable interruption via `CognitiveKernel.resume`;
+- permission-gated operator APIs (`kernel.read` / `delete` / `backup` / `admin`);
+- validated `config/kernel.yaml`;
+- desktop Cognitive Kernel mission-control page with live goals/events/actions;
+- unit/integration/failure/security regression coverage.
 
 ## Next phase
 
-R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation) follows once the R1 kernel foundation is reviewed.
+R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation).

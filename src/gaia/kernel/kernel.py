@@ -502,6 +502,37 @@ class CognitiveKernel:
             return tracker.snapshot.model_dump(mode="json")
         return self.store.get_budget(goal_id)
 
+    def delete_goal(self, goal_id: str) -> bool:
+        """Delete a goal and all durable derivatives from live and stored state."""
+        removed = self.store.delete_goal(goal_id)
+        self.goals.remove(goal_id)
+        self.contexts.release(goal_id)
+        self._budgets.pop(goal_id, None)
+        self.interrupts.acknowledge(goal_id)
+        return removed
+
+    def purge(self) -> dict[str, int]:
+        """Purge all kernel goals, contexts, budgets, and events."""
+        counts = self.store.purge()
+        self.goals.clear()
+        self.contexts.clear()
+        self._budgets.clear()
+        self.state.touch(KernelStatus.IDLE, purged=True)
+        return counts
+
+    def restore(self, source: Path | str) -> None:
+        """Restore durable state from backup and rehydrate the live kernel."""
+        self.store.restore(source)
+        self.goals.clear()
+        self.contexts.clear()
+        self._budgets.clear()
+        self._hydrate_from_store()
+        self.state.touch(KernelStatus.IDLE, restored=True)
+
+    def backup(self, destination: Path | str) -> Path:
+        """Create a portable backup of kernel durable state."""
+        return self.store.backup(destination)
+
     def _persist_goal(self, goal: Goal) -> None:
         self.store.upsert_goal(goal)
 

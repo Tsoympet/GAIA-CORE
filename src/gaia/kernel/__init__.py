@@ -1,5 +1,6 @@
 """Cognitive Kernel — GAIA platform control plane for goals, budgets, and policy."""
 
+from gaia.kernel.config import KernelConfig, load_kernel_config
 from gaia.kernel.context_manager import ContextItem, ContextManager, WorkingContext
 from gaia.kernel.events import KernelEventLog
 from gaia.kernel.goal_manager import Goal, GoalManager, GoalStatus
@@ -27,6 +28,7 @@ __all__ = [
     "GoalStatus",
     "InterruptController",
     "InterruptRequest",
+    "KernelConfig",
     "KernelEvent",
     "KernelEventLog",
     "KernelRunResult",
@@ -41,4 +43,5 @@ __all__ = [
     "VerificationReport",
     "WorkingContext",
     "create_cognitive_kernel",
+    "load_kernel_config",
 ]
