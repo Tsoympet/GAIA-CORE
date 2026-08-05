@@ -18,6 +18,7 @@ def test_kernel_status_endpoint() -> None:
     assert payload["status"] == "ok"
     assert payload["kernel"]["status"] == "idle"
     assert "kernel_id" in payload["kernel"]
+    assert payload["persistence"]["backend"] == "sqlite"
 
 
 def test_kernel_task_and_goal_inspection() -> None:
@@ -44,6 +45,32 @@ def test_kernel_task_and_goal_inspection() -> None:
     assert body["goal"]["id"] == goal_id
     assert body["context"]["items"]
     assert body["budget"] is not None
+    assert body["events"]
+
+    events = client.get("/kernel/events", params={"goal_id": goal_id})
+    assert events.status_code == 200
+    assert events.json()["count"] >= 1
+
+
+def test_kernel_resume_endpoint() -> None:
+    runtime = create_runtime()
+    client = TestClient(create_app(runtime))
+    runtime.kernel.interrupts.request_global("operator pause")
+
+    interrupted = client.post(
+        "/kernel/tasks",
+        json={"task": "Need resume support", "capabilities": ["reasoning"]},
+    )
+    assert interrupted.status_code == 200
+    goal_id = interrupted.json()["result"]["goal"]["id"]
+    assert interrupted.json()["result"]["goal"]["status"] == "interrupted"
+
+    runtime.kernel.interrupts.clear_global()
+    resumed = client.post(f"/kernel/goals/{goal_id}/resume", json={})
+    assert resumed.status_code == 200
+    payload = resumed.json()["result"]
+    assert payload["resumed"] is True
+    assert payload["goal"]["status"] == "completed"
 
 
 def test_kernel_cancel_unknown_goal_returns_404() -> None:
@@ -64,3 +91,4 @@ def test_runtime_status_includes_kernel_fields() -> None:
 
     assert payload["kernel_status"] == "idle"
     assert payload["kernel_id"]
+    assert payload["kernel_durable"] is False

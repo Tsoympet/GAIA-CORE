@@ -20,6 +20,7 @@ class EventDomain(StrEnum):
     RUNTIME = "runtime"
     MEMORY = "memory"
     SECURITY = "security"
+    KERNEL = "kernel"
 
 
 @dataclass(frozen=True, slots=True)

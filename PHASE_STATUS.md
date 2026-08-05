@@ -138,12 +138,20 @@ Completed in this foundation slice:
 - operator API under `/kernel/*` for status, goals, cancel, interrupts, and kernel task submission;
 - unit and integration coverage for lifecycle, budgets, verification, policy gating, and API routes.
 
+Completed in the R1 deepen slice:
+
+- SQLite kernel store with schema migrations for goals, contexts, budgets, and events;
+- hydrate-on-startup for durable goal/context/budget recovery;
+- durable kernel event log with `EventDomain.KERNEL` bus fan-out;
+- resumable interruption via `CognitiveKernel.resume` and `POST /kernel/goals/{id}/resume`;
+- CLI/server durable path at `.gaia/kernel.sqlite3` while tests keep an in-memory default.
+
 Still required before Cognitive Kernel can be marked `IMPLEMENTED`:
 
-- durable goal/context persistence and migrations;
-- streaming run events and resumable interruption;
-- desktop mission-control surfaces;
-- broader failure/security regression matrix against the completion standard.
+- streaming SSE/WebSocket run events for desktop consumers;
+- desktop mission-control surfaces for goals/events/budgets;
+- broader failure/security regression matrix against the completion standard;
+- backup/restore of the kernel database.
 
 ## Next phase
 

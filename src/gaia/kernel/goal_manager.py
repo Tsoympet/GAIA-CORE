@@ -56,6 +56,11 @@ class GoalManager:
     def __init__(self) -> None:
         self._goals: dict[str, Goal] = {}
 
+    def load(self, goals: list[Goal]) -> None:
+        """Hydrate the registry from durable storage."""
+        for goal in goals:
+            self._goals[goal.id] = goal
+
     def create(
         self,
         objective: str,
@@ -64,9 +69,11 @@ class GoalManager:
         capabilities: list[str] | None = None,
         parent_goal_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        goal_id: str | None = None,
     ) -> Goal:
         """Create and register a pending goal."""
         goal = Goal(
+            id=goal_id or str(uuid4()),
             objective=objective,
             session_id=session_id,
             capabilities=list(capabilities or []),

@@ -36,6 +36,9 @@ Foundation delivered: in-memory goal/context/budget/policy/verification/interrup
 control plane wired through `GaiaRuntime` and `/kernel` APIs, preserving the
 recovered orchestrator as the execution engine.
 
+Deepen delivered: SQLite persistence with schema migrations, durable event log,
+EventBus fan-out, and resumable interruption for interrupted goals.
+
 ## R2 — Cognitive Continuity
 
 Implement structured durable checkpoints containing objectives, plans, decisions, failures, open questions, repository state, permissions, evidence, and the next safe action. Support recovery after restarts, crashes, context compression, and model replacement.

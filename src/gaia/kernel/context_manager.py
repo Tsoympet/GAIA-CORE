@@ -107,6 +107,39 @@ class ContextManager:
         """Drop a working context when a goal terminates."""
         self._contexts.pop(goal_id, None)
 
+    def restore(self, snapshot: dict[str, object]) -> WorkingContext:
+        """Restore a working context from a durable snapshot."""
+        goal_id = str(snapshot.get("goal_id", ""))
+        session_id = str(snapshot.get("session_id", ""))
+        if not goal_id or not session_id:
+            raise ValueError("context snapshot requires goal_id and session_id")
+        max_items_raw = snapshot.get("max_items", self.default_max_items)
+        max_items = max_items_raw if isinstance(max_items_raw, int) else self.default_max_items
+        context = WorkingContext(
+            id=str(snapshot.get("id", str(uuid4()))),
+            goal_id=goal_id,
+            session_id=session_id,
+            max_items=max_items,
+        )
+        items_raw = snapshot.get("items", [])
+        if isinstance(items_raw, list):
+            for item in items_raw:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get("key")
+                if not isinstance(key, str):
+                    continue
+                tags_raw = item.get("tags", [])
+                tags = [str(tag) for tag in tags_raw] if isinstance(tags_raw, list) else []
+                context.items.append(
+                    ContextItem(key=key, value=item.get("value"), tags=tags)
+                )
+        overflow = len(context.items) - context.max_items
+        if overflow > 0:
+            context.items = context.items[overflow:]
+        self._contexts[goal_id] = context
+        return context
+
     def active_count(self) -> int:
         """Return the number of active working contexts."""
         return len(self._contexts)

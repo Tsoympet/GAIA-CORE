@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from gaia.agents.agent_registry import AgentRegistry, create_default_agent_registry
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
+from gaia.core.event_bus import EventBus
 from gaia.core.session import SessionManager
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
@@ -22,6 +23,8 @@ from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
 from gaia.security.permission_manager import PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
+
+DEFAULT_KERNEL_DB_PATH = Path(".gaia/kernel.sqlite3")
 
 
 class RuntimeStatus(BaseModel):
@@ -35,6 +38,7 @@ class RuntimeStatus(BaseModel):
     local_first: bool = True
     kernel_status: str = "idle"
     kernel_id: str | None = None
+    kernel_durable: bool = False
 
 
 class TaskRequest(BaseModel):
@@ -74,12 +78,15 @@ class GaiaRuntime(BaseModel):
     permission_manager: PermissionManager = Field(default_factory=PermissionManager)
     sessions: SessionManager = Field(default_factory=SessionManager)
     kernel: CognitiveKernel
+    event_bus: EventBus = Field(default_factory=EventBus)
 
     model_config = {"arbitrary_types_allowed": True}
 
     def status(self) -> RuntimeStatus:
         """Return a typed status snapshot suitable for CLI and API surfaces."""
         kernel_state = self.kernel.status()
+        persistence = kernel_state.details.get("persistence", {})
+        durable = bool(persistence.get("durable")) if isinstance(persistence, dict) else False
         return RuntimeStatus(
             runtime_id=self.runtime_id,
             agents=self.agent_registry.list_agent_names(),
@@ -89,6 +96,7 @@ class GaiaRuntime(BaseModel):
             local_first=self.model_catalog.local_first,
             kernel_status=kernel_state.status.value,
             kernel_id=kernel_state.kernel_id,
+            kernel_durable=durable,
         )
 
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
@@ -104,14 +112,23 @@ class GaiaRuntime(BaseModel):
         return result.response
 
 
-def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
-    """Create the default GAIA runtime composition."""
+def create_runtime(
+    config_dir: Path | str = Path("config"),
+    *,
+    kernel_db_path: Path | str = ":memory:",
+) -> GaiaRuntime:
+    """Create the default GAIA runtime composition.
+
+    ``kernel_db_path`` defaults to an in-memory SQLite database for isolated tests.
+    Production entrypoints should pass ``DEFAULT_KERNEL_DB_PATH``.
+    """
     agent_registry = create_default_agent_registry()
     capability_router = create_default_capability_router(agent_registry=agent_registry)
     model_catalog = create_model_catalog()
     memory_store = create_memory_store()
     security_policy = create_security_policy()
     permission_manager = PermissionManager()
+    event_bus = EventBus()
     orchestrator = create_orchestrator(
         capability_router=capability_router,
         memory_store=memory_store,
@@ -122,6 +139,8 @@ def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
         orchestrator=orchestrator,
         security_policy=security_policy,
         permission_manager=permission_manager,
+        kernel_db_path=kernel_db_path,
+        event_bus=event_bus,
     )
     return GaiaRuntime(
         config_dir=Path(config_dir),
@@ -133,4 +152,5 @@ def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
         security_policy=security_policy,
         permission_manager=permission_manager,
         kernel=kernel,
+        event_bus=event_bus,
     )

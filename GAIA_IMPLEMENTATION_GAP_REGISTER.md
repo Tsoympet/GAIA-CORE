@@ -32,7 +32,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Self-model and metacognition | SCAFFOLDED | Confidence and critique primitives | Capability calibration, limitation tracking, contradiction and failure models |
 | Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
-| Cognitive Kernel | PARTIAL | Unified `gaia.kernel` control plane with runtime and API wiring | Durable state, resume, streaming events, desktop surfaces |
+| Cognitive Kernel | PARTIAL | Unified `gaia.kernel` control plane with SQLite persistence, events, and resume | SSE/WebSocket streaming, desktop surfaces, backup/restore |
 | Cognitive Continuity | MISSING | Basic sessions only | Signed checkpoints, restart recovery, model-switch continuity, stale-state checks |
 | Memory Organism | MISSING | Separate memory primitives exist | Unified typed memory classes with provenance, promotion and retention rules |
 | Evidence and Provenance Ledger | MISSING | Route artifacts and basic metadata only | Source hashes, confidence, validation states, lineage, contradictions and supersession |

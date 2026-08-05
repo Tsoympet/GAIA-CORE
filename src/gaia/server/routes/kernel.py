@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -18,6 +19,13 @@ class CancelGoalRequest(BaseModel):
     """Request body for cancelling a kernel goal."""
 
     reason: str = "operator cancel"
+
+
+class ResumeGoalRequest(BaseModel):
+    """Optional overrides when resuming an interrupted goal."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    budget: ResourceBudget | None = None
 
 
 class KernelTaskRequest(BaseModel):
@@ -47,6 +55,7 @@ async def kernel_status(request: Request) -> dict[str, object]:
         "kernel": state.model_dump(mode="json"),
         "active_contexts": runtime.kernel.contexts.active_count(),
         "pending_interrupts": runtime.kernel.interrupts.pending_count(),
+        "persistence": runtime.kernel.store.status(),
     }
 
 
@@ -78,6 +87,10 @@ async def get_goal(goal_id: str, request: Request) -> dict[str, object]:
         "context": runtime.kernel.contexts.snapshot(goal_id),
         "budget": runtime.kernel.get_budget(goal_id),
         "interrupt": interrupt.model_dump(mode="json") if interrupt is not None else None,
+        "events": [
+            event.model_dump(mode="json")
+            for event in runtime.kernel.events.list_events(goal_id=goal_id, limit=50)
+        ],
     }
 
 
@@ -103,6 +116,37 @@ async def cancel_goal(
     }
 
 
+@router.post("/goals/{goal_id}/resume")
+async def resume_goal(
+    goal_id: str,
+    request: Request,
+    body: ResumeGoalRequest | None = None,
+) -> dict[str, object]:
+    """Resume an interrupted goal through another verified kernel run."""
+    runtime = _runtime(request)
+    metadata = body.metadata if body is not None else {}
+    budget = body.budget if body is not None else None
+    try:
+        result = await runtime.kernel.resume(
+            goal_id,
+            budget=budget,
+            metadata=metadata,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="GAIA kernel resume failed",
+        ) from exc
+    return {
+        "runtime_id": runtime.runtime_id,
+        "result": result.model_dump(mode="json"),
+    }
+
+
 @router.get("/interrupts")
 async def interrupt_history(request: Request) -> dict[str, object]:
     """Return interrupt history for operator audit."""
@@ -111,6 +155,29 @@ async def interrupt_history(request: Request) -> dict[str, object]:
     return {
         "interrupts": [item.model_dump(mode="json") for item in history],
         "pending": runtime.kernel.interrupts.pending_count(),
+    }
+
+
+@router.get("/events")
+async def list_kernel_events(
+    request: Request,
+    goal_id: str | None = None,
+    after_id: str | None = None,
+    since: datetime | None = None,
+    limit: int = 100,
+) -> dict[str, object]:
+    """List durable kernel lifecycle events."""
+    runtime = _runtime(request)
+    events = runtime.kernel.events.list_events(
+        goal_id=goal_id,
+        after_id=after_id,
+        since=since,
+        limit=limit,
+    )
+    return {
+        "events": [event.model_dump(mode="json") for event in events],
+        "count": len(events),
+        "persistence": runtime.kernel.store.status(),
     }
 
 
