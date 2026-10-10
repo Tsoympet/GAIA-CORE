@@ -23,8 +23,15 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from gaia.continuity.records import Checkpoint
+from gaia.continuity.store import ContinuityStore
 from gaia.evidence.codec import canonical_json, sha256_text
 from gaia.evidence.ledger import EvidenceLedger
+from gaia.organism.binding import (
+    CHECKPOINT_ORIGIN,
+    CHECKPOINT_PRODUCER,
+    checkpoint_evidence_content,
+)
 from gaia.organism.guards import (
     UNTRUSTED_SOURCES,
     looks_like_untrusted_instruction,
@@ -156,6 +163,7 @@ class MemoryOrganism:
     def __init__(self, db_path: Path | str) -> None:
         self.db_path = Path(db_path)
         self.evidence = EvidenceLedger(self.db_path)
+        self.continuity_bound = False
         self.migrate()
 
     def migrate(self) -> int:
@@ -254,6 +262,44 @@ class MemoryOrganism:
             category=MemoryCategory.AUTOBIOGRAPHICAL,
             project_id=project_id,
         )
+
+    def record_checkpoint_evidence(self, checkpoint: Checkpoint) -> bool:
+        """Cite a published checkpoint by digest. Returns whether a row was added.
+
+        The checkpoint payload is not read and is not stored.
+        """
+        if checkpoint.publication != "published":
+            raise PromotionError("only published checkpoints can be cited as evidence")
+        for record in self.evidence.list_records():
+            same_checkpoint = record.execution_id == checkpoint.checkpoint_id
+            if same_checkpoint and record.origin == CHECKPOINT_ORIGIN:
+                return False
+        content = checkpoint_evidence_content(checkpoint)
+        self.evidence.append(
+            source="system",
+            origin=CHECKPOINT_ORIGIN,
+            content=content,
+            producer=CHECKPOINT_PRODUCER,
+            mime_type="application/json",
+            classification="internal",
+            execution_id=checkpoint.checkpoint_id,
+            relationship="checkpoint-digest",
+        )
+        return True
+
+    def bind_continuity(self, store: ContinuityStore) -> int:
+        """Backfill published checkpoints and cite later publications."""
+        added = 0
+        for checkpoint in store.list_checkpoints():
+            if self.record_checkpoint_evidence(checkpoint):
+                added += 1
+
+        def _witness(checkpoint: Checkpoint) -> None:
+            self.record_checkpoint_evidence(checkpoint)
+
+        store.checkpoint_witness = _witness
+        self.continuity_bound = True
+        return added
 
     def propose_candidate(
         self,
@@ -607,11 +653,13 @@ class MemoryOrganism:
             "categories": counts,
             "evidence": evidence,
             "db_path": str(self.db_path),
+            "continuity_checkpoints_bound": self.continuity_bound,
             "limitations": [
                 "BM25 scores are uncalibrated retrieval weights.",
                 "Approval cannot modify security policy or persistent instructions.",
                 "Simulation memory cannot be promoted into factual knowledge.",
                 "Evidence headers are tamper-evident, not cryptographically immutable.",
+                "Continuity checkpoint evidence cites digests only, and only after binding.",
             ],
         }
 

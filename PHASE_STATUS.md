@@ -181,6 +181,7 @@ Completed in this slice:
 - deletion that clears text, keeps `content_sha256`, and rejects non-approved children;
 - default BM25 retrieval of recorded and approved memories, with strict project isolation;
 - kernel outcome recording with secret-assignment redaction;
+- citation of published continuity checkpoints as evidence digests when both stores are configured;
 - `/organism` routes and `gaia organism` inspection.
 
 The Phase 4 scoped memory manager is unchanged and still in process memory.
@@ -190,7 +191,6 @@ Still required before the Memory Organism can be marked `IMPLEMENTED`:
 - encryption at rest;
 - retrieval beyond uncalibrated BM25;
 - user-preference, identity, and timeline categories;
-- binding continuity checkpoints to evidence ids;
 - desktop surfaces.
 
 `cryptographic_immutability` is false. See `docs/architecture/memory_organism.md`.

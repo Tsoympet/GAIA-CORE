@@ -26,8 +26,9 @@ Persist evidence and organism memories in one opt-in SQLite file addressed by
 - Default retrieval returns recorded observations and approved knowledge.
 - No new third-party database dependency is added.
 
-The continuity journal stays a separate path. This decision does not bind
-checkpoint ids to evidence ids.
+The continuity journal stays a separate path. A runtime that configures both
+paths cites each published checkpoint in the evidence ledger by digest. The
+payload remains in the continuity journal.
 
 ## Consequences
 

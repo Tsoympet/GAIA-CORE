@@ -57,10 +57,13 @@ refusal rules, corrections, deletion, BM25 retrieval, kernel outcome
 redaction, `/organism` routes, and `gaia organism`. See
 `docs/architecture/memory_organism.md`.
 
-Still open: encryption at rest, retrieval beyond BM25, identity and timeline
-categories, and links from continuity checkpoints to evidence ids. The hash
-chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
-memory stays in process memory.
+Also delivered: published continuity checkpoints are cited in the evidence
+ledger by digest when both stores are configured. The payload stays in the
+continuity journal.
+
+Still open: encryption at rest, retrieval beyond BM25, and identity and
+timeline categories. The hash chain is tamper-evident, not cryptographic
+immutability. Phase 4 scoped memory stays in process memory.
 
 Still required by the long-term architecture:
 

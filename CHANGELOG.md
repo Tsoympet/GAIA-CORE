@@ -11,6 +11,7 @@
 - Corrections, contradiction links, deletion that keeps content hashes, BM25 retrieval, and owner export.
 - Kernel outcome recording with secret-assignment redaction when `organism_path` is set.
 - `/organism` routes and `gaia organism` inspection. `gaia run` and `gaia serve` accept `--organism-db`.
+- Published continuity checkpoints are cited as evidence digests when both the journal and the organism are configured. Checkpoint payloads are not copied.
 - Opt-in cognitive continuity journal (`gaia.continuity`) backed by local SQLite.
 - Versioned schema v1 and a forced downgrade to an empty schema version 0.
 - Validated task state machine, append-only transitions, and hash-linked checkpoints.

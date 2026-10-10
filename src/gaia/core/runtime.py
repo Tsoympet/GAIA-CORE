@@ -158,6 +158,8 @@ def create_runtime(
         continuity=continuity,
     )
     organism = MemoryOrganism(organism_path) if organism_path is not None else None
+    if organism is not None and continuity is not None:
+        organism.bind_continuity(continuity.store)
     return GaiaRuntime(
         config_dir=Path(config_dir),
         orchestrator=orchestrator,

@@ -69,6 +69,5 @@ Workspace routes:
 - production vector backend adapters;
 - complete derived-data deletion across summaries, caches, backups, and future graph stores;
 - migration, backup, restore, and integrity-check workflows;
-- encryption, embedding retrieval, and continuity binding for the partial
-  Memory Organism;
+- encryption and embedding retrieval for the partial Memory Organism;
 - user-preference, identity, and timeline categories.

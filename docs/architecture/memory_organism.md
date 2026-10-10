@@ -102,10 +102,11 @@ children that name the deleted memory as parent become `rejected`.
 - No hybrid or embedding retrieval. BM25 is the only ranker.
 - No user-preference, identity, or timeline category beyond autobiographical
   kernel notes.
-- Continuity checkpoints are not written into this ledger. The two files are
-  independent unless an operator points both paths at the same SQLite file.
-  Pointing them at one file is safe for table names, but it does not link a
-  checkpoint to an evidence id.
+- When both `continuity_path` and `organism_path` are set, each published
+  checkpoint is cited as evidence. The citation stores the checkpoint id,
+  payload digest, parent id, reason, and kernel id. It does not store the
+  checkpoint payload. Binding is not automatic for an organism opened on its
+  own.
 - Phase 4 scoped memory remains in process memory.
 - Desktop mission control is not wired to these routes.
 - This capability stays `PARTIAL`.

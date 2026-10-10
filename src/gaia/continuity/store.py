@@ -6,7 +6,7 @@ import atexit
 import json
 import os
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -97,6 +97,7 @@ class ContinuityStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock_path = self.db_path.with_name(self.db_path.name + ".lock")
         self._lock_held = False
+        self.checkpoint_witness: Callable[[Checkpoint], None] | None = None
         self.migrate()
 
     def migrate(self) -> int:
@@ -477,7 +478,9 @@ class ContinuityStore:
                 raise ContinuityIntegrityError("checkpoint hash did not match its payload")
             checkpoint.publication = "published"
             self._insert_checkpoint(connection, checkpoint)
-            return checkpoint
+        if self.checkpoint_witness is not None:
+            self.checkpoint_witness(checkpoint)
+        return checkpoint
 
     def list_checkpoints(self, *, publication: str | None = "published") -> list[Checkpoint]:
         """List checkpoints, omitting payload bodies."""

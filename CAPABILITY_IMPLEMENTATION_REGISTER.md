@@ -35,18 +35,18 @@ Allowed states:
 |---|---|---|---|
 | Repository integrity and CI | RECOVERY | Recovery PR, compile/lint/type/test workflow | Complete repository scan, obtain green validation, release clean baseline |
 | Cognitive Kernel | PARTIAL | Typed kernel package, runtime wiring, `/kernel` API, in-memory goals/context/budgets/verification/interrupts, optional continuity journal | Streaming events, desktop surfaces, full completion-standard coverage |
-| Cognitive Continuity | PARTIAL | SQLite schema v1, task state machine, hash-linked checkpoints, recovery, approval revocation, redaction, branches, resume, audit export, CLI inspect | Encryption at rest, streaming events, desktop surfaces, session store, memory-organism binding. Not cryptographic immutability |
+| Cognitive Continuity | PARTIAL | SQLite schema v1, task state machine, hash-linked checkpoints, recovery, approval revocation, redaction, branches, resume, audit export, CLI inspect, digest citations in the evidence ledger | Encryption at rest, streaming events, desktop surfaces, session store. Not cryptographic immutability |
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
 | Model Fabric | PARTIAL | Catalog, registry, Ollama adapter, local placeholder, disabled cloud fallback | llama.cpp, vLLM, Transformers, ONNX adapters, health probes, hardware routing, privacy classes, cost accounting, failover |
 | Working memory | PARTIAL | Runtime event memory, scoped in-memory records, and organism working memories with `valid_until` | Kernel-bound limits, compression, trace linkage, encryption |
-| Episodic memory | PARTIAL | Durable episodic records bound to evidence ids, owner, and optional project | Encryption, embedding retrieval, continuity checkpoint links |
+| Episodic memory | PARTIAL | Durable episodic records bound to evidence ids, owner, and optional project. Checkpoint citations are evidence digests, not episodic copies of the payload | Encryption, embedding retrieval |
 | Semantic memory | PARTIAL | In-memory vector index plus organism promotion to approved semantic memory | Durable embeddings, calibrated confidence, model/version metadata |
 | Procedural memory | PARTIAL | Organism procedural candidates with the same promotion rules as semantic memory | Skill Registry versions, execution evidence, rollback of procedures |
 | Correction memory | PARTIAL | Append-only correction memories; original content and hash stay unchanged | Regression linkage and automatic revalidation of approved dependents |
 | Identity memory | SCAFFOLD | Self-model and persona classes. Autobiographical kernel notes are not identity memory | Durable approved identity configuration, capability/limitation state, change history |
 | Simulation memory | PARTIAL | Organism simulation category that cannot be promoted into factual knowledge | Expiry policies beyond `valid_until`, isolated dream-lab store |
-| Provenance and Evidence Ledger | PARTIAL | Insert-only SQLite headers, content hashes, purge receipts, chain verification | Signatures, encryption, cryptographic immutability, checkpoint linkage |
+| Provenance and Evidence Ledger | PARTIAL | Insert-only SQLite headers, content hashes, purge receipts, chain verification, continuity checkpoint digest citations | Signatures, encryption, cryptographic immutability |
 | Living Project Intelligence | MISSING | SQLite workspace metadata | Requirements graph, repository/file graph, decisions, risks, versions, tests, evidence, timelines and project APIs |
 | Security policy engine | PARTIAL | Objective policy, permissions, guards, audit log, shared kill switch | Scoped grants, expiry, approval records, sandbox policies, policy persistence, event correlation, red-team tests |
 | Tool Runtime | MISSING | Tool route stubs and routing metadata | Signed manifests, schemas, sandbox runner, quotas, dry-run, cancellation, audit, rollback and tool registry |
