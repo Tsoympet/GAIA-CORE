@@ -59,7 +59,8 @@ redaction, `/organism` routes, and `gaia organism`. See
 
 Also delivered: published continuity checkpoints are cited in the evidence
 ledger by digest when both stores are configured. The payload stays in the
-continuity journal.
+continuity journal. Organism tables and evidence tables can each be forced
+back to an empty version 0 without dropping the other group.
 
 Still open: encryption at rest, retrieval beyond BM25, and identity and
 timeline categories. The hash chain is tamper-evident, not cryptographic

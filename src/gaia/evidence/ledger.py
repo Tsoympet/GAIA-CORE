@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS evidence_purges (
 );
 """
 
+DROP_EVIDENCE_V1 = """
+DROP TABLE IF EXISTS evidence_purges;
+DROP TABLE IF EXISTS evidence_bodies;
+DROP TABLE IF EXISTS evidence_records;
+"""
+
 
 class EvidenceError(ValueError):
     """Raised when an evidence operation violates the ledger rules."""
@@ -120,6 +126,36 @@ class EvidenceLedger:
                     f"evidence schema {current} is newer than this build ({SCHEMA_VERSION})"
                 )
             return current
+
+    def rollback_schema(self, target: int, *, force: bool = False) -> int:
+        """Drop evidence tables back to version 0 when forced.
+
+        Version 0 removes headers, bodies, and purge receipts. The migration
+        table remains with no applied version. The next open migrates to
+        version 1 again. Organism and continuity tables in the same file are
+        left in place.
+        """
+        if target < 0 or target > SCHEMA_VERSION:
+            raise ValueError(f"unsupported evidence schema target: {target}")
+        self.migrate()
+        with self._transaction() as connection:
+            current = _schema_version(connection)
+            if target > current:
+                raise ValueError("schema rollback target is newer than the applied version")
+            if target == current:
+                return current
+            count_row = connection.execute(
+                "SELECT COUNT(*) AS count FROM evidence_records"
+            ).fetchone()
+            record_count = 0 if count_row is None else int(count_row["count"])
+            if record_count and not force:
+                raise EvidenceError(
+                    "schema rollback would drop evidence history; pass force=True"
+                )
+            if target == 0 and current >= 1:
+                _execute_sql_script(connection, DROP_EVIDENCE_V1)
+                connection.execute("DELETE FROM evidence_schema_migrations WHERE version >= 1")
+            return _schema_version(connection)
 
     def append(
         self,
@@ -328,6 +364,15 @@ class EvidenceLedger:
         connection.execute("PRAGMA busy_timeout = 5000")
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
+
+
+def _schema_version(connection: sqlite3.Connection) -> int:
+    row = connection.execute(
+        "SELECT MAX(version) AS version FROM evidence_schema_migrations"
+    ).fetchone()
+    if row is None or row["version"] is None:
+        return 0
+    return int(row["version"])
 
 
 def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:

@@ -42,7 +42,9 @@ payload remains in the continuity journal.
 
 ## Rollback
 
-Stop the runtime. Restore a copy of the SQLite file. There is no
-`rollback_schema` helper for these tables. Application code from this
-milestone can be reverted; older runtimes ignore the file unless
-`organism_path` is set.
+Stop the runtime. Copy the SQLite file. `MemoryOrganism.rollback_schema(0, force=True)`
+drops organism tables and leaves evidence and continuity tables.
+`EvidenceLedger.rollback_schema(0, force=True)` drops evidence tables and
+leaves organism and continuity tables. Re-opening applies version 1 again for
+the dropped group. Restoring the copied file returns the previous store.
+Older runtimes ignore the file unless `organism_path` is set.

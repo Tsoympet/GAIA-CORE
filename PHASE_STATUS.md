@@ -182,6 +182,7 @@ Completed in this slice:
 - default BM25 retrieval of recorded and approved memories, with strict project isolation;
 - kernel outcome recording with secret-assignment redaction;
 - citation of published continuity checkpoints as evidence digests when both stores are configured;
+- forced schema rollback to version 0 for organism tables and, separately, for evidence tables;
 - `/organism` routes and `gaia organism` inspection.
 
 The Phase 4 scoped memory manager is unchanged and still in process memory.

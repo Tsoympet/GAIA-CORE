@@ -113,7 +113,12 @@ children that name the deleted memory as parent become `rejected`.
 
 ## Rollback
 
-There is no in-place schema downgrade. Stop the runtime and replace the
-SQLite file with a copy taken before the change. Opening a missing or empty
-file creates schema version 1 for evidence and for the organism. Older
-runtimes do not open the file unless `organism_path` is set.
+`MemoryOrganism.rollback_schema(0, force=True)` drops organism memories,
+events, and contradiction links. It keeps evidence headers and any continuity
+tables in the same file. `EvidenceLedger.rollback_schema(0, force=True)` drops
+evidence headers, bodies, and purge receipts. It keeps organism and continuity
+tables. Both refuse when rows exist unless `force` is true. The next open
+migrates the dropped group back to an empty version 1.
+
+Copy the SQLite file before a forced downgrade. Older runtimes do not open
+the file unless `organism_path` is set.

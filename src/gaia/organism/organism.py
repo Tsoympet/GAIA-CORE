@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS organism_contradictions (
 );
 """
 
+DROP_ORGANISM_V1 = """
+DROP TABLE IF EXISTS organism_contradictions;
+DROP TABLE IF EXISTS organism_events;
+DROP TABLE IF EXISTS organism_memories;
+"""
+
 
 class MemoryCategory(StrEnum):
     """Distinct memory classes. They are not interchangeable."""
@@ -188,6 +194,33 @@ class MemoryOrganism:
                     f"organism schema {current} is newer than this build ({SCHEMA_VERSION})"
                 )
             return current
+
+    def rollback_schema(self, target: int, *, force: bool = False) -> int:
+        """Drop organism tables back to version 0 when forced.
+
+        Evidence headers and continuity tables in the same file are kept.
+        """
+        if target < 0 or target > SCHEMA_VERSION:
+            raise ValueError(f"unsupported organism schema target: {target}")
+        self.migrate()
+        with self._transaction() as connection:
+            current = _organism_schema_version(connection)
+            if target > current:
+                raise ValueError("schema rollback target is newer than the applied version")
+            if target == current:
+                return current
+            count_row = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_memories"
+            ).fetchone()
+            memory_count = 0 if count_row is None else int(count_row["count"])
+            if memory_count and not force:
+                raise PromotionError(
+                    "schema rollback would drop organism memories; pass force=True"
+                )
+            if target == 0 and current >= 1:
+                _execute_sql_script(connection, DROP_ORGANISM_V1)
+                connection.execute("DELETE FROM organism_schema_migrations WHERE version >= 1")
+            return _organism_schema_version(connection)
 
     def record_episodic(
         self,
@@ -793,6 +826,15 @@ def _bounded(confidence: float) -> float:
     if confidence < 0.0 or confidence > 1.0:
         raise PromotionError("confidence must be between 0 and 1")
     return confidence
+
+
+def _organism_schema_version(connection: sqlite3.Connection) -> int:
+    row = connection.execute(
+        "SELECT MAX(version) AS version FROM organism_schema_migrations"
+    ).fetchone()
+    if row is None or row["version"] is None:
+        return 0
+    return int(row["version"])
 
 
 def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:

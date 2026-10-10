@@ -69,7 +69,7 @@ Allowed states:
 | Observability | MISSING | Basic logging | Structured event schema, OpenTelemetry, metrics, traces, dashboards, privacy controls and retention |
 | Plugin ecosystem | MISSING | None | Signed manifests, capability declarations, dependency isolation, license checks and governance |
 | Deployment and installers | SCAFFOLD | Docker, Compose, NGINX and systemd placeholders | Reproducible images, migrations, health checks, Windows/Linux installers, update and rollback channels |
-| Backup, restore and migration | MISSING | SQLite workspace, continuity, and organism files can be copied. Continuity has a forced schema downgrade. Organism and evidence migrate forward only | Encrypted backups, selective restore, and disaster-recovery tests |
+| Backup, restore and migration | PARTIAL | SQLite workspace, continuity, organism, and evidence files can be copied. Continuity, organism, and evidence each have a forced downgrade to an empty version 0. Organism and evidence downgrades do not drop each other's tables | Encrypted backups, selective restore of individual memories, and disaster-recovery tests |
 | Robotics and physical AI | DEFERRED | None | Simulation adapters first; no actuation before deterministic interlocks, emergency stop and independent safety validation |
 
 ## Implementation order after Recovery R0

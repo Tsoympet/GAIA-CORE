@@ -12,6 +12,7 @@
 - Kernel outcome recording with secret-assignment redaction when `organism_path` is set.
 - `/organism` routes and `gaia organism` inspection. `gaia run` and `gaia serve` accept `--organism-db`.
 - Published continuity checkpoints are cited as evidence digests when both the journal and the organism are configured. Checkpoint payloads are not copied.
+- Forced schema rollback to version 0 for organism tables and, separately, for evidence tables. Each rollback leaves the other tables in the same SQLite file.
 - Opt-in cognitive continuity journal (`gaia.continuity`) backed by local SQLite.
 - Versioned schema v1 and a forced downgrade to an empty schema version 0.
 - Validated task state machine, append-only transitions, and hash-linked checkpoints.

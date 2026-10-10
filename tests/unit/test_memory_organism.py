@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from gaia.continuity.store import ContinuityStore
 from gaia.core.runtime import TaskRequest, create_runtime
-from gaia.evidence.ledger import EvidenceLedger
+from gaia.evidence.ledger import EvidenceError, EvidenceLedger
+from gaia.kernel.goal_manager import Goal
 from gaia.organism.organism import MemoryCategory, MemoryOrganism, MemoryStatus, PromotionError
 from gaia.organism.retrieval import bm25_scores
 
@@ -237,6 +239,41 @@ def test_correction_deletion_staleness_and_secret_redaction(tmp_path: Path) -> N
     assert "super-secret" not in joined
     assert "token=[redacted]" in joined
     assert stored["policy_effect"] == "none"
+
+
+def test_schema_rollback_keeps_the_other_store(tmp_path: Path) -> None:
+    path = tmp_path / "shared.sqlite3"
+    store = ContinuityStore(path)
+    goal = Goal(objective="Keep this checkpoint", session_id="session-rollback")
+    store.upsert_goal(goal)
+    checkpoint = store.publish_checkpoint(reason="keep", kernel_id="test")
+
+    organism = MemoryOrganism(path)
+    evidence = organism.evidence.append(
+        source="user",
+        origin="note",
+        content="Observed freeboard before rollback",
+        producer="operator",
+    )
+    memory = organism.record_episodic(evidence.evidence_id, owner_id="local")
+    with pytest.raises(PromotionError, match="force"):
+        organism.rollback_schema(0)
+    assert organism.rollback_schema(0, force=True) == 0
+    assert organism.evidence.get(evidence.evidence_id) is not None
+    assert ContinuityStore(path).get_checkpoint(checkpoint.checkpoint_id) is not None
+
+    restored = MemoryOrganism(path)
+    assert restored.get(memory.memory_id) is None
+    assert restored.migrate() == 1
+
+    with pytest.raises(EvidenceError, match="force"):
+        restored.evidence.rollback_schema(0)
+    assert restored.evidence.rollback_schema(0, force=True) == 0
+    assert ContinuityStore(path).get_checkpoint(checkpoint.checkpoint_id) is not None
+    reopened = EvidenceLedger(path)
+    assert reopened.list_records() == []
+    assert reopened.verify_chain() is True
+    assert MemoryOrganism(path).get(memory.memory_id) is None
 
 
 def test_cli_organism_reports_missing_file(tmp_path: Path) -> None:
