@@ -159,11 +159,11 @@ Completed in this slice:
 
 Still required before Cognitive Continuity can be marked `IMPLEMENTED`:
 
-- encryption at rest;
 - streaming run events;
 - desktop mission-control surfaces;
-- binding continuity to the Memory Organism and Evidence Ledger;
 - a durable session store beyond the session id recorded on each goal.
+
+Field encryption is available when a 32-byte data key is configured. It is not whole-file encryption, and the hash chain is still not cryptographic immutability.
 
 The hash chain is tamper-evident for accidental corruption. It is not cryptographic immutability.
 
@@ -189,13 +189,14 @@ The Phase 4 scoped memory manager is unchanged and still in process memory.
 
 Still required before the Memory Organism can be marked `IMPLEMENTED`:
 
-- encryption at rest;
 - retrieval beyond uncalibrated BM25;
 - user-preference, identity, and timeline categories;
 - desktop surfaces.
+
+Field encryption seals evidence bodies, memory text, and continuity secret fields when a data key is configured. Opening an encrypted file without that key fails closed.
 
 `cryptographic_immutability` is false. See `docs/architecture/memory_organism.md`.
 
 ## Next phase
 
-Finish the remaining R3 gaps above before Living Project Intelligence. Do not replace the Phase 4 memory manager or the continuity journal with this store. Do not open a second persistence path for goals or task state.
+Finish the remaining local platform gaps: a durable session store, retrieval beyond BM25, and the user-preference, identity, and timeline categories. Living Project Intelligence comes after those. The light client waits until this local platform work is in place. Do not replace the Phase 4 memory manager or the continuity journal. Do not open a second persistence path for goals or task state.

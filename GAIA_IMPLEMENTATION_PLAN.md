@@ -44,9 +44,9 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: encryption at rest, streaming events, desktop surfaces, and
-connection to the Memory Organism. Checkpoints are tamper-evident, not a
-cryptographic ledger.
+Still open: streaming events, desktop surfaces, and a durable session store.
+Optional AES-GCM field encryption seals secret JSON when a data key is set.
+Checkpoints are tamper-evident, not a cryptographic ledger.
 
 ## R3 — Memory Organism and Provenance Ledger
 
@@ -62,9 +62,14 @@ ledger by digest when both stores are configured. The payload stays in the
 continuity journal. Organism tables and evidence tables can each be forced
 back to an empty version 0 without dropping the other group.
 
-Still open: encryption at rest, retrieval beyond BM25, and identity and
-timeline categories. The hash chain is tamper-evident, not cryptographic
-immutability. Phase 4 scoped memory stays in process memory.
+Also delivered: optional AES-GCM field encryption for evidence bodies and
+memory text. A missing or wrong key fails closed.
+
+Still open: retrieval beyond BM25, and identity and timeline categories. The
+hash chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
+memory stays in process memory.
+
+The light client is deferred until these local platform gaps are closed.
 
 Still required by the long-term architecture:
 

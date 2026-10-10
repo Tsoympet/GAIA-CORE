@@ -19,6 +19,13 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from gaia.evidence.codec import canonical_json, sha256_text
+from gaia.security.field_cipher import (
+    DataKeyError,
+    FieldCipher,
+    open_field,
+    seal_field,
+    seal_if_plain,
+)
 
 SCHEMA_VERSION = 1
 GENESIS = "genesis"
@@ -99,10 +106,13 @@ class EvidenceRecord(BaseModel):
 class EvidenceLedger:
     """Local SQLite evidence ledger."""
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, *, cipher: FieldCipher | None = None) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.cipher = cipher
         self.migrate()
+        if cipher is not None:
+            self.reseal_plaintext()
 
     def migrate(self) -> int:
         """Apply the evidence schema and return its version."""
@@ -126,6 +136,26 @@ class EvidenceLedger:
                     f"evidence schema {current} is newer than this build ({SCHEMA_VERSION})"
                 )
             return current
+
+    def reseal_plaintext(self) -> int:
+        """Encrypt plaintext bodies in place. Header digests stay hashes of plaintext."""
+        if self.cipher is None:
+            return 0
+        changed = 0
+        with self._transaction() as connection:
+            rows = connection.execute(
+                "SELECT evidence_id, content_text FROM evidence_bodies"
+            ).fetchall()
+            for row in rows:
+                sealed = seal_if_plain(self.cipher, str(row["content_text"]))
+                if sealed is None:
+                    continue
+                connection.execute(
+                    "UPDATE evidence_bodies SET content_text = ? WHERE evidence_id = ?",
+                    (sealed, str(row["evidence_id"])),
+                )
+                changed += 1
+        return changed
 
     def rollback_schema(self, target: int, *, force: bool = False) -> int:
         """Drop evidence tables back to version 0 when forced.
@@ -236,7 +266,7 @@ class EvidenceLedger:
             )
             connection.execute(
                 "INSERT INTO evidence_bodies (evidence_id, content_text) VALUES (?, ?)",
-                (evidence_id, content),
+                (evidence_id, seal_field(self.cipher, content)),
             )
         loaded = self.get(evidence_id)
         if loaded is None:
@@ -247,7 +277,7 @@ class EvidenceLedger:
         """Return one evidence record. Purged records omit the body."""
         self.migrate()
         with self._read() as connection:
-            return _load(connection, evidence_id)
+            return _load(connection, evidence_id, self.cipher)
 
     def list_records(self) -> list[EvidenceRecord]:
         """Return evidence headers in chain order."""
@@ -256,20 +286,22 @@ class EvidenceLedger:
             rows = connection.execute(
                 "SELECT evidence_id FROM evidence_records ORDER BY created_at ASC"
             ).fetchall()
-            loaded = [_load(connection, str(row["evidence_id"])) for row in rows]
+            loaded = [
+                _load(connection, str(row["evidence_id"]), self.cipher) for row in rows
+            ]
         return [record for record in loaded if record is not None]
 
     def verify(self, evidence_id: str) -> bool:
         """Return whether one record matches its stored digest and body hash."""
         self.migrate()
         with self._read() as connection:
-            return _record_ok(connection, evidence_id)
+            return _record_ok(connection, evidence_id, self.cipher)
 
     def verify_chain(self) -> bool:
         """Return whether every header links to the previous record digest."""
         self.migrate()
         with self._read() as connection:
-            return _chain_ok(connection)
+            return _chain_ok(connection, self.cipher)
 
     def purge_expired(self, *, now: datetime | None = None) -> list[str]:
         """Remove bodies whose retention instant has passed.
@@ -319,8 +351,25 @@ class EvidenceLedger:
 
     def status(self) -> dict[str, Any]:
         """Return ledger capability status."""
-        records = self.list_records()
-        integrity_ok = self.verify_chain()
+        encrypted = self.cipher is not None
+        try:
+            records = self.list_records()
+            integrity_ok = self.verify_chain()
+        except DataKeyError as exc:
+            return {
+                "capability": "evidence_ledger",
+                "status": "degraded",
+                "durable": True,
+                "backend": "sqlite",
+                "schema_version": SCHEMA_VERSION,
+                "local_first": True,
+                "network": "none",
+                "encrypted_at_rest": True,
+                "cryptographic_immutability": False,
+                "reason": str(exc),
+                "integrity": "degraded",
+                "db_path": str(self.db_path),
+            }
         return {
             "capability": "evidence_ledger",
             "status": "available" if integrity_ok else "degraded",
@@ -329,7 +378,7 @@ class EvidenceLedger:
             "schema_version": SCHEMA_VERSION,
             "local_first": True,
             "network": "none",
-            "encrypted_at_rest": False,
+            "encrypted_at_rest": encrypted,
             "cryptographic_immutability": False,
             "record_count": len(records),
             "purged_count": sum(1 for record in records if record.purged),
@@ -399,7 +448,11 @@ def _latest_hash(connection: sqlite3.Connection) -> str:
     return str(row["record_sha256"])
 
 
-def _load(connection: sqlite3.Connection, evidence_id: str) -> EvidenceRecord | None:
+def _load(
+    connection: sqlite3.Connection,
+    evidence_id: str,
+    cipher: FieldCipher | None,
+) -> EvidenceRecord | None:
     row = connection.execute(
         "SELECT * FROM evidence_records WHERE evidence_id = ?",
         (evidence_id,),
@@ -421,7 +474,7 @@ def _load(connection: sqlite3.Connection, evidence_id: str) -> EvidenceRecord | 
         origin=str(row["origin"]),
         created_at=datetime.fromisoformat(str(row["created_at"])),
         content_sha256=str(row["content_sha256"]),
-        content_text=None if body is None else str(body["content_text"]),
+        content_text=None if body is None else open_field(cipher, str(body["content_text"])),
         purged=purge is not None,
         producer=str(row["producer"]),
         execution_id=None if row["execution_id"] is None else str(row["execution_id"]),
@@ -462,7 +515,11 @@ def _header_hash(row: sqlite3.Row) -> str:
     return sha256_text(canonical_json(header))
 
 
-def _record_ok(connection: sqlite3.Connection, evidence_id: str) -> bool:
+def _record_ok(
+    connection: sqlite3.Connection,
+    evidence_id: str,
+    cipher: FieldCipher | None,
+) -> bool:
     row = connection.execute(
         "SELECT * FROM evidence_records WHERE evidence_id = ?",
         (evidence_id,),
@@ -478,18 +535,19 @@ def _record_ok(connection: sqlite3.Connection, evidence_id: str) -> bool:
         (evidence_id,),
     ).fetchone()
     if body is not None:
-        return sha256_text(str(body["content_text"])) == str(row["content_sha256"])
+        opened = open_field(cipher, str(body["content_text"]))
+        return sha256_text(opened) == str(row["content_sha256"])
     return purge is not None and str(purge["content_sha256"]) == str(row["content_sha256"])
 
 
-def _chain_ok(connection: sqlite3.Connection) -> bool:
+def _chain_ok(connection: sqlite3.Connection, cipher: FieldCipher | None) -> bool:
     rows = connection.execute(
         "SELECT * FROM evidence_records ORDER BY created_at ASC"
     ).fetchall()
     expected = GENESIS
     for row in rows:
         if str(row["previous_hash"]) != expected or not _record_ok(
-            connection, str(row["evidence_id"])
+            connection, str(row["evidence_id"]), cipher
         ):
             return False
         expected = str(row["record_sha256"])

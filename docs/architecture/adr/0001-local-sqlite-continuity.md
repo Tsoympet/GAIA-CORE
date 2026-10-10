@@ -32,8 +32,8 @@ would make local and offline operation depend on another service.
 - Approvals and credentials are not part of recovered authority.
 - The hash chain is tamper-evident against accidental corruption and naive
   payload edits. It is not a cryptographic ledger against a privileged writer.
-- Encryption at rest, multi-writer replication, and desktop presentation are
-  not provided by this decision.
+- Multi-writer replication and desktop presentation are not provided by this
+  decision. Field encryption is covered by ADR 0003.
 - Schema downgrade to version 0 drops continuity tables and must be forced
   when published checkpoints exist.
 

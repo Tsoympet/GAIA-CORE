@@ -20,7 +20,8 @@ LIMITATIONS: tuple[str, ...] = (
     "Published checkpoints are retained after live goal deletion.",
     "When the orchestrator plans internally, the task machine records "
     "classified to executing rather than a separate planned state.",
-    "Continuity storage in this milestone is local and unencrypted at rest.",
+    "Field encryption is off unless a 32-byte data key is configured. "
+    "Encryption does not make the hash chain cryptographic immutability.",
     "A second live process cannot recover or mutate a locked journal.",
 )
 

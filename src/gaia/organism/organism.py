@@ -38,6 +38,13 @@ from gaia.organism.guards import (
     redact_assignments,
 )
 from gaia.organism.retrieval import bm25_scores
+from gaia.security.field_cipher import (
+    DataKeyError,
+    FieldCipher,
+    open_field,
+    seal_field,
+    seal_if_plain,
+)
 
 SCHEMA_VERSION = 1
 
@@ -166,11 +173,14 @@ class RetrievalHit(BaseModel):
 class MemoryOrganism:
     """Local durable memory organism and its evidence ledger."""
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, *, cipher: FieldCipher | None = None) -> None:
         self.db_path = Path(db_path)
-        self.evidence = EvidenceLedger(self.db_path)
+        self.cipher = cipher
+        self.evidence = EvidenceLedger(self.db_path, cipher=cipher)
         self.continuity_bound = False
         self.migrate()
+        if cipher is not None:
+            self.reseal_plaintext()
 
     def migrate(self) -> int:
         """Apply the organism schema."""
@@ -194,6 +204,26 @@ class MemoryOrganism:
                     f"organism schema {current} is newer than this build ({SCHEMA_VERSION})"
                 )
             return current
+
+    def reseal_plaintext(self) -> int:
+        """Encrypt plaintext memory text in place. Content digests stay plaintext hashes."""
+        if self.cipher is None:
+            return 0
+        changed = 0
+        with self._transaction() as connection:
+            rows = connection.execute(
+                "SELECT memory_id, content FROM organism_memories"
+            ).fetchall()
+            for row in rows:
+                sealed = seal_if_plain(self.cipher, str(row["content"]))
+                if sealed is None:
+                    continue
+                connection.execute(
+                    "UPDATE organism_memories SET content = ? WHERE memory_id = ?",
+                    (sealed, str(row["memory_id"])),
+                )
+                changed += 1
+        return changed
 
     def rollback_schema(self, target: int, *, force: bool = False) -> int:
         """Drop organism tables back to version 0 when forced.
@@ -507,10 +537,10 @@ class MemoryOrganism:
             connection.execute(
                 """
                 UPDATE organism_memories
-                SET status = ?, content = '', updated_at = ?
+                SET status = ?, content = ?, updated_at = ?
                 WHERE memory_id = ?
                 """,
-                (MemoryStatus.DELETED.value, _now().isoformat(), memory_id),
+                (MemoryStatus.DELETED.value, self._seal(""), _now().isoformat(), memory_id),
             )
             _event(connection, memory_id, "deleted", {"reason": reason})
             children = connection.execute(
@@ -620,6 +650,9 @@ class MemoryOrganism:
         ranked.sort(key=lambda hit: hit.score, reverse=True)
         return ranked[:limit]
 
+    def _seal(self, plaintext: str) -> str:
+        return seal_field(self.cipher, plaintext)
+
     def require(self, memory_id: str) -> OrganismMemory:
         """Return a memory or raise when it is absent."""
         memory = self.get(memory_id)
@@ -637,7 +670,7 @@ class MemoryOrganism:
             ).fetchone()
         if row is None:
             return None
-        return _memory_from_row(row)
+        return _memory_from_row(row, self.cipher)
 
     def export_owner(self, owner_id: str) -> dict[str, Any]:
         """Export retained memories and evidence citations for an owner."""
@@ -660,13 +693,32 @@ class MemoryOrganism:
 
     def capability_status(self) -> str:
         """Return available or degraded from evidence integrity."""
-        if not self.evidence.verify_chain():
+        try:
+            if not self.evidence.verify_chain():
+                return "degraded"
+        except DataKeyError:
             return "degraded"
         return "available"
 
     def status(self) -> dict[str, Any]:
         """Return organism and evidence capability status."""
-        memories = self._all()
+        try:
+            memories = self._all()
+        except DataKeyError as exc:
+            return {
+                "capability": "memory_organism",
+                "status": "degraded",
+                "durable": True,
+                "backend": "sqlite",
+                "schema_version": SCHEMA_VERSION,
+                "local_first": True,
+                "network": "none",
+                "encrypted_at_rest": True,
+                "cryptographic_immutability": False,
+                "reason": str(exc),
+                "db_path": str(self.db_path),
+                "policy_effect": "none",
+            }
         counts: dict[str, int] = {category.value: 0 for category in MemoryCategory}
         for memory in memories:
             if memory.status is not MemoryStatus.DELETED:
@@ -680,7 +732,7 @@ class MemoryOrganism:
             "schema_version": SCHEMA_VERSION,
             "local_first": True,
             "network": "none",
-            "encrypted_at_rest": False,
+            "encrypted_at_rest": self.cipher is not None,
             "policy_effect": "none",
             "memory_count": sum(counts.values()),
             "categories": counts,
@@ -735,7 +787,7 @@ class MemoryOrganism:
                     memory_id,
                     category.value,
                     status.value,
-                    content,
+                    self._seal(content),
                     digest,
                     owner_id,
                     project_id,
@@ -790,7 +842,7 @@ class MemoryOrganism:
             rows = connection.execute(
                 "SELECT * FROM organism_memories ORDER BY created_at ASC"
             ).fetchall()
-        return [_memory_from_row(row) for row in rows]
+        return [_memory_from_row(row, self.cipher) for row in rows]
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
@@ -872,9 +924,9 @@ def _json_list(text: str) -> list[str]:
     return [str(item) for item in loaded]
 
 
-def _memory_from_row(row: sqlite3.Row) -> OrganismMemory:
+def _memory_from_row(row: sqlite3.Row, cipher: FieldCipher | None) -> OrganismMemory:
     status = MemoryStatus(str(row["status"]))
-    content = str(row["content"])
+    content = open_field(cipher, str(row["content"]))
     valid = row["valid_until"]
     return OrganismMemory(
         memory_id=str(row["memory_id"]),

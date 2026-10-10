@@ -23,6 +23,7 @@ from gaia.models.catalog import ModelCatalog, create_model_catalog
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
 from gaia.organism.organism import MemoryOrganism
+from gaia.security.field_cipher import FieldCipher
 from gaia.security.permission_manager import PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
 
@@ -133,6 +134,7 @@ def create_runtime(
     *,
     continuity_path: Path | str | None = None,
     organism_path: Path | str | None = None,
+    data_key: bytes | None = None,
 ) -> GaiaRuntime:
     """Create the default GAIA runtime composition."""
     agent_registry = create_default_agent_registry()
@@ -147,9 +149,10 @@ def create_runtime(
         security_policy=security_policy,
         agent_registry=agent_registry,
     )
+    cipher = FieldCipher(data_key) if data_key is not None else None
     continuity: ContinuityJournal | None = None
     if continuity_path is not None:
-        store = ContinuityStore(continuity_path)
+        store = ContinuityStore(continuity_path, cipher=cipher)
         continuity = ContinuityJournal(store, store.recover())
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
@@ -157,7 +160,9 @@ def create_runtime(
         permission_manager=permission_manager,
         continuity=continuity,
     )
-    organism = MemoryOrganism(organism_path) if organism_path is not None else None
+    organism = (
+        MemoryOrganism(organism_path, cipher=cipher) if organism_path is not None else None
+    )
     if organism is not None and continuity is not None:
         organism.bind_continuity(continuity.store)
     return GaiaRuntime(
