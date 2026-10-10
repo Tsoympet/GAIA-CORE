@@ -40,6 +40,12 @@ replace planning, routing, or agent execution.
 
 ## Current state
 
-R1 foundation is **partial**: in-memory goal/context/budget state is implemented
-and tested. Durable checkpoints, resume, and desktop mission-control surfaces
-belong to later phases (R2 / R8).
+R1 foundation is **partial** and merged: in-memory goal, context, budget,
+verification, and interrupt control is implemented and tested.
+
+R2 continuity is also **partial**. A runtime can attach a local SQLite journal
+through `continuity_path`. That journal persists goals, working context, task
+state, checkpoints, and branches, and it recovers in-flight work as
+interrupted. See `docs/architecture/cognitive_continuity.md`. Desktop
+mission-control surfaces are still absent. Without `continuity_path`, kernel
+state remains in-memory and continuity status is `unavailable`.

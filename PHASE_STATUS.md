@@ -128,9 +128,9 @@ The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` mu
 
 ## R1 — Cognitive Kernel foundation
 
-In progress on branch `cursor/r1-cognitive-kernel-05ea`.
+Merged to `main` by pull request #20 (`2a9b43b`).
 
-Completed in this foundation slice:
+Completed in that foundation slice:
 
 - `gaia.kernel` package with typed goal, context, budget, policy, verification, and interrupt modules;
 - `CognitiveKernel` composition root wrapping the recovered orchestrator;
@@ -138,13 +138,35 @@ Completed in this foundation slice:
 - operator API under `/kernel/*` for status, goals, cancel, interrupts, and kernel task submission;
 - unit and integration coverage for lifecycle, budgets, verification, policy gating, and API routes.
 
-Still required before Cognitive Kernel can be marked `IMPLEMENTED`:
+The kernel remains `PARTIAL` until streaming run events, desktop mission-control surfaces, and the rest of the completion standard are done. Durable goal and context state is now available only when a continuity journal is configured.
 
-- durable goal/context persistence and migrations;
-- streaming run events and resumable interruption;
+## R2 — Cognitive Continuity
+
+Partial. Opt-in local SQLite journal in `gaia.continuity`.
+
+Completed in this slice:
+
+- versioned schema with an explicit downgrade to an empty version 0;
+- validated task state machine and append-only transitions;
+- crash-safe checkpoint publication and hash-chain verification;
+- recovery that interrupts in-flight work, quarantines unpublished or corrupt snapshots, and revokes approvals;
+- redaction of credential and approval-token fields before persistence and again on recovery;
+- process-local approval grants that are not reusable after restart;
+- work-branch records bound to a verified checkpoint;
+- resume of interrupted work through a fresh policy check;
+- operator API, audit export, live-goal deletion, and `gaia continuity` inspection;
+- a pid lock that refuses to recover a journal held by another live process.
+
+Still required before Cognitive Continuity can be marked `IMPLEMENTED`:
+
+- encryption at rest;
+- streaming run events;
 - desktop mission-control surfaces;
-- broader failure/security regression matrix against the completion standard.
+- binding continuity to the Memory Organism and Evidence Ledger;
+- a durable session store beyond the session id recorded on each goal.
+
+The hash chain is tamper-evident for accidental corruption. It is not cryptographic immutability.
 
 ## Next phase
 
-R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation) follows once the R1 kernel foundation is reviewed.
+Finish the remaining R2 gaps that block safe long-running work, then R3 Memory Organism and Provenance Ledger on top of this journal. Do not open a second persistence path for goals or task state.

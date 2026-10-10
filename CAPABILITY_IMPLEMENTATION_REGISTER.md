@@ -34,8 +34,8 @@ Allowed states:
 | Capability | Current state | Existing foundation | Required implementation work |
 |---|---|---|---|
 | Repository integrity and CI | RECOVERY | Recovery PR, compile/lint/type/test workflow | Complete repository scan, obtain green validation, release clean baseline |
-| Cognitive Kernel | PARTIAL | Typed kernel package, runtime wiring, `/kernel` API, in-memory goals/context/budgets/verification/interrupts | Durable persistence/migrations, resumable interruption, streaming events, desktop surfaces, full completion-standard coverage |
-| Cognitive Continuity | MISSING | In-memory sessions | Durable signed checkpoints, resume validation, repository/process state, crash recovery, model-replacement recovery |
+| Cognitive Kernel | PARTIAL | Typed kernel package, runtime wiring, `/kernel` API, in-memory goals/context/budgets/verification/interrupts, optional continuity journal | Streaming events, desktop surfaces, full completion-standard coverage |
+| Cognitive Continuity | PARTIAL | SQLite schema v1, task state machine, hash-linked checkpoints, recovery, approval revocation, redaction, branches, resume, audit export, CLI inspect | Encryption at rest, streaming events, desktop surfaces, session store, memory-organism binding. Not cryptographic immutability |
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
 | Model Fabric | PARTIAL | Catalog, registry, Ollama adapter, local placeholder, disabled cloud fallback | llama.cpp, vLLM, Transformers, ONNX adapters, health probes, hardware routing, privacy classes, cost accounting, failover |

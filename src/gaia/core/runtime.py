@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from gaia.agents.agent_registry import AgentRegistry, create_default_agent_registry
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
+from gaia.continuity.journal import ContinuityJournal
+from gaia.continuity.store import ContinuityStore
 from gaia.core.session import SessionManager
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
@@ -35,6 +37,7 @@ class RuntimeStatus(BaseModel):
     local_first: bool = True
     kernel_status: str = "idle"
     kernel_id: str | None = None
+    continuity: str = "unavailable"
 
 
 class TaskRequest(BaseModel):
@@ -89,6 +92,11 @@ class GaiaRuntime(BaseModel):
             local_first=self.model_catalog.local_first,
             kernel_status=kernel_state.status.value,
             kernel_id=kernel_state.kernel_id,
+            continuity=(
+                "unavailable"
+                if self.kernel.continuity is None
+                else self.kernel.continuity.capability_status()
+            ),
         )
 
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
@@ -104,7 +112,11 @@ class GaiaRuntime(BaseModel):
         return result.response
 
 
-def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
+def create_runtime(
+    config_dir: Path | str = Path("config"),
+    *,
+    continuity_path: Path | str | None = None,
+) -> GaiaRuntime:
     """Create the default GAIA runtime composition."""
     agent_registry = create_default_agent_registry()
     capability_router = create_default_capability_router(agent_registry=agent_registry)
@@ -118,10 +130,15 @@ def create_runtime(config_dir: Path | str = Path("config")) -> GaiaRuntime:
         security_policy=security_policy,
         agent_registry=agent_registry,
     )
+    continuity: ContinuityJournal | None = None
+    if continuity_path is not None:
+        store = ContinuityStore(continuity_path)
+        continuity = ContinuityJournal(store, store.recover())
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
         security_policy=security_policy,
         permission_manager=permission_manager,
+        continuity=continuity,
     )
     return GaiaRuntime(
         config_dir=Path(config_dir),

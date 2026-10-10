@@ -20,7 +20,7 @@ Required outcomes:
 
 ## R1 — Cognitive Kernel
 
-Status: foundation in progress on `cursor/r1-cognitive-kernel-05ea`.
+Status: foundation merged in pull request #20. Still partial.
 
 Build the stable platform center responsible for:
 
@@ -38,7 +38,15 @@ recovered orchestrator as the execution engine.
 
 ## R2 — Cognitive Continuity
 
-Implement structured durable checkpoints containing objectives, plans, decisions, failures, open questions, repository state, permissions, evidence, and the next safe action. Support recovery after restarts, crashes, context compression, and model replacement.
+Status: partial. Opt-in local SQLite journal.
+
+Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
+of in-flight work, non-reusable approvals, redaction, branches, resume, audit
+export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
+
+Still open: encryption at rest, streaming events, desktop surfaces, and
+connection to the Memory Organism. Checkpoints are tamper-evident, not a
+cryptographic ledger.
 
 ## R3 — Memory Organism and Provenance Ledger
 

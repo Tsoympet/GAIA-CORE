@@ -22,21 +22,49 @@ def status(config_dir: Path = Path("config")) -> None:
 
 
 @app.command()
-def run(task: str, config_dir: Path = Path("config")) -> None:
+def run(
+    task: str,
+    config_dir: Path = Path("config"),
+    continuity_db: Path | None = None,
+) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
 
-    runtime = create_runtime(config_dir=config_dir)
+    runtime = create_runtime(config_dir=config_dir, continuity_path=continuity_db)
     result = asyncio.run(runtime.submit_task(TaskRequest(task=task)))
     console.print(result.model_dump(mode="json"))
 
 
 @app.command()
-def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    continuity_db: Path | None = None,
+) -> None:
     """Run the GAIA API server."""
     import uvicorn
 
-    uvicorn.run(create_app(), host=host, port=port)
+    runtime = create_runtime(continuity_path=continuity_db) if continuity_db is not None else None
+    uvicorn.run(create_app(runtime), host=host, port=port)
+
+
+@app.command()
+def continuity(db: Path = Path(".gaia/continuity.sqlite3")) -> None:
+    """Inspect a local continuity journal without mutating it."""
+    if not db.exists():
+        console.print(
+            {
+                "capability": "cognitive_continuity",
+                "status": "unavailable",
+                "durable": False,
+                "reason": "Continuity journal file does not exist.",
+            }
+        )
+        return
+    from gaia.continuity.store import ContinuityStore
+
+    store = ContinuityStore(db)
+    console.print(store.status_summary())
 
 
 @app.command()
