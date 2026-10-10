@@ -183,7 +183,8 @@ Completed in this slice:
 - kernel outcome recording with secret-assignment redaction;
 - citation of published continuity checkpoints as evidence digests when both stores are configured;
 - forced schema rollback to version 0 for organism tables and, separately, for evidence tables;
-- `/organism` routes and `gaia organism` inspection.
+- `/organism` routes and `gaia organism` inspection;
+- optional AES-GCM field encryption for evidence bodies, memory text, and continuity secret fields when a data key is configured.
 
 The Phase 4 scoped memory manager is unchanged and still in process memory.
 
