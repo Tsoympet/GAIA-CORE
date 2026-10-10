@@ -49,3 +49,8 @@ state, checkpoints, and branches, and it recovers in-flight work as
 interrupted. See `docs/architecture/cognitive_continuity.md`. Desktop
 mission-control surfaces are still absent. Without `continuity_path`, kernel
 state remains in-memory and continuity status is `unavailable`.
+
+When `organism_path` is set, each submitted task also appends redacted system
+evidence and an autobiographical memory. That store is not the continuity
+journal. See `docs/architecture/memory_organism.md`. Without `organism_path`,
+memory organism status is `unavailable`.
