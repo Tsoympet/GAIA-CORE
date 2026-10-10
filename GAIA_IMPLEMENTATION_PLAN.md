@@ -50,6 +50,20 @@ cryptographic ledger.
 
 ## R3 — Memory Organism and Provenance Ledger
 
+Status: partial. Opt-in local SQLite evidence ledger and memory organism.
+
+Delivered: schema v1, evidence hash chain with body purge, promotion and
+refusal rules, corrections, deletion, BM25 retrieval, kernel outcome
+redaction, `/organism` routes, and `gaia organism`. See
+`docs/architecture/memory_organism.md`.
+
+Still open: encryption at rest, retrieval beyond BM25, identity and timeline
+categories, and links from continuity checkpoints to evidence ids. The hash
+chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
+memory stays in process memory.
+
+Still required by the long-term architecture:
+
 Separate and govern:
 
 - working memory;

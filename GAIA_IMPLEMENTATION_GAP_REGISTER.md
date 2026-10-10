@@ -34,8 +34,8 @@ A feature is not considered implemented merely because a route, class name, conf
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | PARTIAL | Unified `gaia.kernel` control plane with runtime and API wiring; optional continuity journal | Streaming events, desktop surfaces, completion-standard coverage |
 | Cognitive Continuity | PARTIAL | Opt-in SQLite journal: task state machine, checkpoints, recovery, redaction, branches, resume, audit API | Encryption at rest, streaming events, desktop surfaces, memory-organism binding. Hash chain is not cryptographic immutability |
-| Memory Organism | MISSING | Separate memory primitives exist | Unified typed memory classes with provenance, promotion and retention rules |
-| Evidence and Provenance Ledger | MISSING | Route artifacts and basic metadata only | Source hashes, confidence, validation states, lineage, contradictions and supersession |
+| Memory Organism | PARTIAL | Opt-in SQLite categories, promotion, correction, deletion, and BM25 retrieval. Phase 4 scoped memory remains in memory | Encryption, embedding retrieval, identity/timeline/preference classes, continuity binding, desktop surfaces |
+| Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge receipts, SHA-256 chain, source and classification fields | Signatures, encryption, cryptographic immutability, continuity checkpoint links |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
 | GAIA Forge | MISSING | No operational skill creation pipeline | Workflow discovery, candidate generation, sandbox evaluation and promotion review |
@@ -87,7 +87,7 @@ Implement:
 
 ### R3 — Memory Organism and Provenance Ledger
 
-Implement durable working, episodic, semantic, procedural, project, correction, simulation, identity, timeline and evidence memories with explicit promotion rules.
+Partial delivery is in `gaia.evidence` and `gaia.organism`. Remaining work is encryption, retrieval beyond BM25, identity and timeline categories, and links from continuity checkpoints to evidence ids.
 
 ### R4 — Living Project Intelligence
 

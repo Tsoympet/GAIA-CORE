@@ -82,5 +82,6 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
 - Desktop mission control is not wired to this journal.
-- This is not the Memory Organism or the Evidence Ledger. Those remain later
-  work and must use this journal rather than a second persistence path.
+- The Memory Organism and Evidence Ledger are a separate opt-in SQLite file.
+  They do not yet store continuity checkpoint ids. Do not put goal state in
+  the organism file.

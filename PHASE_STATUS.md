@@ -167,6 +167,34 @@ Still required before Cognitive Continuity can be marked `IMPLEMENTED`:
 
 The hash chain is tamper-evident for accidental corruption. It is not cryptographic immutability.
 
+## R3 — Memory Organism and Evidence Ledger
+
+Partial. Opt-in local SQLite store in `gaia.evidence` and `gaia.organism`.
+
+Completed in this slice:
+
+- schema version 1 for evidence headers, bodies, purge receipts, memories, events, and contradiction links;
+- append-only evidence headers whose hash chain still verifies after a body purge;
+- promotion from episodic-class records through candidate, validation, and approval;
+- refusals for untrusted instruction-like text and for promoting simulation into factual knowledge;
+- corrections that append a new memory and leave the original content and hash unchanged;
+- deletion that clears text, keeps `content_sha256`, and rejects non-approved children;
+- default BM25 retrieval of recorded and approved memories, with strict project isolation;
+- kernel outcome recording with secret-assignment redaction;
+- `/organism` routes and `gaia organism` inspection.
+
+The Phase 4 scoped memory manager is unchanged and still in process memory.
+
+Still required before the Memory Organism can be marked `IMPLEMENTED`:
+
+- encryption at rest;
+- retrieval beyond uncalibrated BM25;
+- user-preference, identity, and timeline categories;
+- binding continuity checkpoints to evidence ids;
+- desktop surfaces.
+
+`cryptographic_immutability` is false. See `docs/architecture/memory_organism.md`.
+
 ## Next phase
 
-Finish the remaining R2 gaps that block safe long-running work, then R3 Memory Organism and Provenance Ledger on top of this journal. Do not open a second persistence path for goals or task state.
+Finish the remaining R3 gaps above before Living Project Intelligence. Do not replace the Phase 4 memory manager or the continuity journal with this store. Do not open a second persistence path for goals or task state.

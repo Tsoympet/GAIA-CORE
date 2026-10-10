@@ -6,7 +6,9 @@ GAIA's current memory foundation is local-first and divided into three compatibl
 2. Scoped Phase 4 memory for project, user, session, and timeline records.
 3. Durable workspace metadata persisted in local SQLite.
 
-This is a recovery-stage foundation, not the final Memory Organism architecture.
+This is a recovery-stage foundation. The opt-in Memory Organism in
+`docs/architecture/memory_organism.md` is a separate partial store. It does
+not replace the Phase 4 manager described below.
 
 ## Current Phase 4 capabilities
 
@@ -67,4 +69,6 @@ Workspace routes:
 - production vector backend adapters;
 - complete derived-data deletion across summaries, caches, backups, and future graph stores;
 - migration, backup, restore, and integrity-check workflows;
-- the differentiated Memory Organism defined in the GAIA implementation plan.
+- encryption, embedding retrieval, and continuity binding for the partial
+  Memory Organism;
+- user-preference, identity, and timeline categories.

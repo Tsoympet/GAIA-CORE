@@ -22,6 +22,7 @@ from gaia.memory.store import MemoryStore, create_memory_store
 from gaia.models.catalog import ModelCatalog, create_model_catalog
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
+from gaia.organism.organism import MemoryOrganism
 from gaia.security.permission_manager import PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
 
@@ -38,6 +39,7 @@ class RuntimeStatus(BaseModel):
     kernel_status: str = "idle"
     kernel_id: str | None = None
     continuity: str = "unavailable"
+    memory_organism: str = "unavailable"
 
 
 class TaskRequest(BaseModel):
@@ -77,6 +79,7 @@ class GaiaRuntime(BaseModel):
     permission_manager: PermissionManager = Field(default_factory=PermissionManager)
     sessions: SessionManager = Field(default_factory=SessionManager)
     kernel: CognitiveKernel
+    organism: MemoryOrganism | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -97,6 +100,9 @@ class GaiaRuntime(BaseModel):
                 if self.kernel.continuity is None
                 else self.kernel.continuity.capability_status()
             ),
+            memory_organism=(
+                "unavailable" if self.organism is None else self.organism.capability_status()
+            ),
         )
 
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
@@ -109,6 +115,16 @@ class GaiaRuntime(BaseModel):
             budget=request.budget,
             metadata=request.metadata,
         )
+        if self.organism is not None:
+            project_id = request.metadata.get("project_id")
+            self.organism.record_kernel_outcome(
+                objective=request.task,
+                answer=result.response.answer,
+                status=result.response.status,
+                session_id=session.id,
+                execution_id=result.goal.id,
+                project_id=project_id if isinstance(project_id, str) else None,
+            )
         return result.response
 
 
@@ -116,6 +132,7 @@ def create_runtime(
     config_dir: Path | str = Path("config"),
     *,
     continuity_path: Path | str | None = None,
+    organism_path: Path | str | None = None,
 ) -> GaiaRuntime:
     """Create the default GAIA runtime composition."""
     agent_registry = create_default_agent_registry()
@@ -140,6 +157,7 @@ def create_runtime(
         permission_manager=permission_manager,
         continuity=continuity,
     )
+    organism = MemoryOrganism(organism_path) if organism_path is not None else None
     return GaiaRuntime(
         config_dir=Path(config_dir),
         orchestrator=orchestrator,
@@ -150,4 +168,5 @@ def create_runtime(
         security_policy=security_policy,
         permission_manager=permission_manager,
         kernel=kernel,
+        organism=organism,
     )

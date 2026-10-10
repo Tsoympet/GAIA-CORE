@@ -26,11 +26,16 @@ def run(
     task: str,
     config_dir: Path = Path("config"),
     continuity_db: Path | None = None,
+    organism_db: Path | None = None,
 ) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
 
-    runtime = create_runtime(config_dir=config_dir, continuity_path=continuity_db)
+    runtime = create_runtime(
+        config_dir=config_dir,
+        continuity_path=continuity_db,
+        organism_path=organism_db,
+    )
     result = asyncio.run(runtime.submit_task(TaskRequest(task=task)))
     console.print(result.model_dump(mode="json"))
 
@@ -40,11 +45,17 @@ def serve(
     host: str = "127.0.0.1",
     port: int = 8000,
     continuity_db: Path | None = None,
+    organism_db: Path | None = None,
 ) -> None:
     """Run the GAIA API server."""
     import uvicorn
 
-    runtime = create_runtime(continuity_path=continuity_db) if continuity_db is not None else None
+    runtime = None
+    if continuity_db is not None or organism_db is not None:
+        runtime = create_runtime(
+            continuity_path=continuity_db,
+            organism_path=organism_db,
+        )
     uvicorn.run(create_app(runtime), host=host, port=port)
 
 
@@ -65,6 +76,24 @@ def continuity(db: Path = Path(".gaia/continuity.sqlite3")) -> None:
 
     store = ContinuityStore(db)
     console.print(store.status_summary())
+
+
+@app.command()
+def organism(db: Path = Path(".gaia/organism.sqlite3")) -> None:
+    """Inspect a local Memory Organism without creating one when the file is absent."""
+    if not db.exists():
+        console.print(
+            {
+                "capability": "memory_organism",
+                "status": "unavailable",
+                "durable": False,
+                "reason": "Memory Organism file does not exist.",
+            }
+        )
+        return
+    from gaia.organism.organism import MemoryOrganism
+
+    console.print(MemoryOrganism(db).status())
 
 
 @app.command()

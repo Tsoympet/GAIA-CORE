@@ -39,14 +39,14 @@ Allowed states:
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
 | Model Fabric | PARTIAL | Catalog, registry, Ollama adapter, local placeholder, disabled cloud fallback | llama.cpp, vLLM, Transformers, ONNX adapters, health probes, hardware routing, privacy classes, cost accounting, failover |
-| Working memory | PARTIAL | Runtime event memory and scoped in-memory records | Kernel-bound working context, limits, compression, trace linkage, expiry |
-| Episodic memory | MISSING | Append-only bootstrap events | Durable event schema, session and project binding, provenance, retrieval and deletion |
-| Semantic memory | PARTIAL | Simple vector index and symbolic facts | Durable embeddings, validated facts, contradiction handling, confidence, model/version metadata |
-| Procedural memory | MISSING | None | Versioned procedures linked to Skill Registry and execution evidence |
-| Correction memory | MISSING | None | User correction schema, supersession, regression linkage, promotion rules |
-| Identity memory | SCAFFOLD | Self-model and persona classes | Durable approved identity configuration, capability/limitation state, change history |
-| Simulation memory | SCAFFOLD | Dream notes | Isolated untrusted store, promotion workflow, provenance and expiry |
-| Provenance and Evidence Ledger | MISSING | Limited metadata and audit scaffolding | Source hashes, confidence, validation state, lineage, contradictions, signatures, evidence queries |
+| Working memory | PARTIAL | Runtime event memory, scoped in-memory records, and organism working memories with `valid_until` | Kernel-bound limits, compression, trace linkage, encryption |
+| Episodic memory | PARTIAL | Durable episodic records bound to evidence ids, owner, and optional project | Encryption, embedding retrieval, continuity checkpoint links |
+| Semantic memory | PARTIAL | In-memory vector index plus organism promotion to approved semantic memory | Durable embeddings, calibrated confidence, model/version metadata |
+| Procedural memory | PARTIAL | Organism procedural candidates with the same promotion rules as semantic memory | Skill Registry versions, execution evidence, rollback of procedures |
+| Correction memory | PARTIAL | Append-only correction memories; original content and hash stay unchanged | Regression linkage and automatic revalidation of approved dependents |
+| Identity memory | SCAFFOLD | Self-model and persona classes. Autobiographical kernel notes are not identity memory | Durable approved identity configuration, capability/limitation state, change history |
+| Simulation memory | PARTIAL | Organism simulation category that cannot be promoted into factual knowledge | Expiry policies beyond `valid_until`, isolated dream-lab store |
+| Provenance and Evidence Ledger | PARTIAL | Insert-only SQLite headers, content hashes, purge receipts, chain verification | Signatures, encryption, cryptographic immutability, checkpoint linkage |
 | Living Project Intelligence | MISSING | SQLite workspace metadata | Requirements graph, repository/file graph, decisions, risks, versions, tests, evidence, timelines and project APIs |
 | Security policy engine | PARTIAL | Objective policy, permissions, guards, audit log, shared kill switch | Scoped grants, expiry, approval records, sandbox policies, policy persistence, event correlation, red-team tests |
 | Tool Runtime | MISSING | Tool route stubs and routing metadata | Signed manifests, schemas, sandbox runner, quotas, dry-run, cancellation, audit, rollback and tool registry |
@@ -69,7 +69,7 @@ Allowed states:
 | Observability | MISSING | Basic logging | Structured event schema, OpenTelemetry, metrics, traces, dashboards, privacy controls and retention |
 | Plugin ecosystem | MISSING | None | Signed manifests, capability declarations, dependency isolation, license checks and governance |
 | Deployment and installers | SCAFFOLD | Docker, Compose, NGINX and systemd placeholders | Reproducible images, migrations, health checks, Windows/Linux installers, update and rollback channels |
-| Backup, restore and migration | MISSING | SQLite workspace file only | Encrypted backups, schema migrations, integrity verification, selective restore and disaster recovery tests |
+| Backup, restore and migration | MISSING | SQLite workspace, continuity, and organism files can be copied. Continuity has a forced schema downgrade. Organism and evidence migrate forward only | Encrypted backups, selective restore, and disaster-recovery tests |
 | Robotics and physical AI | DEFERRED | None | Simulation adapters first; no actuation before deterministic interlocks, emergency stop and independent safety validation |
 
 ## Implementation order after Recovery R0

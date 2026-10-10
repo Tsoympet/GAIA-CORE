@@ -4,6 +4,13 @@
 
 ### Added
 
+- Opt-in Memory Organism and evidence ledger (`gaia.organism`, `gaia.evidence`) in one local SQLite file.
+- Evidence schema v1 with insert-only headers, separate bodies, and purge receipts that preserve the hash chain.
+- Organism schema v1 with working, episodic, semantic, procedural, correction, project, simulation, and autobiographical memories.
+- Promotion from episodic records through candidate and validation to approval, with refusals for untrusted instructions and simulation-to-fact promotion.
+- Corrections, contradiction links, deletion that keeps content hashes, BM25 retrieval, and owner export.
+- Kernel outcome recording with secret-assignment redaction when `organism_path` is set.
+- `/organism` routes and `gaia organism` inspection. `gaia run` and `gaia serve` accept `--organism-db`.
 - Opt-in cognitive continuity journal (`gaia.continuity`) backed by local SQLite.
 - Versioned schema v1 and a forced downgrade to an empty schema version 0.
 - Validated task state machine, append-only transitions, and hash-linked checkpoints.
@@ -14,6 +21,8 @@
 
 ### Notes
 
-- Continuity is not enabled for the default in-memory runtime.
-- Checkpoint hashes detect corruption and naive tampering. They are not cryptographic immutability.
+- Continuity and the Memory Organism are not enabled for the default in-memory runtime.
+- Checkpoint hashes and evidence header hashes detect corruption and naive tampering. They are not cryptographic immutability.
+- BM25 scores are uncalibrated retrieval weights, not probabilities.
+- Approval of organism memory cannot change security policy.
 - No new third-party dependencies were added. SQLite and hashing use the Python standard library.
