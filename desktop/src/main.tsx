@@ -1,5 +1,6 @@
-import React from 'react';
+import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { KernelPage } from './pages/Kernel';
 import './styles.css';
 
 type Panel = {
@@ -22,27 +23,56 @@ const panels: Panel[] = [
   { title: 'Settings', description: 'Runtime, desktop, model, and policy configuration.', signal: 'editable' },
 ];
 
+type View = 'home' | 'kernel';
+
 function App() {
+  const [view, setView] = useState<View>('kernel');
+
   return (
     <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">GAIA Mission Control</p>
-        <h1>Local-first autonomous intelligence workstation</h1>
-        <p>
-          A Tauri + React + TypeScript shell for operating GAIA core modules with human-governed autonomy.
-        </p>
-      </section>
-      <section className="grid" aria-label="Mission-control panels">
-        {panels.map((panel) => (
-          <article className="panel" key={panel.title}>
-            <div className="panelHeader">
-              <h2>{panel.title}</h2>
-              <span>{panel.signal}</span>
-            </div>
-            <p>{panel.description}</p>
-          </article>
-        ))}
-      </section>
+      <nav className="topNav" aria-label="Mission control navigation">
+        <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>
+          Overview
+        </button>
+        <button type="button" className={view === 'kernel' ? 'active' : ''} onClick={() => setView('kernel')}>
+          Cognitive Kernel
+        </button>
+      </nav>
+
+      {view === 'home' ? (
+        <>
+          <section className="hero">
+            <p className="eyebrow">GAIA Mission Control</p>
+            <h1>Local-first autonomous intelligence workstation</h1>
+            <p>
+              A Tauri + React + TypeScript shell for operating GAIA core modules with human-governed autonomy.
+            </p>
+          </section>
+          <section className="grid" aria-label="Mission-control panels">
+            <article className="panel kernelCallout">
+              <div className="panelHeader">
+                <h2>Cognitive Kernel</h2>
+                <span>live</span>
+              </div>
+              <p>Goals, budgets, verification, resume, and durable event streaming.</p>
+              <button type="button" onClick={() => setView('kernel')}>
+                Open kernel control plane
+              </button>
+            </article>
+            {panels.map((panel) => (
+              <article className="panel" key={panel.title}>
+                <div className="panelHeader">
+                  <h2>{panel.title}</h2>
+                  <span>{panel.signal}</span>
+                </div>
+                <p>{panel.description}</p>
+              </article>
+            ))}
+          </section>
+        </>
+      ) : (
+        <KernelPage />
+      )}
     </main>
   );
 }

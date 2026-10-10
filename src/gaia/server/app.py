@@ -43,7 +43,12 @@ class PlanRequest(BaseModel):
 
 
 def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
-    """Create a configured GAIA FastAPI app."""
+    """Create a configured GAIA FastAPI app.
+
+    When ``runtime`` is omitted an in-memory kernel store is used. Production
+    CLI/server entrypoints should pass a runtime created with
+    ``DEFAULT_KERNEL_DB_PATH`` for durable goal persistence.
+    """
     runtime = runtime or create_runtime(config_dir=Path("config"))
     app = FastAPI(title="GAIA Core Runtime", version="0.1.0")
     app.state.runtime = runtime

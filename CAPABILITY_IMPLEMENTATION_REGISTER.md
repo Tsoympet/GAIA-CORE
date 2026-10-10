@@ -34,7 +34,7 @@ Allowed states:
 | Capability | Current state | Existing foundation | Required implementation work |
 |---|---|---|---|
 | Repository integrity and CI | RECOVERY | Recovery PR, compile/lint/type/test workflow | Complete repository scan, obtain green validation, release clean baseline |
-| Cognitive Kernel | PARTIAL | Typed kernel package, runtime wiring, `/kernel` API, in-memory goals/context/budgets/verification/interrupts | Durable persistence/migrations, resumable interruption, streaming events, desktop surfaces, full completion-standard coverage |
+| Cognitive Kernel | IMPLEMENTED | Typed kernel package, runtime wiring, `/kernel` API, SQLite persistence/migrations, SSE events, resume, backup/restore/delete/purge, permissions, desktop kernel page, config, regression tests | Later platform work may extend streaming transport (WebSocket) and richer desktop graph views without reopening R1 |
 | Cognitive Continuity | MISSING | In-memory sessions | Durable signed checkpoints, resume validation, repository/process state, crash recovery, model-replacement recovery |
 | Task planning and DAG execution | PARTIAL | Deterministic planner, graph, router, executor, aggregator | Real decomposition, branch scheduling, retries, timeouts, cancellation, persistent runs, streaming events, approval nodes |
 | Agent runtime | PARTIAL | Registry and deterministic capability agents | Typed specialist implementations, model/tool bindings, budgets, isolation, verifier agents, lifecycle and telemetry |
