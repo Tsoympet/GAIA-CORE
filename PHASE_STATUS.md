@@ -161,9 +161,9 @@ Still required before Cognitive Continuity can be marked `IMPLEMENTED`:
 
 - streaming run events;
 - desktop mission-control surfaces;
-- a durable session store beyond the session id recorded on each goal.
+- session metadata beyond the id and user id restored from the continuity journal.
 
-Field encryption is available when a 32-byte data key is configured. It is not whole-file encryption, and the hash chain is still not cryptographic immutability.
+Field encryption is available when a 32-byte data key is configured. It is not whole-file encryption, and the hash chain is still not cryptographic immutability. An explicit session id is kept and restored from the continuity journal.
 
 The hash chain is tamper-evident for accidental corruption. It is not cryptographic immutability.
 

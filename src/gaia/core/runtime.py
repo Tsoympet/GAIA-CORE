@@ -15,7 +15,7 @@ from gaia.agents.agent_registry import AgentRegistry, create_default_agent_regis
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
 from gaia.continuity.journal import ContinuityJournal
 from gaia.continuity.store import ContinuityStore
-from gaia.core.session import SessionManager
+from gaia.core.session import Session, SessionManager
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
 from gaia.memory.store import MemoryStore, create_memory_store
@@ -165,7 +165,7 @@ def create_runtime(
     )
     if organism is not None and continuity is not None:
         organism.bind_continuity(continuity.store)
-    return GaiaRuntime(
+    runtime = GaiaRuntime(
         config_dir=Path(config_dir),
         orchestrator=orchestrator,
         agent_registry=agent_registry,
@@ -177,3 +177,8 @@ def create_runtime(
         kernel=kernel,
         organism=organism,
     )
+    if continuity is not None:
+        for session_id, user_id in continuity.store.list_sessions():
+            if runtime.sessions.get(session_id) is None:
+                runtime.sessions.remember(Session(id=session_id, user_id=user_id))
+    return runtime

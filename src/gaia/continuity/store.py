@@ -341,6 +341,15 @@ class ContinuityStore:
             notes=notes,
         )
 
+    def list_sessions(self) -> list[tuple[str, str]]:
+        """Return persisted session ids and user ids."""
+        self.migrate()
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT session_id, user_id FROM sessions ORDER BY created_at ASC"
+            ).fetchall()
+        return [(str(row["session_id"]), str(row["user_id"])) for row in rows]
+
     def ensure_session(self, session_id: str, user_id: str = "local") -> None:
         """Record a session id if it is not already present."""
         self._ensure_lock()

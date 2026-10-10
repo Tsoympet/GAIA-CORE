@@ -5,6 +5,7 @@
 ### Added
 
 - Optional AES-GCM field encryption for continuity JSON, evidence bodies, and organism memory text. A 32-byte key is read from a file. `gaia data-key` creates one and refuses to overwrite it.
+- Explicit session ids are adopted by the runtime and restored from the continuity journal after a restart.
 - `cryptography` as a runtime dependency for that cipher. The hash chain remains tamper-evident and is not cryptographic immutability.
 - Opt-in Memory Organism and evidence ledger (`gaia.organism`, `gaia.evidence`) in one local SQLite file.
 - Evidence schema v1 with insert-only headers, separate bodies, and purge receipts that preserve the hash chain.
