@@ -33,6 +33,13 @@ from gaia.continuity.task_state import (
 )
 from gaia.kernel.context_manager import WorkingContext
 from gaia.kernel.goal_manager import Goal, GoalStatus
+from gaia.security.field_cipher import (
+    DataKeyError,
+    FieldCipher,
+    open_field,
+    seal_field,
+    seal_if_plain,
+)
 
 GENESIS_HASH = "genesis"
 _RELEASED_LOCKS: set[str] = set()
@@ -92,13 +99,16 @@ class ContinuityStore:
     provide cryptographic immutability against a privileged local writer.
     """
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, *, cipher: FieldCipher | None = None) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock_path = self.db_path.with_name(self.db_path.name + ".lock")
         self._lock_held = False
+        self.cipher = cipher
         self.checkpoint_witness: Callable[[Checkpoint], None] | None = None
         self.migrate()
+        if cipher is not None:
+            self.reseal_plaintext()
 
     def migrate(self) -> int:
         """Apply pending schema upgrades and return the current version."""
@@ -118,6 +128,49 @@ class ContinuityStore:
     def schema_version(self) -> int:
         """Return the applied schema version, migrating an empty database first."""
         return self.migrate()
+
+    def reseal_plaintext(self) -> int:
+        """Encrypt plaintext secret fields. Checkpoint digests stay hashes of plaintext."""
+        if self.cipher is None:
+            return 0
+        self._ensure_lock()
+        changed = 0
+        with self._transaction() as connection:
+            changed += _reseal_column(connection, self.cipher, "goals", "goal_id", "goal_json")
+            changed += _reseal_column(
+                connection, self.cipher, "contexts", "goal_id", "context_json"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "task_runs", "task_id", "task_json"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "checkpoints", "checkpoint_id", "payload_json"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "checkpoints", "checkpoint_id", "reason"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "quarantine", "record_id", "payload_json"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "task_transitions", "transition_id", "reason"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "branches", "branch_id", "fork_reason"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "branches", "branch_id", "model_configuration_json"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "branches", "branch_id", "tool_policy_json"
+            )
+        return changed
+
+    def _seal(self, plaintext: str) -> str:
+        return seal_field(self.cipher, plaintext)
+
+    def _open(self, stored: str) -> str:
+        return open_field(self.cipher, stored)
 
     def rollback_schema(self, target: int, *, force: bool = False) -> int:
         """Roll the continuity schema back to ``target``.
@@ -168,7 +221,7 @@ class ContinuityStore:
                     connection,
                     kind="abandoned_draft",
                     reason="draft checkpoint was not published before the process stopped",
-                    payload_json=_redact_json_text(str(row["payload_json"])),
+                    payload_json=_redact_json_text(self._open(str(row["payload_json"]))),
                 )
                 connection.execute(
                     "UPDATE checkpoints SET publication = 'quarantined' WHERE checkpoint_id = ?",
@@ -287,6 +340,15 @@ class ContinuityStore:
             mutated=mutated,
             notes=notes,
         )
+
+    def list_sessions(self) -> list[tuple[str, str]]:
+        """Return persisted session ids and user ids."""
+        self.migrate()
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT session_id, user_id FROM sessions ORDER BY created_at ASC"
+            ).fetchall()
+        return [(str(row["session_id"]), str(row["user_id"])) for row in rows]
 
     def ensure_session(self, session_id: str, user_id: str = "local") -> None:
         """Record a session id if it is not already present."""
@@ -423,7 +485,7 @@ class ContinuityStore:
                 "task_id": str(row["task_id"]),
                 "from_state": None if row["from_state"] is None else str(row["from_state"]),
                 "to_state": str(row["to_state"]),
-                "reason": str(row["reason"]),
+                "reason": self._open(str(row["reason"])),
                 "created_at": str(row["created_at"]),
             }
             for row in rows
@@ -616,11 +678,11 @@ class ContinuityStore:
                 (
                     branch.branch_id,
                     branch.parent_checkpoint_id,
-                    branch.fork_reason,
+                    self._seal(branch.fork_reason),
                     branch.memory_snapshot_hash,
                     branch.project_snapshot_hash,
-                    canonical_json(branch.model_configuration),
-                    canonical_json(branch.tool_policy),
+                    self._seal(canonical_json(branch.model_configuration)),
+                    self._seal(canonical_json(branch.tool_policy)),
                     branch.created_at.isoformat(),
                 ),
             )
@@ -639,13 +701,15 @@ class ContinuityStore:
                 WorkBranch(
                     branch_id=str(row["branch_id"]),
                     parent_checkpoint_id=str(row["parent_checkpoint_id"]),
-                    fork_reason=str(row["fork_reason"]),
+                    fork_reason=self._open(str(row["fork_reason"])),
                     memory_snapshot_hash=str(row["memory_snapshot_hash"]),
                     project_snapshot_hash=str(row["project_snapshot_hash"]),
                     model_configuration=_as_mapping(
-                        json_object(str(row["model_configuration_json"]))
+                        json_object(self._open(str(row["model_configuration_json"])))
                     ),
-                    tool_policy=_as_mapping(json_object(str(row["tool_policy_json"]))),
+                    tool_policy=_as_mapping(
+                        json_object(self._open(str(row["tool_policy_json"])))
+                    ),
                     created_at=datetime.fromisoformat(str(row["created_at"])),
                 )
             )
@@ -738,7 +802,7 @@ class ContinuityStore:
                 record_id=str(row["record_id"]),
                 kind=str(row["kind"]),
                 reason=str(row["reason"]),
-                payload_json=str(row["payload_json"]),
+                payload_json=self._open(str(row["payload_json"])),
                 created_at=datetime.fromisoformat(str(row["created_at"])),
             )
             for row in rows
@@ -805,9 +869,24 @@ class ContinuityStore:
                 "durable": False,
                 "reason": "Continuity journal file does not exist.",
             }
-        version = self.schema_version()
-        published = self.list_checkpoints()
-        integrity_ok = self.verify_chain()
+        try:
+            version = self.schema_version()
+            published = self.list_checkpoints()
+            integrity_ok = self.verify_chain()
+        except DataKeyError as exc:
+            return {
+                "capability": "cognitive_continuity",
+                "status": "degraded",
+                "durable": True,
+                "backend": "sqlite",
+                "local_first": True,
+                "network": "none",
+                "encrypted_at_rest": True,
+                "cryptographic_immutability": False,
+                "reason": str(exc),
+                "integrity": "degraded",
+                "db_path": str(self.db_path),
+            }
         if recovery is not None and not recovery.integrity_ok:
             integrity_ok = False
         status = "available" if integrity_ok else "degraded"
@@ -820,7 +899,7 @@ class ContinuityStore:
             "schema_version": version,
             "local_first": True,
             "network": "none",
-            "encrypted_at_rest": False,
+            "encrypted_at_rest": self.cipher is not None,
             "cryptographic_immutability": False,
             "checkpoint_count": len(published),
             "published_head": head,
@@ -900,7 +979,7 @@ class ContinuityStore:
         )
 
     def _write_goal(self, connection: sqlite3.Connection, goal: Goal) -> None:
-        payload = canonical_json(goal.model_dump(mode="json"))
+        payload = self._seal(canonical_json(goal.model_dump(mode="json")))
         connection.execute(
             """
             INSERT INTO goals (goal_id, session_id, status, goal_json, updated_at)
@@ -927,13 +1006,15 @@ class ContinuityStore:
         ).fetchone()
         if row is None:
             return None
-        return Goal.model_validate(json_object(str(row["goal_json"])))
+        return Goal.model_validate(json_object(self._open(str(row["goal_json"]))))
 
     def _list_goals_on(self, connection: sqlite3.Connection) -> list[Goal]:
         rows = connection.execute(
             "SELECT goal_json FROM goals ORDER BY updated_at ASC"
         ).fetchall()
-        goals = [Goal.model_validate(json_object(str(row["goal_json"]))) for row in rows]
+        goals = [
+            Goal.model_validate(json_object(self._open(str(row["goal_json"])))) for row in rows
+        ]
         return sorted(goals, key=lambda goal: goal.created_at)
 
     def _write_context(self, connection: sqlite3.Connection, context: WorkingContext) -> None:
@@ -947,7 +1028,7 @@ class ContinuityStore:
             """,
             (
                 context.goal_id,
-                canonical_json(context.model_dump(mode="json")),
+                self._seal(canonical_json(context.model_dump(mode="json"))),
                 context.updated_at.isoformat(),
             ),
         )
@@ -955,7 +1036,8 @@ class ContinuityStore:
     def _list_contexts_on(self, connection: sqlite3.Connection) -> list[WorkingContext]:
         rows = connection.execute("SELECT context_json FROM contexts").fetchall()
         return [
-            WorkingContext.model_validate(json_object(str(row["context_json"]))) for row in rows
+            WorkingContext.model_validate(json_object(self._open(str(row["context_json"]))))
+            for row in rows
         ]
 
     def _insert_task(
@@ -1026,7 +1108,7 @@ class ContinuityStore:
                 task.goal_id,
                 task.state.value,
                 task.action_fingerprint,
-                canonical_json(task.model_dump(mode="json")),
+                self._seal(canonical_json(task.model_dump(mode="json"))),
                 task.updated_at.isoformat(),
             ),
         )
@@ -1042,13 +1124,15 @@ class ContinuityStore:
         ).fetchone()
         if row is None:
             return None
-        return TaskRun.model_validate(json_object(str(row["task_json"])))
+        return TaskRun.model_validate(json_object(self._open(str(row["task_json"]))))
 
     def _list_tasks_on(self, connection: sqlite3.Connection) -> list[TaskRun]:
         rows = connection.execute(
             "SELECT task_json FROM task_runs ORDER BY updated_at ASC"
         ).fetchall()
-        tasks = [TaskRun.model_validate(json_object(str(row["task_json"]))) for row in rows]
+        tasks = [
+            TaskRun.model_validate(json_object(self._open(str(row["task_json"])))) for row in rows
+        ]
         return sorted(tasks, key=lambda task: task.created_at)
 
     def _insert_transition(
@@ -1070,7 +1154,7 @@ class ContinuityStore:
                 task_id,
                 None if from_state is None else from_state.value,
                 to_state.value,
-                reason,
+                self._seal(reason),
                 _now().isoformat(),
             ),
         )
@@ -1113,8 +1197,8 @@ class ContinuityStore:
                 checkpoint.checkpoint_id,
                 checkpoint.parent_checkpoint_id,
                 checkpoint.schema_version,
-                checkpoint.reason,
-                checkpoint.payload_json,
+                self._seal(checkpoint.reason),
+                self._seal(checkpoint.payload_json),
                 checkpoint.payload_sha256,
                 checkpoint.previous_hash,
                 checkpoint.publication,
@@ -1132,13 +1216,15 @@ class ContinuityStore:
                 else str(row["parent_checkpoint_id"])
             ),
             schema_version=int(row["schema_version"]),
-            reason=str(row["reason"]),
+            reason=self._open(str(row["reason"])),
             payload_sha256=str(row["payload_sha256"]),
             previous_hash=str(row["previous_hash"]),
             publication=str(row["publication"]),
             created_at=datetime.fromisoformat(str(row["created_at"])),
             kernel_id=str(row["kernel_id"]),
-            payload_json=str(row["payload_json"]) if include_payload else None,
+            payload_json=(
+                self._open(str(row["payload_json"])) if include_payload else None
+            ),
         )
 
     def _published_rows(self, connection: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -1155,7 +1241,7 @@ class ContinuityStore:
     def _chain_ok(self, connection: sqlite3.Connection) -> bool:
         expected = GENESIS_HASH
         for row in self._published_rows(connection):
-            payload_json = str(row["payload_json"])
+            payload_json = self._open(str(row["payload_json"]))
             digest = str(row["payload_sha256"])
             previous = str(row["previous_hash"])
             if previous != expected or sha256_text(payload_json) != digest:
@@ -1166,7 +1252,7 @@ class ContinuityStore:
     def _quarantine_corrupt_checkpoints(self, connection: sqlite3.Connection) -> list[str]:
         broken: list[str] = []
         for row in self._published_rows(connection):
-            payload_json = str(row["payload_json"])
+            payload_json = self._open(str(row["payload_json"]))
             digest = str(row["payload_sha256"])
             if sha256_text(payload_json) == digest:
                 continue
@@ -1199,7 +1285,7 @@ class ContinuityStore:
             INSERT INTO quarantine (record_id, kind, reason, payload_json, created_at)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (str(uuid4()), kind, reason, payload_json, _now().isoformat()),
+            (str(uuid4()), kind, reason, self._seal(payload_json), _now().isoformat()),
         )
 
     def _normalize_restored_work(self, connection: sqlite3.Connection) -> None:
@@ -1250,6 +1336,27 @@ _STABLE_TASK_STATES: frozenset[TaskState] = frozenset(
         TaskState.WAITING_FOR_USER,
     }
 )
+
+
+def _reseal_column(
+    connection: sqlite3.Connection,
+    cipher: FieldCipher,
+    table: str,
+    key_column: str,
+    value_column: str,
+) -> int:
+    rows = connection.execute(f"SELECT {key_column} AS pk, {value_column} AS value FROM {table}")
+    changed = 0
+    for row in rows:
+        sealed = seal_if_plain(cipher, str(row["value"]))
+        if sealed is None:
+            continue
+        connection.execute(
+            f"UPDATE {table} SET {value_column} = ? WHERE {key_column} = ?",
+            (sealed, row["pk"]),
+        )
+        changed += 1
+    return changed
 
 
 def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:

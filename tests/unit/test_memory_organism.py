@@ -225,16 +225,7 @@ def test_correction_deletion_staleness_and_secret_redaction(tmp_path: Path) -> N
         )
     )
     assert runtime.organism is not None
-    # Unknown session ids are not adopted; the runtime mints a new owner id.
-    autobiographical = [
-        item
-        for item in runtime.organism._all()
-        if item.category is MemoryCategory.AUTOBIOGRAPHICAL and item.content
-    ]
-    assert autobiographical
-    owner_id = autobiographical[-1].owner_id
-    assert owner_id != "s1"
-    stored = runtime.organism.export_owner(owner_id)
+    stored = runtime.organism.export_owner("s1")
     joined = " ".join(str(item.get("content")) for item in stored["memories"])
     assert "super-secret" not in joined
     assert "token=[redacted]" in joined

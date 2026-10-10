@@ -98,7 +98,10 @@ children that name the deleted memory as parent become `rejected`.
 
 ## Current limitations
 
-- Not encrypted at rest.
+- Field encryption is off unless a 32-byte data key is passed to the store.
+  With a key, bodies and memory text are AES-GCM ciphertext. Header and
+  content digests remain hashes of plaintext. This is not whole-file
+  encryption and it is not cryptographic immutability.
 - No hybrid or embedding retrieval. BM25 is the only ranker.
 - No user-preference, identity, or timeline category beyond autobiographical
   kernel notes.

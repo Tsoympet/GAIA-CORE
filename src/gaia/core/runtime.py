@@ -15,7 +15,7 @@ from gaia.agents.agent_registry import AgentRegistry, create_default_agent_regis
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
 from gaia.continuity.journal import ContinuityJournal
 from gaia.continuity.store import ContinuityStore
-from gaia.core.session import SessionManager
+from gaia.core.session import Session, SessionManager
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
 from gaia.memory.store import MemoryStore, create_memory_store
@@ -23,6 +23,7 @@ from gaia.models.catalog import ModelCatalog, create_model_catalog
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
 from gaia.organism.organism import MemoryOrganism
+from gaia.security.field_cipher import FieldCipher
 from gaia.security.permission_manager import PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
 
@@ -133,6 +134,7 @@ def create_runtime(
     *,
     continuity_path: Path | str | None = None,
     organism_path: Path | str | None = None,
+    data_key: bytes | None = None,
 ) -> GaiaRuntime:
     """Create the default GAIA runtime composition."""
     agent_registry = create_default_agent_registry()
@@ -147,9 +149,10 @@ def create_runtime(
         security_policy=security_policy,
         agent_registry=agent_registry,
     )
+    cipher = FieldCipher(data_key) if data_key is not None else None
     continuity: ContinuityJournal | None = None
     if continuity_path is not None:
-        store = ContinuityStore(continuity_path)
+        store = ContinuityStore(continuity_path, cipher=cipher)
         continuity = ContinuityJournal(store, store.recover())
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
@@ -157,10 +160,12 @@ def create_runtime(
         permission_manager=permission_manager,
         continuity=continuity,
     )
-    organism = MemoryOrganism(organism_path) if organism_path is not None else None
+    organism = (
+        MemoryOrganism(organism_path, cipher=cipher) if organism_path is not None else None
+    )
     if organism is not None and continuity is not None:
         organism.bind_continuity(continuity.store)
-    return GaiaRuntime(
+    runtime = GaiaRuntime(
         config_dir=Path(config_dir),
         orchestrator=orchestrator,
         agent_registry=agent_registry,
@@ -172,3 +177,8 @@ def create_runtime(
         kernel=kernel,
         organism=organism,
     )
+    if continuity is not None:
+        for session_id, user_id in continuity.store.list_sessions():
+            if runtime.sessions.get(session_id) is None:
+                runtime.sessions.remember(Session(id=session_id, user_id=user_id))
+    return runtime

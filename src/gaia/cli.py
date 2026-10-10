@@ -8,6 +8,12 @@ import typer
 from rich.console import Console
 
 from gaia.core.runtime import RuntimeStatus, TaskRequest, create_runtime
+from gaia.security.field_cipher import (
+    DataKeyError,
+    FieldCipher,
+    read_data_key,
+    write_data_key,
+)
 from gaia.server.app import create_app
 
 app = typer.Typer(help="GAIA autonomous intelligence platform CLI.")
@@ -27,6 +33,7 @@ def run(
     config_dir: Path = Path("config"),
     continuity_db: Path | None = None,
     organism_db: Path | None = None,
+    data_key_file: Path | None = None,
 ) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
@@ -35,6 +42,7 @@ def run(
         config_dir=config_dir,
         continuity_path=continuity_db,
         organism_path=organism_db,
+        data_key=_load_data_key(data_key_file),
     )
     result = asyncio.run(runtime.submit_task(TaskRequest(task=task)))
     console.print(result.model_dump(mode="json"))
@@ -46,6 +54,7 @@ def serve(
     port: int = 8000,
     continuity_db: Path | None = None,
     organism_db: Path | None = None,
+    data_key_file: Path | None = None,
 ) -> None:
     """Run the GAIA API server."""
     import uvicorn
@@ -55,13 +64,20 @@ def serve(
         runtime = create_runtime(
             continuity_path=continuity_db,
             organism_path=organism_db,
+            data_key=_load_data_key(data_key_file),
         )
     uvicorn.run(create_app(runtime), host=host, port=port)
 
 
 @app.command()
-def continuity(db: Path = Path(".gaia/continuity.sqlite3")) -> None:
-    """Inspect a local continuity journal without mutating it."""
+def continuity(
+    db: Path = Path(".gaia/continuity.sqlite3"),
+    data_key_file: Path | None = None,
+) -> None:
+    """Inspect a local continuity journal without running recovery.
+
+    A data key seals any plaintext fields already in the file.
+    """
     if not db.exists():
         console.print(
             {
@@ -74,12 +90,24 @@ def continuity(db: Path = Path(".gaia/continuity.sqlite3")) -> None:
         return
     from gaia.continuity.store import ContinuityStore
 
-    store = ContinuityStore(db)
-    console.print(store.status_summary())
+    try:
+        store = ContinuityStore(db, cipher=_cipher(data_key_file))
+        console.print(store.status_summary())
+    except DataKeyError as exc:
+        console.print(
+            {
+                "capability": "cognitive_continuity",
+                "status": "degraded",
+                "reason": str(exc),
+            }
+        )
 
 
 @app.command()
-def organism(db: Path = Path(".gaia/organism.sqlite3")) -> None:
+def organism(
+    db: Path = Path(".gaia/organism.sqlite3"),
+    data_key_file: Path | None = None,
+) -> None:
     """Inspect a local Memory Organism without creating one when the file is absent."""
     if not db.exists():
         console.print(
@@ -93,7 +121,40 @@ def organism(db: Path = Path(".gaia/organism.sqlite3")) -> None:
         return
     from gaia.organism.organism import MemoryOrganism
 
-    console.print(MemoryOrganism(db).status())
+    try:
+        console.print(MemoryOrganism(db, cipher=_cipher(data_key_file)).status())
+    except DataKeyError as exc:
+        console.print(
+            {
+                "capability": "memory_organism",
+                "status": "degraded",
+                "reason": str(exc),
+            }
+        )
+
+
+@app.command("data-key")
+def data_key(path: Path = Path(".gaia/data.key")) -> None:
+    """Create a local 32-byte data key. An existing file is not overwritten."""
+    try:
+        write_data_key(path)
+    except DataKeyError as exc:
+        console.print({"status": "refused", "reason": str(exc)})
+        raise typer.Exit(code=1) from exc
+    console.print({"status": "created", "path": str(path), "bytes": 32})
+
+
+def _load_data_key(path: Path | None) -> bytes | None:
+    if path is None:
+        return None
+    return read_data_key(path)
+
+
+def _cipher(path: Path | None) -> FieldCipher | None:
+    key = _load_data_key(path)
+    if key is None:
+        return None
+    return FieldCipher(key)
 
 
 @app.command()

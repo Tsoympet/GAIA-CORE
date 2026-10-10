@@ -75,7 +75,8 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
 
 ## Current limitations
 
-- Storage is local SQLite and is not encrypted at rest.
+- Storage is local SQLite. Secret JSON is sealed with AES-GCM only when a
+  data key is configured. The hash chain is unchanged by that seal.
 - The hash chain detects corruption and naive edits. A privileged local writer
   can recompute it. GAIA does not claim cryptographic immutability.
 - Internal orchestrator planning is recorded as `classified → executing` when

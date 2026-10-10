@@ -408,7 +408,7 @@ This repository currently captures that architecture vision and bootstrap direct
 
 This bootstrap now includes first-phase foundation modules under `src/gaia/`:
 
-- `security`: permission management, command/file/network guards, audit logging, secrets redaction, self-modification approval checks, and an autonomy kill switch.
+- `security`: permission management, command/file/network guards, audit logging, secrets redaction, self-modification approval checks, an autonomy kill switch, and optional AES-GCM field encryption (`gaia data-key`).
 - `memory`: scoped project/user/session/timeline memory, symbolic facts, vector-store abstraction, in-memory vector search, indexing, retrieval, and retention policy hooks.
 - `models`: a model registry, local-first router, Ollama client, local placeholder client, and disabled-by-default cloud fallback adapter.
 - `kernel`: goal, context, budget, policy, verification, and interrupt control over the recovered orchestrator. In-memory unless a continuity journal is configured.
