@@ -159,8 +159,10 @@ redacted metadata are restored. Approval grants are not.
 **Status: PARTIAL.** Opt-in SQLite organism and evidence ledger.
 
 Delivered: promotion rules, corrections, body purge, checkpoint digest
-citations, `/organism` routes, and optional field encryption. Phase 4 scoped
-memory stays in process memory.
+citations, `/organism` routes, optional field encryption, timeline records
+ordered by `event_at`, and identity approval that does not become factual
+knowledge. Phase 4 scoped memory stays in process memory. Retrieval beyond
+BM25 is still open.
 
 ## Next phase
 

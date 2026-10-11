@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from gaia.continuity.codec import canonical_json, json_object, sha256_text
@@ -31,7 +31,6 @@ from gaia.continuity.task_state import (
     TaskState,
     validate_transition,
 )
-from gaia.core.session import Session
 from gaia.kernel.context_manager import WorkingContext
 from gaia.kernel.goal_manager import Goal, GoalStatus
 from gaia.security.field_cipher import (
@@ -41,6 +40,9 @@ from gaia.security.field_cipher import (
     seal_field,
     seal_if_plain,
 )
+
+if TYPE_CHECKING:
+    from gaia.core.session import Session
 
 GENESIS_HASH = "genesis"
 _RELEASED_LOCKS: set[str] = set()
@@ -647,6 +649,8 @@ class ContinuityStore:
             connection.execute("DELETE FROM contexts")
             connection.execute("DELETE FROM task_runs")
             if "sessions" in payload:
+                from gaia.core.session import Session
+
                 connection.execute("DELETE FROM sessions")
                 for item in _json_list(payload.get("sessions")):
                     session = Session.model_validate(_as_mapping(item))
@@ -1035,6 +1039,8 @@ class ContinuityStore:
         )
 
     def _list_sessions_on(self, connection: sqlite3.Connection) -> list[Session]:
+        from gaia.core.session import Session
+
         rows = connection.execute(
             """
             SELECT session_id, user_id, workspace_id, metadata_json, created_at

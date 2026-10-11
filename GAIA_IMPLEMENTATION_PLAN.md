@@ -69,9 +69,10 @@ back to an empty version 0 without dropping the other group.
 Also delivered: optional AES-GCM field encryption for evidence bodies and
 memory text. A missing or wrong key fails closed.
 
-Still open: retrieval beyond BM25, and identity and timeline categories. The
-hash chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
-memory stays in process memory.
+Identity and timeline categories are present. Timeline records require
+`event_at`. Identity approval does not become factual knowledge. Still open:
+retrieval beyond BM25. The hash chain is tamper-evident, not cryptographic
+immutability. Phase 4 scoped memory stays in process memory.
 
 The light client is deferred until these local platform gaps are closed.
 

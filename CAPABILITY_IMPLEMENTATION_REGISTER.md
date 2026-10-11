@@ -44,7 +44,7 @@ Allowed states:
 | Semantic memory | PARTIAL | In-memory vector index plus organism promotion to approved semantic memory | Durable embeddings, calibrated confidence, model/version metadata |
 | Procedural memory | PARTIAL | Organism procedural candidates with the same promotion rules as semantic memory | Skill Registry versions, execution evidence, rollback of procedures |
 | Correction memory | PARTIAL | Append-only correction memories; original content and hash stay unchanged | Regression linkage and automatic revalidation of approved dependents |
-| Identity memory | SCAFFOLD | Self-model and persona classes. Autobiographical kernel notes are not identity memory | Durable approved identity configuration, capability/limitation state, change history |
+| Identity memory | PARTIAL | Organism identity candidates cite an observation, survive validation, and replace an older approved identity by contradiction. Approval does not set approved knowledge or change policy | Capability and limitation state, preference memory, and calibrated confidence |
 | Simulation memory | PARTIAL | Organism simulation category that cannot be promoted into factual knowledge | Expiry policies beyond `valid_until`, isolated dream-lab store |
 | Provenance and Evidence Ledger | PARTIAL | Insert-only SQLite headers, content hashes, purge receipts, chain verification, continuity checkpoint digest citations | Signatures, encryption, cryptographic immutability |
 | Living Project Intelligence | MISSING | SQLite workspace metadata | Requirements graph, repository/file graph, decisions, risks, versions, tests, evidence, timelines and project APIs |
