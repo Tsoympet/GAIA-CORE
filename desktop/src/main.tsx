@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ContinuityPage } from './pages/Continuity';
 import { KernelPage } from './pages/Kernel';
 import './styles.css';
 
@@ -23,7 +24,7 @@ const panels: Panel[] = [
   { title: 'Settings', description: 'Runtime, desktop, model, and policy configuration.', signal: 'editable' },
 ];
 
-type View = 'home' | 'kernel';
+type View = 'home' | 'kernel' | 'continuity';
 
 function App() {
   const [view, setView] = useState<View>('kernel');
@@ -36,6 +37,9 @@ function App() {
         </button>
         <button type="button" className={view === 'kernel' ? 'active' : ''} onClick={() => setView('kernel')}>
           Cognitive Kernel
+        </button>
+        <button type="button" className={view === 'continuity' ? 'active' : ''} onClick={() => setView('continuity')}>
+          Continuity
         </button>
       </nav>
 
@@ -59,6 +63,16 @@ function App() {
                 Open kernel control plane
               </button>
             </article>
+            <article className="panel kernelCallout">
+              <div className="panelHeader">
+                <h2>Cognitive Continuity</h2>
+                <span>journal</span>
+              </div>
+              <p>Local checkpoints, task runs, and hash-chain checks. The chain is not cryptographic immutability.</p>
+              <button type="button" onClick={() => setView('continuity')}>
+                Open continuity journal
+              </button>
+            </article>
             {panels.map((panel) => (
               <article className="panel" key={panel.title}>
                 <div className="panelHeader">
@@ -70,8 +84,10 @@ function App() {
             ))}
           </section>
         </>
-      ) : (
+      ) : view === 'kernel' ? (
         <KernelPage />
+      ) : (
+        <ContinuityPage />
       )}
     </main>
   );
