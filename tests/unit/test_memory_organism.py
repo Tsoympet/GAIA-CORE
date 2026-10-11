@@ -255,7 +255,7 @@ def test_schema_rollback_keeps_the_other_store(tmp_path: Path) -> None:
 
     restored = MemoryOrganism(path)
     assert restored.get(memory.memory_id) is None
-    assert restored.migrate() == 1
+    assert restored.migrate() == 2
 
     with pytest.raises(EvidenceError, match="force"):
         restored.evidence.rollback_schema(0)

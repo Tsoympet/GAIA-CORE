@@ -46,7 +46,7 @@ from gaia.security.field_cipher import (
     seal_if_plain,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 ORGANISM_SQL = """
 CREATE TABLE IF NOT EXISTS organism_schema_migrations (
@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS organism_memories (
     source_memory_json TEXT NOT NULL,
     parent_memory_id TEXT,
     valid_until TEXT,
+    event_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -109,6 +110,8 @@ class MemoryCategory(StrEnum):
     PROJECT = "project"
     SIMULATION = "simulation"
     AUTOBIOGRAPHICAL = "autobiographical"
+    TIMELINE = "timeline"
+    IDENTITY = "identity"
 
 
 class MemoryStatus(StrEnum):
@@ -125,6 +128,36 @@ class MemoryStatus(StrEnum):
 
 class PromotionError(ValueError):
     """Raised when a memory transition is not allowed."""
+
+
+_EPISODIC_CLASS: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.EPISODIC,
+        MemoryCategory.WORKING,
+        MemoryCategory.AUTOBIOGRAPHICAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.SIMULATION,
+        MemoryCategory.TIMELINE,
+    }
+)
+_LONG_TERM: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.SEMANTIC,
+        MemoryCategory.PROCEDURAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.SIMULATION,
+        MemoryCategory.IDENTITY,
+    }
+)
+_OBSERVATIONS: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.EPISODIC,
+        MemoryCategory.WORKING,
+        MemoryCategory.AUTOBIOGRAPHICAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.TIMELINE,
+    }
+)
 
 
 class OrganismMemory(BaseModel):
@@ -147,6 +180,7 @@ class OrganismMemory(BaseModel):
     source_memory_ids: list[str] = Field(default_factory=list)
     parent_memory_id: str | None = None
     valid_until: datetime | None = None
+    event_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -199,6 +233,25 @@ class MemoryOrganism:
                     (_now().isoformat(),),
                 )
                 current = 1
+            if current < 2:
+                columns = {
+                    str(row[1])
+                    for row in connection.execute(
+                        "PRAGMA table_info(organism_memories)"
+                    ).fetchall()
+                }
+                if "event_at" not in columns:
+                    connection.execute(
+                        "ALTER TABLE organism_memories ADD COLUMN event_at TEXT"
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO organism_schema_migrations (version, name, applied_at)
+                    VALUES (2, 'timeline_event_at', ?)
+                    """,
+                    (_now().isoformat(),),
+                )
+                current = 2
             if current > SCHEMA_VERSION:
                 raise PromotionError(
                     f"organism schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -250,6 +303,18 @@ class MemoryOrganism:
             if target == 0 and current >= 1:
                 _execute_sql_script(connection, DROP_ORGANISM_V1)
                 connection.execute("DELETE FROM organism_schema_migrations WHERE version >= 1")
+            elif target <= 1 and current >= 2:
+                columns = {
+                    str(row[1])
+                    for row in connection.execute(
+                        "PRAGMA table_info(organism_memories)"
+                    ).fetchall()
+                }
+                if "event_at" in columns:
+                    connection.execute("ALTER TABLE organism_memories DROP COLUMN event_at")
+                connection.execute(
+                    "DELETE FROM organism_schema_migrations WHERE version >= 2"
+                )
             return _organism_schema_version(connection)
 
     def record_episodic(
@@ -261,20 +326,19 @@ class MemoryOrganism:
         project_id: str | None = None,
         sensitivity: str = "internal",
         valid_until: datetime | None = None,
+        event_at: datetime | None = None,
         confidence: float = 1.0,
     ) -> OrganismMemory:
         """Bind a memory to raw evidence without replacing that evidence."""
         evidence = self.evidence.get(evidence_id)
         if evidence is None or evidence.content_text is None:
             raise PromotionError(f"evidence is missing or purged: {evidence_id}")
-        if category not in {
-            MemoryCategory.EPISODIC,
-            MemoryCategory.WORKING,
-            MemoryCategory.AUTOBIOGRAPHICAL,
-            MemoryCategory.PROJECT,
-            MemoryCategory.SIMULATION,
-        }:
+        if category not in _EPISODIC_CLASS:
             raise PromotionError("direct records must start as episodic-class memories")
+        if category is MemoryCategory.TIMELINE and event_at is None:
+            raise PromotionError("timeline records require event_at")
+        if category is not MemoryCategory.TIMELINE and event_at is not None:
+            raise PromotionError("event_at is only stored on timeline records")
         untrusted = evidence.source in UNTRUSTED_SOURCES and looks_like_untrusted_instruction(
             evidence.content_text
         )
@@ -293,6 +357,7 @@ class MemoryOrganism:
             source_memory_ids=[],
             parent_memory_id=None,
             valid_until=valid_until,
+            event_at=event_at,
             event_type="recorded",
             event_detail={"evidence_id": evidence_id},
         )
@@ -375,12 +440,7 @@ class MemoryOrganism:
         confidence: float = 0.5,
     ) -> OrganismMemory:
         """Propose an abstraction that cites existing memories."""
-        if category not in {
-            MemoryCategory.SEMANTIC,
-            MemoryCategory.PROCEDURAL,
-            MemoryCategory.PROJECT,
-            MemoryCategory.SIMULATION,
-        }:
+        if category not in _LONG_TERM:
             raise PromotionError("candidates must name a long-term category")
         if not source_memory_ids:
             raise PromotionError("a candidate must cite at least one source memory")
@@ -393,10 +453,23 @@ class MemoryOrganism:
             )
         if any(source.status is MemoryStatus.DELETED for source in sources):
             raise PromotionError("deleted memory cannot support a candidate")
-        if category is not MemoryCategory.SIMULATION and any(
-            source.category is MemoryCategory.SIMULATION for source in sources
+        if any(source.category is MemoryCategory.SIMULATION for source in sources):
+            if category is MemoryCategory.SIMULATION:
+                pass
+            elif category is MemoryCategory.IDENTITY:
+                raise PromotionError("simulation memory cannot revise identity")
+            else:
+                raise PromotionError(
+                    "simulation memory cannot be promoted into factual knowledge"
+                )
+        if category is MemoryCategory.IDENTITY and not any(
+            source.category in _OBSERVATIONS for source in sources
         ):
-            raise PromotionError("simulation memory cannot be promoted into factual knowledge")
+            raise PromotionError("identity must cite an observation, not identity alone")
+        if category not in {MemoryCategory.SIMULATION, MemoryCategory.IDENTITY} and any(
+            source.category is MemoryCategory.IDENTITY for source in sources
+        ):
+            raise PromotionError("identity memory cannot be promoted into factual knowledge")
         if looks_like_untrusted_instruction(content):
             raise PromotionError("instruction-like text cannot be proposed as knowledge")
         evidence_ids: list[str] = []
@@ -419,6 +492,7 @@ class MemoryOrganism:
             source_memory_ids=list(source_memory_ids),
             parent_memory_id=source_memory_ids[0],
             valid_until=None,
+            event_at=None,
             event_type="candidate",
             event_detail={"source_memory_ids": list(source_memory_ids)},
         )
@@ -439,7 +513,10 @@ class MemoryOrganism:
             raise PromotionError("approval requires a validated candidate")
         if memory.untrusted_instruction:
             raise PromotionError("untrusted instructions cannot be approved")
-        approved_knowledge = memory.category is not MemoryCategory.SIMULATION
+        approved_knowledge = memory.category not in {
+            MemoryCategory.SIMULATION,
+            MemoryCategory.IDENTITY,
+        }
         with self._transaction() as connection:
             connection.execute(
                 """
@@ -464,6 +541,64 @@ class MemoryOrganism:
                     "policy_effect": "none",
                 },
             )
+            if memory.category is MemoryCategory.IDENTITY:
+                previous = connection.execute(
+                    """
+                    SELECT memory_id, content_sha256 FROM organism_memories
+                    WHERE owner_id = ? AND category = ? AND status = ? AND memory_id != ?
+                    """,
+                    (
+                        memory.owner_id,
+                        MemoryCategory.IDENTITY.value,
+                        MemoryStatus.APPROVED.value,
+                        memory_id,
+                    ),
+                ).fetchall()
+                for other in previous:
+                    other_id = str(other["memory_id"])
+                    connection.execute(
+                        """
+                        UPDATE organism_memories
+                        SET status = ?, updated_at = ?
+                        WHERE memory_id = ?
+                        """,
+                        (
+                            MemoryStatus.CONTRADICTED.value,
+                            _now().isoformat(),
+                            other_id,
+                        ),
+                    )
+                    _event(
+                        connection,
+                        other_id,
+                        "contradicted",
+                        {
+                            "reason": "superseded by a later approved identity",
+                            "replacement_id": memory_id,
+                        },
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO organism_contradictions (
+                            contradiction_id, memory_id, other_memory_id, reason, created_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(uuid4()),
+                            other_id,
+                            memory_id,
+                            "superseded by a later approved identity",
+                            _now().isoformat(),
+                        ),
+                    )
+                    unchanged = connection.execute(
+                        "SELECT content_sha256 FROM organism_memories WHERE memory_id = ?",
+                        (other_id,),
+                    ).fetchone()
+                    if unchanged is None or str(unchanged["content_sha256"]) != str(
+                        other["content_sha256"]
+                    ):
+                        raise PromotionError("identity supersession rewrote original content")
         return self.require(memory_id)
 
     def correct(
@@ -495,6 +630,7 @@ class MemoryOrganism:
             source_memory_ids=[original.memory_id],
             parent_memory_id=original.memory_id,
             valid_until=None,
+            event_at=None,
             event_type="correction",
             event_detail={"reason": reason, "corrects": original.memory_id},
         )
@@ -591,6 +727,7 @@ class MemoryOrganism:
         include_contradicted: bool = False,
         include_stale: bool = False,
         include_simulation: bool = False,
+        include_identity: bool = False,
         include_untrusted_instructions: bool = False,
         limit: int = 10,
     ) -> list[RetrievalHit]:
@@ -615,6 +752,9 @@ class MemoryOrganism:
                 continue
             if memory.category is MemoryCategory.SIMULATION and not include_simulation:
                 if category is not MemoryCategory.SIMULATION:
+                    continue
+            if memory.category is MemoryCategory.IDENTITY and not include_identity:
+                if category is not MemoryCategory.IDENTITY:
                     continue
             visible = memory.status in {MemoryStatus.RECORDED, MemoryStatus.APPROVED}
             if memory.status is MemoryStatus.CONTRADICTED and include_contradicted:
@@ -649,6 +789,30 @@ class MemoryOrganism:
             )
         ranked.sort(key=lambda hit: hit.score, reverse=True)
         return ranked[:limit]
+
+    def list_timeline(
+        self,
+        owner_id: str,
+        *,
+        project_id: str | None = None,
+    ) -> list[OrganismMemory]:
+        """Return recorded timeline entries for an owner, oldest event first.
+
+        Deleted, contradicted, stale, and untrusted entries are omitted.
+        Ordering uses ``event_at``, not insertion time or BM25.
+        """
+        entries = [
+            memory
+            for memory in self._all()
+            if memory.category is MemoryCategory.TIMELINE
+            and memory.owner_id == owner_id
+            and memory.status is MemoryStatus.RECORDED
+            and memory.event_at is not None
+            and not memory.untrusted_instruction
+            and memory.effective_status != "stale"
+            and (project_id is None or memory.project_id == project_id)
+        ]
+        return sorted(entries, key=lambda memory: (memory.event_at or _now(), memory.created_at))
 
     def _seal(self, plaintext: str) -> str:
         return seal_field(self.cipher, plaintext)
@@ -743,6 +907,8 @@ class MemoryOrganism:
                 "BM25 scores are uncalibrated retrieval weights.",
                 "Approval cannot modify security policy or persistent instructions.",
                 "Simulation memory cannot be promoted into factual knowledge.",
+                "Identity approval does not set approved knowledge or change policy.",
+                "Timeline order is event_at, and a timeline record cannot omit it.",
                 "Evidence headers are tamper-evident, not cryptographically immutable.",
                 "Continuity checkpoint evidence cites digests only, and only after binding.",
             ],
@@ -765,6 +931,7 @@ class MemoryOrganism:
         source_memory_ids: list[str],
         parent_memory_id: str | None,
         valid_until: datetime | None,
+        event_at: datetime | None,
         event_type: str,
         event_detail: dict[str, Any],
     ) -> OrganismMemory:
@@ -780,8 +947,8 @@ class MemoryOrganism:
                     project_id, confidence, confidence_basis, sensitivity,
                     approved_knowledge, policy_effect, untrusted_instruction,
                     source_evidence_json, source_memory_json, parent_memory_id,
-                    valid_until, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?)
+                    valid_until, event_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     memory_id,
@@ -800,6 +967,7 @@ class MemoryOrganism:
                     json.dumps(source_memory_ids),
                     parent_memory_id,
                     None if valid_until is None else valid_until.isoformat(),
+                    None if event_at is None else event_at.isoformat(),
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -948,6 +1116,9 @@ def _memory_from_row(row: sqlite3.Row, cipher: FieldCipher | None) -> OrganismMe
             None if row["parent_memory_id"] is None else str(row["parent_memory_id"])
         ),
         valid_until=None if valid is None else datetime.fromisoformat(str(valid)),
+        event_at=(
+            None if row["event_at"] is None else datetime.fromisoformat(str(row["event_at"]))
+        ),
         created_at=datetime.fromisoformat(str(row["created_at"])),
         updated_at=datetime.fromisoformat(str(row["updated_at"])),
     )

@@ -34,7 +34,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
 | Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata | Desktop surface, model-switch continuity, cryptographic immutability |
-| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline and `/organism` routes | Retrieval beyond BM25, identity and timeline categories |
+| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline, timeline records ordered by event time, and non-factual identity approval | Retrieval beyond BM25, user-preference memory |
 | Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge, checkpoint digest citations, optional field encryption | Signatures and cryptographic immutability |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
@@ -87,7 +87,7 @@ Implement:
 
 ### R3 — Memory Organism and Provenance Ledger
 
-Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints and optional AES-GCM field encryption. Remaining work is retrieval beyond BM25, and identity and timeline categories. The hash chain is tamper-evident, not cryptographic immutability.
+Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints, optional AES-GCM field encryption, timeline records ordered by `event_at`, and identity approval that does not become factual knowledge. Remaining work is retrieval beyond BM25. The hash chain is tamper-evident, not cryptographic immutability.
 
 ### R4 — Living Project Intelligence
 

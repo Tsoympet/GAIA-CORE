@@ -38,6 +38,7 @@ class EpisodicWrite(BaseModel):
     category: MemoryCategory = MemoryCategory.EPISODIC
     project_id: str | None = None
     sensitivity: str = "internal"
+    event_at: datetime | None = None
 
 
 class CandidateWrite(BaseModel):
@@ -168,6 +169,7 @@ async def record_memory(body: EpisodicWrite, request: Request) -> dict[str, obje
             category=body.category,
             project_id=body.project_id,
             sensitivity=body.sensitivity,
+            event_at=body.event_at,
         )
     except (PromotionError, KeyError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -249,6 +251,21 @@ async def correct_memory(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"memory": memory.model_dump(mode="json")}
+
+
+@router.get("/timeline")
+async def list_timeline(
+    request: Request,
+    owner_id: str,
+    project_id: str | None = None,
+) -> dict[str, object]:
+    """Return recorded timeline entries in event order."""
+    organism = _organism(request)
+    entries = organism.list_timeline(owner_id, project_id=project_id)
+    return {
+        "entries": [entry.model_dump(mode="json") for entry in entries],
+        "count": len(entries),
+    }
 
 
 @router.get("/memories/search")
