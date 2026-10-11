@@ -69,5 +69,6 @@ Workspace routes:
 - production vector backend adapters;
 - complete derived-data deletion across summaries, caches, backups, and future graph stores;
 - migration, backup, restore, and integrity-check workflows;
-- encryption and embedding retrieval for the partial Memory Organism;
-- user-preference, identity, and timeline categories.
+- encryption and embedding retrieval for the partial Memory Organism.
+  Preference, identity, and timeline categories now live in that organism.
+  Phase 4 scoped memory still does not store them.

@@ -112,6 +112,7 @@ class MemoryCategory(StrEnum):
     AUTOBIOGRAPHICAL = "autobiographical"
     TIMELINE = "timeline"
     IDENTITY = "identity"
+    PREFERENCE = "preference"
 
 
 class MemoryStatus(StrEnum):
@@ -147,6 +148,14 @@ _LONG_TERM: frozenset[MemoryCategory] = frozenset(
         MemoryCategory.PROJECT,
         MemoryCategory.SIMULATION,
         MemoryCategory.IDENTITY,
+        MemoryCategory.PREFERENCE,
+    }
+)
+_NON_FACTUAL: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.SIMULATION,
+        MemoryCategory.IDENTITY,
+        MemoryCategory.PREFERENCE,
     }
 )
 _OBSERVATIONS: frozenset[MemoryCategory] = frozenset(
@@ -458,18 +467,41 @@ class MemoryOrganism:
                 pass
             elif category is MemoryCategory.IDENTITY:
                 raise PromotionError("simulation memory cannot revise identity")
+            elif category is MemoryCategory.PREFERENCE:
+                raise PromotionError("simulation memory cannot become a preference")
             else:
                 raise PromotionError(
                     "simulation memory cannot be promoted into factual knowledge"
                 )
+        if category is MemoryCategory.IDENTITY and any(
+            source.category is MemoryCategory.PREFERENCE for source in sources
+        ):
+            raise PromotionError("preference memory cannot revise identity")
+        if category is MemoryCategory.PREFERENCE and any(
+            source.category is MemoryCategory.IDENTITY for source in sources
+        ):
+            raise PromotionError("identity memory cannot become a preference")
         if category is MemoryCategory.IDENTITY and not any(
             source.category in _OBSERVATIONS for source in sources
         ):
             raise PromotionError("identity must cite an observation, not identity alone")
-        if category not in {MemoryCategory.SIMULATION, MemoryCategory.IDENTITY} and any(
+        if category is MemoryCategory.PREFERENCE and not any(
+            source.category in _OBSERVATIONS for source in sources
+        ):
+            raise PromotionError("preference must cite an observation, not preference alone")
+        if category is MemoryCategory.PREFERENCE and any(
+            source.category is MemoryCategory.PREFERENCE and source.owner_id != owner_id
+            for source in sources
+        ):
+            raise PromotionError("preference cannot cite another owner's preference")
+        if category not in _NON_FACTUAL and any(
             source.category is MemoryCategory.IDENTITY for source in sources
         ):
             raise PromotionError("identity memory cannot be promoted into factual knowledge")
+        if category not in _NON_FACTUAL and any(
+            source.category is MemoryCategory.PREFERENCE for source in sources
+        ):
+            raise PromotionError("preference memory cannot be promoted into factual knowledge")
         if looks_like_untrusted_instruction(content):
             raise PromotionError("instruction-like text cannot be proposed as knowledge")
         evidence_ids: list[str] = []
@@ -513,10 +545,7 @@ class MemoryOrganism:
             raise PromotionError("approval requires a validated candidate")
         if memory.untrusted_instruction:
             raise PromotionError("untrusted instructions cannot be approved")
-        approved_knowledge = memory.category not in {
-            MemoryCategory.SIMULATION,
-            MemoryCategory.IDENTITY,
-        }
+        approved_knowledge = memory.category not in _NON_FACTUAL
         with self._transaction() as connection:
             connection.execute(
                 """
@@ -555,50 +584,38 @@ class MemoryOrganism:
                     ),
                 ).fetchall()
                 for other in previous:
-                    other_id = str(other["memory_id"])
-                    connection.execute(
-                        """
-                        UPDATE organism_memories
-                        SET status = ?, updated_at = ?
-                        WHERE memory_id = ?
-                        """,
-                        (
-                            MemoryStatus.CONTRADICTED.value,
-                            _now().isoformat(),
-                            other_id,
-                        ),
-                    )
-                    _event(
+                    _mark_superseded(
                         connection,
-                        other_id,
-                        "contradicted",
-                        {
-                            "reason": "superseded by a later approved identity",
-                            "replacement_id": memory_id,
-                        },
+                        other_id=str(other["memory_id"]),
+                        original_hash=str(other["content_sha256"]),
+                        replacement_id=memory_id,
+                        reason="superseded by a later approved identity",
                     )
-                    connection.execute(
-                        """
-                        INSERT INTO organism_contradictions (
-                            contradiction_id, memory_id, other_memory_id, reason, created_at
-                        ) VALUES (?, ?, ?, ?, ?)
-                        """,
-                        (
-                            str(uuid4()),
-                            other_id,
-                            memory_id,
-                            "superseded by a later approved identity",
-                            _now().isoformat(),
-                        ),
+            if memory.category is MemoryCategory.PREFERENCE:
+                cited = set(memory.source_memory_ids)
+                previous = connection.execute(
+                    """
+                    SELECT memory_id, content_sha256 FROM organism_memories
+                    WHERE owner_id = ? AND category = ? AND status = ? AND memory_id != ?
+                    """,
+                    (
+                        memory.owner_id,
+                        MemoryCategory.PREFERENCE.value,
+                        MemoryStatus.APPROVED.value,
+                        memory_id,
+                    ),
+                ).fetchall()
+                for other in previous:
+                    other_id = str(other["memory_id"])
+                    if other_id not in cited:
+                        continue
+                    _mark_superseded(
+                        connection,
+                        other_id=other_id,
+                        original_hash=str(other["content_sha256"]),
+                        replacement_id=memory_id,
+                        reason="superseded by a later approved preference",
                     )
-                    unchanged = connection.execute(
-                        "SELECT content_sha256 FROM organism_memories WHERE memory_id = ?",
-                        (other_id,),
-                    ).fetchone()
-                    if unchanged is None or str(unchanged["content_sha256"]) != str(
-                        other["content_sha256"]
-                    ):
-                        raise PromotionError("identity supersession rewrote original content")
         return self.require(memory_id)
 
     def correct(
@@ -728,6 +745,7 @@ class MemoryOrganism:
         include_stale: bool = False,
         include_simulation: bool = False,
         include_identity: bool = False,
+        include_preference: bool = False,
         include_untrusted_instructions: bool = False,
         limit: int = 10,
     ) -> list[RetrievalHit]:
@@ -755,6 +773,9 @@ class MemoryOrganism:
                     continue
             if memory.category is MemoryCategory.IDENTITY and not include_identity:
                 if category is not MemoryCategory.IDENTITY:
+                    continue
+            if memory.category is MemoryCategory.PREFERENCE and not include_preference:
+                if category is not MemoryCategory.PREFERENCE:
                     continue
             visible = memory.status in {MemoryStatus.RECORDED, MemoryStatus.APPROVED}
             if memory.status is MemoryStatus.CONTRADICTED and include_contradicted:
@@ -908,6 +929,8 @@ class MemoryOrganism:
                 "Approval cannot modify security policy or persistent instructions.",
                 "Simulation memory cannot be promoted into factual knowledge.",
                 "Identity approval does not set approved knowledge or change policy.",
+                "Preference approval does not set approved knowledge or change policy.",
+                "A new preference supersedes only a preference it cites.",
                 "Timeline order is event_at, and a timeline record cannot omit it.",
                 "Evidence headers are tamper-evident, not cryptographically immutable.",
                 "Continuity checkpoint evidence cites digests only, and only after binding.",
@@ -1062,6 +1085,45 @@ def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:
         sql = statement.strip()
         if sql:
             connection.execute(sql)
+
+
+def _mark_superseded(
+    connection: sqlite3.Connection,
+    *,
+    other_id: str,
+    original_hash: str,
+    replacement_id: str,
+    reason: str,
+) -> None:
+    """Mark one approved memory contradicted without rewriting its content."""
+    connection.execute(
+        """
+        UPDATE organism_memories
+        SET status = ?, updated_at = ?
+        WHERE memory_id = ?
+        """,
+        (MemoryStatus.CONTRADICTED.value, _now().isoformat(), other_id),
+    )
+    _event(
+        connection,
+        other_id,
+        "contradicted",
+        {"reason": reason, "replacement_id": replacement_id},
+    )
+    connection.execute(
+        """
+        INSERT INTO organism_contradictions (
+            contradiction_id, memory_id, other_memory_id, reason, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (str(uuid4()), other_id, replacement_id, reason, _now().isoformat()),
+    )
+    unchanged = connection.execute(
+        "SELECT content_sha256 FROM organism_memories WHERE memory_id = ?",
+        (other_id,),
+    ).fetchone()
+    if unchanged is None or str(unchanged["content_sha256"]) != original_hash:
+        raise PromotionError("supersession rewrote original content")
 
 
 def _event(

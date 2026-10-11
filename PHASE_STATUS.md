@@ -160,9 +160,10 @@ redacted metadata are restored. Approval grants are not.
 
 Delivered: promotion rules, corrections, body purge, checkpoint digest
 citations, `/organism` routes, optional field encryption, timeline records
-ordered by `event_at`, and identity approval that does not become factual
-knowledge. Phase 4 scoped memory stays in process memory. Retrieval beyond
-BM25 is still open.
+ordered by `event_at`, identity approval that does not become factual
+knowledge, and preference approval that supersedes only a cited preference.
+Phase 4 scoped memory stays in process memory. Retrieval beyond BM25 is still
+open.
 
 ## Next phase
 
