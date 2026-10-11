@@ -32,10 +32,10 @@ A feature is not considered implemented merely because a route, class name, conf
 | Self-model and metacognition | SCAFFOLDED | Confidence and critique primitives | Capability calibration, limitation tracking, contradiction and failure models |
 | Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
-| Cognitive Kernel | PARTIAL | Unified `gaia.kernel` control plane with runtime and API wiring; optional continuity journal | Streaming events, desktop surfaces, completion-standard coverage |
-| Cognitive Continuity | PARTIAL | Opt-in SQLite journal: task state machine, checkpoints, recovery, redaction, branches, resume, audit API. Published checkpoints are cited by digest when an organism is configured. Optional AES-GCM field encryption. Explicit session ids are restored | Streaming events, desktop surfaces, session metadata beyond id and user id, whole-file encryption. Hash chain is not cryptographic immutability |
-| Memory Organism | PARTIAL | Opt-in SQLite categories, promotion, correction, deletion, BM25 retrieval, checkpoint digest citations, and optional AES-GCM field encryption. Phase 4 scoped memory remains in memory | Embedding retrieval, identity/timeline/preference classes, desktop surfaces, whole-file encryption |
-| Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge receipts, SHA-256 chain, source and classification fields, continuity checkpoint digest citations | Signatures, encryption, cryptographic immutability |
+| Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
+| Cognitive Continuity | MISSING | Basic sessions only | Signed checkpoints, restart recovery, model-switch continuity, stale-state checks |
+| Memory Organism | MISSING | Separate memory primitives exist | Unified typed memory classes with provenance, promotion and retention rules |
+| Evidence and Provenance Ledger | MISSING | Route artifacts and basic metadata only | Source hashes, confidence, validation states, lineage, contradictions and supersession |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
 | GAIA Forge | MISSING | No operational skill creation pipeline | Workflow discovery, candidate generation, sandbox evaluation and promotion review |

@@ -13,19 +13,19 @@ from pydantic import BaseModel, Field
 
 from gaia.agents.agent_registry import AgentRegistry, create_default_agent_registry
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
-from gaia.continuity.journal import ContinuityJournal
-from gaia.continuity.store import ContinuityStore
-from gaia.core.session import Session, SessionManager
+from gaia.core.event_bus import EventBus
+from gaia.core.session import SessionManager
+from gaia.kernel.config import KernelConfig, load_kernel_config
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
 from gaia.memory.store import MemoryStore, create_memory_store
 from gaia.models.catalog import ModelCatalog, create_model_catalog
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
-from gaia.organism.organism import MemoryOrganism
-from gaia.security.field_cipher import FieldCipher
-from gaia.security.permission_manager import PermissionManager
+from gaia.security.permission_manager import Permission, PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
+
+DEFAULT_KERNEL_DB_PATH = Path(".gaia/kernel.sqlite3")
 
 
 class RuntimeStatus(BaseModel):
@@ -39,8 +39,7 @@ class RuntimeStatus(BaseModel):
     local_first: bool = True
     kernel_status: str = "idle"
     kernel_id: str | None = None
-    continuity: str = "unavailable"
-    memory_organism: str = "unavailable"
+    kernel_durable: bool = False
 
 
 class TaskRequest(BaseModel):
@@ -80,13 +79,16 @@ class GaiaRuntime(BaseModel):
     permission_manager: PermissionManager = Field(default_factory=PermissionManager)
     sessions: SessionManager = Field(default_factory=SessionManager)
     kernel: CognitiveKernel
-    organism: MemoryOrganism | None = None
+    event_bus: EventBus = Field(default_factory=EventBus)
+    kernel_config: KernelConfig = Field(default_factory=KernelConfig)
 
     model_config = {"arbitrary_types_allowed": True}
 
     def status(self) -> RuntimeStatus:
         """Return a typed status snapshot suitable for CLI and API surfaces."""
         kernel_state = self.kernel.status()
+        persistence = kernel_state.details.get("persistence", {})
+        durable = bool(persistence.get("durable")) if isinstance(persistence, dict) else False
         return RuntimeStatus(
             runtime_id=self.runtime_id,
             agents=self.agent_registry.list_agent_names(),
@@ -96,14 +98,7 @@ class GaiaRuntime(BaseModel):
             local_first=self.model_catalog.local_first,
             kernel_status=kernel_state.status.value,
             kernel_id=kernel_state.kernel_id,
-            continuity=(
-                "unavailable"
-                if self.kernel.continuity is None
-                else self.kernel.continuity.capability_status()
-            ),
-            memory_organism=(
-                "unavailable" if self.organism is None else self.organism.capability_status()
-            ),
+            kernel_durable=durable,
         )
 
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
@@ -132,17 +127,48 @@ class GaiaRuntime(BaseModel):
 def create_runtime(
     config_dir: Path | str = Path("config"),
     *,
-    continuity_path: Path | str | None = None,
-    organism_path: Path | str | None = None,
-    data_key: bytes | None = None,
+    kernel_db_path: Path | str = ":memory:",
+    grant_local_kernel_admin: bool | None = None,
 ) -> GaiaRuntime:
-    """Create the default GAIA runtime composition."""
+    """Create the default GAIA runtime composition.
+
+    ``kernel_db_path`` defaults to an in-memory SQLite database for isolated tests.
+    Production entrypoints should pass ``DEFAULT_KERNEL_DB_PATH``.
+    """
+    config_root = Path(config_dir)
+    kernel_config = load_kernel_config(config_root)
     agent_registry = create_default_agent_registry()
     capability_router = create_default_capability_router(agent_registry=agent_registry)
     model_catalog = create_model_catalog()
     memory_store = create_memory_store()
     security_policy = create_security_policy()
     permission_manager = PermissionManager()
+    permission_manager.grant(Permission.KERNEL_READ, "*", "local kernel operator")
+    admin_grant = (
+        grant_local_kernel_admin
+        if grant_local_kernel_admin is not None
+        else kernel_db_path != ":memory:"
+    )
+    if admin_grant:
+        permission_manager.grant(
+            Permission.KERNEL_ADMIN,
+            "*",
+            "local durable kernel operator",
+            human_approved=True,
+        )
+        permission_manager.grant(
+            Permission.KERNEL_DELETE,
+            "*",
+            "local durable kernel operator",
+            human_approved=True,
+        )
+        permission_manager.grant(
+            Permission.KERNEL_BACKUP,
+            "*",
+            "local durable kernel operator",
+            human_approved=True,
+        )
+    event_bus = EventBus()
     orchestrator = create_orchestrator(
         capability_router=capability_router,
         memory_store=memory_store,
@@ -158,15 +184,12 @@ def create_runtime(
         orchestrator=orchestrator,
         security_policy=security_policy,
         permission_manager=permission_manager,
-        continuity=continuity,
+        default_budget=kernel_config.budgets,
+        kernel_db_path=kernel_db_path,
+        event_bus=event_bus,
     )
-    organism = (
-        MemoryOrganism(organism_path, cipher=cipher) if organism_path is not None else None
-    )
-    if organism is not None and continuity is not None:
-        organism.bind_continuity(continuity.store)
-    runtime = GaiaRuntime(
-        config_dir=Path(config_dir),
+    return GaiaRuntime(
+        config_dir=config_root,
         orchestrator=orchestrator,
         agent_registry=agent_registry,
         capability_router=capability_router,
@@ -175,7 +198,8 @@ def create_runtime(
         security_policy=security_policy,
         permission_manager=permission_manager,
         kernel=kernel,
-        organism=organism,
+        event_bus=event_bus,
+        kernel_config=kernel_config,
     )
     if continuity is not None:
         for session_id, user_id in continuity.store.list_sessions():

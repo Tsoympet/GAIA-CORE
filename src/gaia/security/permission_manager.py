@@ -27,6 +27,10 @@ class Permission(StrEnum):
     EXTERNAL_COMMUNICATION = "external.communication"
     FILE_READ = "file.read"
     FILE_WRITE = "file.write"
+    KERNEL_READ = "kernel.read"
+    KERNEL_ADMIN = "kernel.admin"
+    KERNEL_DELETE = "kernel.delete"
+    KERNEL_BACKUP = "kernel.backup"
 
 
 RISKY_PERMISSIONS: frozenset[Permission] = frozenset(
@@ -42,6 +46,9 @@ RISKY_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.SELF_MODIFY,
         Permission.SCHEDULED_AUTONOMY,
         Permission.EXTERNAL_COMMUNICATION,
+        Permission.KERNEL_ADMIN,
+        Permission.KERNEL_DELETE,
+        Permission.KERNEL_BACKUP,
     }
 )
 

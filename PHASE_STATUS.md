@@ -126,78 +126,22 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 The unfinished capabilities listed in `CAPABILITY_IMPLEMENTATION_REGISTER.md` must be implemented as real code with runtime wiring, persistence, migrations, security, tests, APIs, desktop integration, and rollback where applicable. Documentation, placeholders, static responses, and empty panels do not count as completed features.
 
-## R1 — Cognitive Kernel foundation
+## R1 — Cognitive Kernel
 
-Merged to `main` by pull request #20 (`2a9b43b`).
+**Status: IMPLEMENTED** on branch `cursor/r1-cognitive-kernel-05ea`.
 
-Completed in that foundation slice:
+Completed:
 
-- `gaia.kernel` package with typed goal, context, budget, policy, verification, and interrupt modules;
-- `CognitiveKernel` composition root wrapping the recovered orchestrator;
-- runtime task submission routed through the kernel control plane;
-- operator API under `/kernel/*` for status, goals, cancel, interrupts, and kernel task submission;
-- unit and integration coverage for lifecycle, budgets, verification, policy gating, and API routes.
-
-The kernel remains `PARTIAL` until streaming run events, desktop mission-control surfaces, and the rest of the completion standard are done. Durable goal and context state is now available only when a continuity journal is configured.
-
-## R2 — Cognitive Continuity
-
-Partial. Opt-in local SQLite journal in `gaia.continuity`.
-
-Completed in this slice:
-
-- versioned schema with an explicit downgrade to an empty version 0;
-- validated task state machine and append-only transitions;
-- crash-safe checkpoint publication and hash-chain verification;
-- recovery that interrupts in-flight work, quarantines unpublished or corrupt snapshots, and revokes approvals;
-- redaction of credential and approval-token fields before persistence and again on recovery;
-- process-local approval grants that are not reusable after restart;
-- work-branch records bound to a verified checkpoint;
-- resume of interrupted work through a fresh policy check;
-- operator API, audit export, live-goal deletion, and `gaia continuity` inspection;
-- a pid lock that refuses to recover a journal held by another live process.
-
-Still required before Cognitive Continuity can be marked `IMPLEMENTED`:
-
-- streaming run events;
-- desktop mission-control surfaces;
-- session metadata beyond the id and user id restored from the continuity journal.
-
-Field encryption is available when a 32-byte data key is configured. It is not whole-file encryption, and the hash chain is still not cryptographic immutability. An explicit session id is kept and restored from the continuity journal.
-
-The hash chain is tamper-evident for accidental corruption. It is not cryptographic immutability.
-
-## R3 — Memory Organism and Evidence Ledger
-
-Partial. Opt-in local SQLite store in `gaia.evidence` and `gaia.organism`.
-
-Completed in this slice:
-
-- schema version 1 for evidence headers, bodies, purge receipts, memories, events, and contradiction links;
-- append-only evidence headers whose hash chain still verifies after a body purge;
-- promotion from episodic-class records through candidate, validation, and approval;
-- refusals for untrusted instruction-like text and for promoting simulation into factual knowledge;
-- corrections that append a new memory and leave the original content and hash unchanged;
-- deletion that clears text, keeps `content_sha256`, and rejects non-approved children;
-- default BM25 retrieval of recorded and approved memories, with strict project isolation;
-- kernel outcome recording with secret-assignment redaction;
-- citation of published continuity checkpoints as evidence digests when both stores are configured;
-- forced schema rollback to version 0 for organism tables and, separately, for evidence tables;
-- `/organism` routes and `gaia organism` inspection;
-- optional AES-GCM field encryption for evidence bodies, memory text, and continuity secret fields when a data key is configured.
-
-The Phase 4 scoped memory manager is unchanged and still in process memory.
-
-Still required before the Memory Organism can be marked `IMPLEMENTED`:
-
-- retrieval beyond uncalibrated BM25;
-- user-preference, identity, and timeline categories;
-- desktop surfaces.
-
-Field encryption seals evidence bodies, memory text, and continuity secret fields when a data key is configured. Opening an encrypted file without that key fails closed.
-
-`cryptographic_immutability` is false. See `docs/architecture/memory_organism.md`.
+- typed `gaia.kernel` control plane (goals, context, budgets, policy, verification, interrupts);
+- runtime task submission routed through the kernel while preserving the recovered orchestrator;
+- SQLite persistence with schema migrations, hydrate-on-startup, backup/restore/delete/purge;
+- durable event log, EventBus fan-out, and SSE stream at `/kernel/events/stream`;
+- resumable interruption via `CognitiveKernel.resume`;
+- permission-gated operator APIs (`kernel.read` / `delete` / `backup` / `admin`);
+- validated `config/kernel.yaml`;
+- desktop Cognitive Kernel mission-control page with live goals/events/actions;
+- unit/integration/failure/security regression coverage.
 
 ## Next phase
 
-Finish the remaining local platform gaps: a durable session store, retrieval beyond BM25, and the user-preference, identity, and timeline categories. Living Project Intelligence comes after those. The light client waits until this local platform work is in place. Do not replace the Phase 4 memory manager or the continuity journal. Do not open a second persistence path for goals or task state.
+R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation).
