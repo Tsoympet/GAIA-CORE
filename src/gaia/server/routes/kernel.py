@@ -12,6 +12,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from gaia.continuity.errors import ContinuityIntegrityError
+from gaia.continuity.journal import ContinuityJournal
 from gaia.core.event_bus import Event, EventDomain
 from gaia.core.runtime import GaiaRuntime
 from gaia.kernel.goal_manager import GoalStatus
@@ -54,6 +56,52 @@ class RestoreRequest(BaseModel):
     """Request body for restoring a kernel backup."""
 
     source: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    """Operator decision for a waiting continuity task."""
+
+    decision: str
+    approver: str = "operator"
+    reason: str = "operator denied the requested action"
+
+
+class RollbackRequest(BaseModel):
+    """Restore live continuity state from a published checkpoint."""
+
+    checkpoint_id: str
+
+
+class BranchRequest(BaseModel):
+    """Fork a verified checkpoint into a recorded work branch."""
+
+    parent_checkpoint_id: str
+    reason: str
+    model_configuration: dict[str, Any] = Field(default_factory=dict)
+    tool_policy: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeleteGoalRequest(BaseModel):
+    """Delete live continuity state for one goal."""
+
+    reason: str = "operator deletion"
+
+
+def _unavailable() -> dict[str, object]:
+    return {
+        "capability": "cognitive_continuity",
+        "status": "unavailable",
+        "durable": False,
+        "reason": "Continuity store is not configured for this runtime.",
+    }
+
+
+def _journal(request: Request) -> ContinuityJournal:
+    runtime = _runtime(request)
+    journal = runtime.kernel.continuity
+    if journal is None:
+        raise HTTPException(status_code=409, detail=_unavailable())
+    return journal
 
 
 def _runtime(request: Request) -> GaiaRuntime:
@@ -461,6 +509,7 @@ async def rollback_checkpoint(body: RollbackRequest, request: Request) -> dict[s
     except ContinuityIntegrityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     journal.hydrate(runtime.kernel.goals, runtime.kernel.contexts, replace=True)
+    runtime.kernel.mirror_live_state(drop_missing=True)
     return {"checkpoint": checkpoint.model_dump(mode="json")}
 
 
@@ -574,6 +623,7 @@ async def materialize_branch(branch_id: str, request: Request) -> dict[str, obje
     except ContinuityIntegrityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     journal.hydrate(runtime.kernel.goals, runtime.kernel.contexts, replace=True)
+    runtime.kernel.mirror_live_state(drop_missing=True)
     return {
         "branch": branch.model_dump(mode="json"),
         "checkpoint": checkpoint.model_dump(mode="json"),
@@ -603,8 +653,10 @@ async def delete_goal_state(
     deleted = journal.store.delete_goal(goal_id, reason)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"unknown goal: {goal_id}")
+    runtime.kernel.store.delete_goal(goal_id)
     runtime.kernel.goals.discard(goal_id)
     runtime.kernel.contexts.release(goal_id)
+    runtime.kernel._budgets.pop(goal_id, None)
     return {
         "deleted": True,
         "live_state_removed": True,

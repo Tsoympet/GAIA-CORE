@@ -142,6 +142,26 @@ Completed:
 - desktop Cognitive Kernel mission-control page with live goals/events/actions;
 - unit/integration/failure/security regression coverage.
 
+## R2 — Cognitive Continuity
+
+**Status: PARTIAL.** Opt-in SQLite journal on top of `KernelStore`.
+
+Delivered: task state machine, hash-linked checkpoints, crash recovery that
+interrupts in-flight work, process-local approvals, redaction, and optional
+field encryption. The journal does not replace the live kernel store.
+
+Still open: desktop continuity surface, session metadata beyond id and user id,
+and cryptographic immutability (explicitly false).
+
+## R3 — Memory Organism and Evidence Ledger
+
+**Status: PARTIAL.** Opt-in SQLite organism and evidence ledger.
+
+Delivered: promotion rules, corrections, body purge, checkpoint digest
+citations, `/organism` routes, and optional field encryption. Phase 4 scoped
+memory stays in process memory.
+
 ## Next phase
 
-R2 **Cognitive Continuity** (signed checkpoints, crash recovery, resume validation).
+Close the remaining R2 and R3 gaps above. The light client stays deferred
+until those local platform gaps are closed.

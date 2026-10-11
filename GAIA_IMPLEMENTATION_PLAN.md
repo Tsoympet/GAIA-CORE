@@ -39,7 +39,8 @@ regression tests, preserving the recovered orchestrator as the execution engine.
 
 ## R2 — Cognitive Continuity
 
-Status: partial. Opt-in local SQLite journal.
+Status: partial. Opt-in local SQLite journal on top of `KernelStore`.
+`KernelStore` remains the live goal, context, and budget store.
 
 Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit

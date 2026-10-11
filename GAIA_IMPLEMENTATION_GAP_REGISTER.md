@@ -33,9 +33,9 @@ A feature is not considered implemented merely because a route, class name, conf
 | Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
-| Cognitive Continuity | MISSING | Basic sessions only | Signed checkpoints, restart recovery, model-switch continuity, stale-state checks |
-| Memory Organism | MISSING | Separate memory primitives exist | Unified typed memory classes with provenance, promotion and retention rules |
-| Evidence and Provenance Ledger | MISSING | Route artifacts and basic metadata only | Source hashes, confidence, validation states, lineage, contradictions and supersession |
+| Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction | Desktop surface, session metadata beyond id and user id, model-switch continuity, cryptographic immutability |
+| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline and `/organism` routes | Retrieval beyond BM25, identity and timeline categories |
+| Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge, checkpoint digest citations, optional field encryption | Signatures and cryptographic immutability |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
 | GAIA Forge | MISSING | No operational skill creation pipeline | Workflow discovery, candidate generation, sandbox evaluation and promotion review |
@@ -87,7 +87,7 @@ Implement:
 
 ### R3 — Memory Organism and Provenance Ledger
 
-Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints. Remaining work is encryption, retrieval beyond BM25, and identity and timeline categories.
+Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints and optional AES-GCM field encryption. Remaining work is retrieval beyond BM25, and identity and timeline categories. The hash chain is tamper-evident, not cryptographic immutability.
 
 ### R4 — Living Project Intelligence
 

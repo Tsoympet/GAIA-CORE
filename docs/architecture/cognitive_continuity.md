@@ -1,11 +1,16 @@
 # Cognitive Continuity (R2, partial)
 
-Cognitive continuity keeps kernel goals, working context, and task state on the
-local machine so a restarted process can inspect what happened and resume only
-when that is safe.
+Cognitive continuity keeps a hash-linked journal of kernel goals, working
+context, and task state on the local machine so a restarted process can inspect
+what happened and resume only when that is safe.
 
-Continuity is optional. `create_runtime()` stays in-memory until the caller
-passes `continuity_path`. The CLI can enable it with `--continuity-db`.
+`KernelStore` is the live goal, context, and budget store. It is always
+attached (`:memory:` in tests, `.gaia/kernel.sqlite3` for the CLI). The
+continuity journal is optional and sits on top of that store. Pass
+`continuity_path` or `--continuity-db` to record task transitions, redacted
+context, checkpoints, and crash recovery. On startup the kernel hydrates
+`KernelStore` first. When a journal is configured, recovery overlays live
+goals and contexts, then those live rows are written back to `KernelStore`.
 
 ## What is durable
 
