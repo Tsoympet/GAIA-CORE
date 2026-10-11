@@ -420,6 +420,7 @@ async def submit_kernel_task(
     runtime = _runtime(request)
     _require_permission(runtime, Permission.KERNEL_READ)
     session = await runtime.sessions.get_or_create(body.session_id)
+    runtime.persist_session(session)
     try:
         result = await runtime.kernel.run(
             body.task,

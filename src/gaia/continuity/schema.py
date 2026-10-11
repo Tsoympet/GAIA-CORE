@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MIGRATION_V1 = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -91,6 +91,11 @@ CREATE TABLE IF NOT EXISTS quarantine (
 CREATE INDEX IF NOT EXISTS idx_goals_session ON goals(session_id);
 CREATE INDEX IF NOT EXISTS idx_transitions_task ON task_transitions(task_id);
 CREATE INDEX IF NOT EXISTS idx_checkpoints_publication ON checkpoints(publication);
+"""
+
+MIGRATION_V2 = """
+ALTER TABLE sessions ADD COLUMN workspace_id TEXT;
+ALTER TABLE sessions ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';
 """
 
 DROP_V1 = """

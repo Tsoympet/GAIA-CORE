@@ -46,12 +46,27 @@ Resume re-runs policy checks. A waiting task runs only when the same process
 holds a live grant for that goal's action fingerprint. A database row is not
 authorization.
 
+## Sessions
+
+A configured runtime persists the session id, user id, workspace id, creation
+time, and metadata when a task is submitted. Restart restores those fields.
+Secret metadata keys are redacted before they are stored and again on recovery.
+Approval grants are not part of the session record.
+
+Published checkpoints include session rows. Rollback to a checkpoint that has
+a session snapshot replaces live session rows. A checkpoint written before
+schema version 2 has no session snapshot, and rollback leaves the live session
+rows in place.
+
 ## Schema
 
-Schema version 1 is applied automatically. `rollback_schema(0, force=True)`
-drops continuity tables. Rollback is refused while published checkpoints exist
-unless `force` is set, because a downgrade destroys that history. Re-opening
-the database applies version 1 again. Export an audit bundle first.
+Schema version 2 is applied automatically. Version 2 adds `workspace_id` and
+`metadata_json` to `sessions`. `rollback_schema(1)` drops those columns and
+keeps the version 1 session id, user id, and creation time.
+`rollback_schema(0, force=True)` drops continuity tables. Rollback to version 0
+is refused while published checkpoints exist unless `force` is set, because a
+downgrade destroys that history. Re-opening the database applies version 2
+again. Export an audit bundle first.
 
 Live goal deletion removes the working rows and writes a tombstone with the
 goal id and reason. It does not rewrite published checkpoints.
@@ -88,6 +103,7 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
 - Desktop mission control is not wired to this journal.
+- Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the
   continuity journal. Do not put goal state in the organism file.

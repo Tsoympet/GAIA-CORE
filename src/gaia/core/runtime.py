@@ -119,6 +119,7 @@ class GaiaRuntime(BaseModel):
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
         """Accept a user task through the Cognitive Kernel control plane."""
         session = await self.sessions.get_or_create(request.session_id)
+        self.persist_session(session)
         result = await self.kernel.run(
             request.task,
             session.id,
@@ -137,6 +138,13 @@ class GaiaRuntime(BaseModel):
                 project_id=project_id if isinstance(project_id, str) else None,
             )
         return result.response
+
+    def persist_session(self, session: Session) -> Session:
+        """Write session identity into the continuity journal when one is configured."""
+        journal = self.kernel.continuity
+        if journal is None:
+            return session
+        return journal.remember_session(session)
 
 
 def create_runtime(
@@ -228,7 +236,7 @@ def create_runtime(
         organism=organism,
     )
     if continuity is not None:
-        for session_id, user_id in continuity.store.list_sessions():
-            if runtime.sessions.get(session_id) is None:
-                runtime.sessions.remember(Session(id=session_id, user_id=user_id))
+        for persisted in continuity.store.list_sessions():
+            if runtime.sessions.get(persisted.id) is None:
+                runtime.sessions.remember(persisted)
     return runtime

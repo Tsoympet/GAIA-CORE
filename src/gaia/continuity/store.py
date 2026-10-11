@@ -24,13 +24,14 @@ from gaia.continuity.records import (
     WorkBranch,
 )
 from gaia.continuity.redaction import is_sensitive_key, redact_mapping, redact_value
-from gaia.continuity.schema import DROP_V1, MIGRATION_V1
+from gaia.continuity.schema import DROP_V1, MIGRATION_V1, MIGRATION_V2
 from gaia.continuity.schema import SCHEMA_VERSION as SCHEMA_VERSION
 from gaia.continuity.task_state import (
     UNSAFE_RECOVERY_STATES,
     TaskState,
     validate_transition,
 )
+from gaia.core.session import Session
 from gaia.kernel.context_manager import WorkingContext
 from gaia.kernel.goal_manager import Goal, GoalStatus
 from gaia.security.field_cipher import (
@@ -119,6 +120,10 @@ class ContinuityStore:
                 _execute_sql_script(connection, MIGRATION_V1)
                 self._record_migration(connection, 1, "continuity_initial")
                 current = 1
+            if current < 2:
+                _execute_sql_script(connection, MIGRATION_V2)
+                self._record_migration(connection, 2, "session_metadata")
+                current = 2
             if current > SCHEMA_VERSION:
                 raise ContinuityIntegrityError(
                     f"continuity schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -164,6 +169,9 @@ class ContinuityStore:
             changed += _reseal_column(
                 connection, self.cipher, "branches", "branch_id", "tool_policy_json"
             )
+            changed += _reseal_column(
+                connection, self.cipher, "sessions", "session_id", "metadata_json"
+            )
         return changed
 
     def _seal(self, plaintext: str) -> str:
@@ -199,7 +207,10 @@ class ContinuityStore:
                 )
             if target == 0 and current >= 1:
                 _execute_sql_script(connection, DROP_V1)
-                connection.execute("DELETE FROM schema_migrations WHERE version = 1")
+                connection.execute("DELETE FROM schema_migrations WHERE version >= 1")
+            elif target <= 1 and current >= 2:
+                _drop_session_metadata_columns(connection)
+                connection.execute("DELETE FROM schema_migrations WHERE version >= 2")
             return self._schema_version(connection)
 
     def recover(self) -> RecoveryReport:
@@ -319,6 +330,15 @@ class ContinuityStore:
                         f"context for goal {context.goal_id} had sensitive values redacted"
                     )
 
+            for session in self._list_sessions_on(connection):
+                redacted_metadata = _redacted_mapping(session.metadata)
+                if redacted_metadata == session.metadata:
+                    continue
+                session.metadata = redacted_metadata
+                self._write_session(connection, session)
+                mutated = True
+                notes.append(f"session {session.id} had sensitive metadata redacted")
+
             integrity_ok = self._chain_ok(connection) and not broken
 
         if mutated:
@@ -341,26 +361,36 @@ class ContinuityStore:
             notes=notes,
         )
 
-    def list_sessions(self) -> list[tuple[str, str]]:
-        """Return persisted session ids and user ids."""
+    def list_sessions(self) -> list[Session]:
+        """Return persisted sessions, including workspace and redacted metadata."""
         self.migrate()
         with self._read() as connection:
-            rows = connection.execute(
-                "SELECT session_id, user_id FROM sessions ORDER BY created_at ASC"
-            ).fetchall()
-        return [(str(row["session_id"]), str(row["user_id"])) for row in rows]
+            return self._list_sessions_on(connection)
+
+    def upsert_session(self, session: Session) -> Session:
+        """Persist a session. Metadata is redacted. ``created_at`` is not overwritten."""
+        stored = session.model_copy(deep=True)
+        stored.metadata = _redacted_mapping(stored.metadata)
+        self._ensure_lock()
+        with self._transaction() as connection:
+            self._write_session(connection, stored)
+        return stored
 
     def ensure_session(self, session_id: str, user_id: str = "local") -> None:
-        """Record a session id if it is not already present."""
+        """Record a session id if it is not already present.
+
+        An existing row keeps its user, workspace, metadata, and creation time.
+        """
         self._ensure_lock()
         with self._transaction() as connection:
             connection.execute(
                 """
-                INSERT INTO sessions (session_id, user_id, created_at)
-                VALUES (?, ?, ?)
+                INSERT INTO sessions (
+                    session_id, user_id, workspace_id, metadata_json, created_at
+                ) VALUES (?, ?, NULL, ?, ?)
                 ON CONFLICT(session_id) DO NOTHING
                 """,
-                (session_id, user_id, _now().isoformat()),
+                (session_id, user_id, self._seal("{}"), _now().isoformat()),
             )
 
     def upsert_goal(self, goal: Goal) -> Goal:
@@ -616,6 +646,12 @@ class ContinuityStore:
             connection.execute("DELETE FROM goals")
             connection.execute("DELETE FROM contexts")
             connection.execute("DELETE FROM task_runs")
+            if "sessions" in payload:
+                connection.execute("DELETE FROM sessions")
+                for item in _json_list(payload.get("sessions")):
+                    session = Session.model_validate(_as_mapping(item))
+                    session.metadata = _redacted_mapping(session.metadata)
+                    self._write_session(connection, session)
             for item in _json_list(payload.get("goals")):
                 goal = Goal.model_validate(_as_mapping(item))
                 goal.metadata = _redacted_mapping(goal.metadata)
@@ -978,6 +1014,56 @@ class ContinuityStore:
             (version, name, _now().isoformat()),
         )
 
+    def _write_session(self, connection: sqlite3.Connection, session: Session) -> None:
+        connection.execute(
+            """
+            INSERT INTO sessions (
+                session_id, user_id, workspace_id, metadata_json, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                user_id = excluded.user_id,
+                workspace_id = excluded.workspace_id,
+                metadata_json = excluded.metadata_json
+            """,
+            (
+                session.id,
+                session.user_id,
+                session.workspace_id,
+                self._seal(canonical_json(session.metadata)),
+                session.created_at.isoformat(),
+            ),
+        )
+
+    def _list_sessions_on(self, connection: sqlite3.Connection) -> list[Session]:
+        rows = connection.execute(
+            """
+            SELECT session_id, user_id, workspace_id, metadata_json, created_at
+            FROM sessions
+            ORDER BY created_at ASC
+            """
+        ).fetchall()
+        loaded: list[Session] = []
+        for row in rows:
+            parsed: object
+            try:
+                parsed = json.loads(self._open(str(row["metadata_json"])))
+            except json.JSONDecodeError:
+                parsed = {}
+            metadata = _redacted_mapping(_as_mapping(parsed)) if isinstance(parsed, dict) else {}
+            workspace = row["workspace_id"]
+            loaded.append(
+                Session(
+                    id=str(row["session_id"]),
+                    user_id=str(row["user_id"]),
+                    workspace_id=(
+                        str(workspace) if isinstance(workspace, str) and workspace else None
+                    ),
+                    metadata=metadata,
+                    created_at=datetime.fromisoformat(str(row["created_at"])),
+                )
+            )
+        return loaded
+
     def _write_goal(self, connection: sqlite3.Connection, goal: Goal) -> None:
         payload = self._seal(canonical_json(goal.model_dump(mode="json")))
         connection.execute(
@@ -1167,6 +1253,9 @@ class ContinuityStore:
                 context.model_dump(mode="json") for context in self._list_contexts_on(connection)
             ],
             "task_runs": [task.model_dump(mode="json") for task in self._list_tasks_on(connection)],
+            "sessions": [
+                session.model_dump(mode="json") for session in self._list_sessions_on(connection)
+            ],
         }
 
     def _latest_published_on(self, connection: sqlite3.Connection) -> Checkpoint | None:
@@ -1357,6 +1446,16 @@ def _reseal_column(
         )
         changed += 1
     return changed
+
+
+def _drop_session_metadata_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(sessions)").fetchall()
+    }
+    if "metadata_json" in columns:
+        connection.execute("ALTER TABLE sessions DROP COLUMN metadata_json")
+    if "workspace_id" in columns:
+        connection.execute("ALTER TABLE sessions DROP COLUMN workspace_id")
 
 
 def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:

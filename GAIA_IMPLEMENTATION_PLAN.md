@@ -46,9 +46,9 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: streaming events, desktop surfaces, and session metadata beyond
-the id and user id. Explicit session ids are adopted and restored from the
-journal.
+Still open: streaming events and desktop surfaces. Explicit session ids,
+user id, workspace id, creation time, and redacted metadata are restored
+from the journal. Approval grants are not.
 Optional AES-GCM field encryption seals secret JSON when a data key is set.
 Checkpoints are tamper-evident, not a cryptographic ledger.
 
