@@ -81,3 +81,8 @@ R1 Cognitive Kernel is **IMPLEMENTED** for the control-plane completion
 standard: typed interfaces, runtime wiring, durable schema/migration,
 backup/restore/deletion, permissions/audit, tests, API, desktop surface, and
 validated configuration.
+
+`KernelStore` is the live goal, context, budget, and event store. Cognitive
+continuity is a separate **PARTIAL** capability: an opt-in journal for task
+transitions, checkpoints, and crash recovery. It does not replace
+`KernelStore`. See `docs/architecture/cognitive_continuity.md`.

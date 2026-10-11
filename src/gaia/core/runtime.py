@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field
 
 from gaia.agents.agent_registry import AgentRegistry, create_default_agent_registry
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
+from gaia.continuity.journal import ContinuityJournal
+from gaia.continuity.store import ContinuityStore
 from gaia.core.event_bus import EventBus
-from gaia.core.session import SessionManager
+from gaia.core.session import Session, SessionManager
 from gaia.kernel.config import KernelConfig, load_kernel_config
 from gaia.kernel.kernel import CognitiveKernel, create_cognitive_kernel
 from gaia.kernel.resource_budget import ResourceBudget
@@ -22,6 +24,8 @@ from gaia.memory.store import MemoryStore, create_memory_store
 from gaia.models.catalog import ModelCatalog, create_model_catalog
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator, create_orchestrator
+from gaia.organism.organism import MemoryOrganism
+from gaia.security.field_cipher import FieldCipher
 from gaia.security.permission_manager import Permission, PermissionManager
 from gaia.security.policy import SecurityPolicy, create_security_policy
 
@@ -40,6 +44,8 @@ class RuntimeStatus(BaseModel):
     kernel_status: str = "idle"
     kernel_id: str | None = None
     kernel_durable: bool = False
+    continuity: str = "unavailable"
+    memory_organism: str = "unavailable"
 
 
 class TaskRequest(BaseModel):
@@ -81,6 +87,7 @@ class GaiaRuntime(BaseModel):
     kernel: CognitiveKernel
     event_bus: EventBus = Field(default_factory=EventBus)
     kernel_config: KernelConfig = Field(default_factory=KernelConfig)
+    organism: MemoryOrganism | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -99,6 +106,14 @@ class GaiaRuntime(BaseModel):
             kernel_status=kernel_state.status.value,
             kernel_id=kernel_state.kernel_id,
             kernel_durable=durable,
+            continuity=(
+                "unavailable"
+                if self.kernel.continuity is None
+                else self.kernel.continuity.capability_status()
+            ),
+            memory_organism=(
+                "unavailable" if self.organism is None else self.organism.capability_status()
+            ),
         )
 
     async def submit_task(self, request: TaskRequest) -> AggregatedResponse:
@@ -129,11 +144,17 @@ def create_runtime(
     *,
     kernel_db_path: Path | str = ":memory:",
     grant_local_kernel_admin: bool | None = None,
+    continuity_path: Path | str | None = None,
+    organism_path: Path | str | None = None,
+    data_key: bytes | None = None,
 ) -> GaiaRuntime:
     """Create the default GAIA runtime composition.
 
     ``kernel_db_path`` defaults to an in-memory SQLite database for isolated tests.
-    Production entrypoints should pass ``DEFAULT_KERNEL_DB_PATH``.
+    Production entrypoints should pass ``DEFAULT_KERNEL_DB_PATH``. The continuity
+    journal and memory organism stay opt-in. When both a kernel database and a
+    journal are set, KernelStore remains the live goal store and the journal
+    records recovery on top of it.
     """
     config_root = Path(config_dir)
     kernel_config = load_kernel_config(config_root)
@@ -187,8 +208,12 @@ def create_runtime(
         default_budget=kernel_config.budgets,
         kernel_db_path=kernel_db_path,
         event_bus=event_bus,
+        continuity=continuity,
     )
-    return GaiaRuntime(
+    organism = MemoryOrganism(organism_path, cipher=cipher) if organism_path is not None else None
+    if organism is not None and continuity is not None:
+        organism.bind_continuity(continuity.store)
+    runtime = GaiaRuntime(
         config_dir=config_root,
         orchestrator=orchestrator,
         agent_registry=agent_registry,
@@ -200,6 +225,7 @@ def create_runtime(
         kernel=kernel,
         event_bus=event_bus,
         kernel_config=kernel_config,
+        organism=organism,
     )
     if continuity is not None:
         for session_id, user_id in continuity.store.list_sessions():

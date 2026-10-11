@@ -109,18 +109,20 @@ class ContextManager:
             context.goal_id: context.model_copy(deep=True) for context in contexts
         }
 
-    def restore(self, context: WorkingContext) -> WorkingContext:
-        """Load a previously persisted working context."""
-        restored = context.model_copy(deep=True)
-        self._contexts[restored.goal_id] = restored
-        return restored
+    def restore(self, context: WorkingContext | dict[str, object]) -> WorkingContext:
+        """Load a working context from a model or a durable snapshot dict."""
+        if isinstance(context, WorkingContext):
+            restored = context.model_copy(deep=True)
+            self._contexts[restored.goal_id] = restored
+            return restored
+        return self._restore_snapshot(context)
 
     def release(self, goal_id: str) -> None:
         """Drop a working context when a goal terminates."""
         self._contexts.pop(goal_id, None)
 
-    def restore(self, snapshot: dict[str, object]) -> WorkingContext:
-        """Restore a working context from a durable snapshot."""
+    def _restore_snapshot(self, snapshot: dict[str, object]) -> WorkingContext:
+        """Restore a working context from a KernelStore snapshot."""
         goal_id = str(snapshot.get("goal_id", ""))
         session_id = str(snapshot.get("session_id", ""))
         if not goal_id or not session_id:
