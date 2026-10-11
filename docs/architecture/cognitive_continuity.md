@@ -102,7 +102,9 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
 - Internal orchestrator planning is recorded as `classified → executing` when
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
-- Desktop mission control is not wired to this journal.
+- Desktop mission control can inspect status, publish a checkpoint, verify the
+  hash chain, and list task runs. It does not stream continuity events, and it
+  does not present the chain as cryptographic immutability.
 - Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the
