@@ -46,9 +46,10 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: streaming events and desktop surfaces. Explicit session ids,
-user id, workspace id, creation time, and redacted metadata are restored
-from the journal. Approval grants are not.
+Still open: streaming events and repository/process snapshots. A desktop
+Continuity page can inspect, publish, and verify the journal. Explicit
+session ids, user id, workspace id, creation time, and redacted metadata
+are restored from the journal. Approval grants are not.
 Optional AES-GCM field encryption seals secret JSON when a data key is set.
 Checkpoints are tamper-evident, not a cryptographic ledger.
 
@@ -57,7 +58,7 @@ Checkpoints are tamper-evident, not a cryptographic ledger.
 Status: partial. Opt-in local SQLite evidence ledger and memory organism.
 
 Delivered: schema v1, evidence hash chain with body purge, promotion and
-refusal rules, corrections, deletion, BM25 retrieval, kernel outcome
+refusal rules, corrections, deletion, hybrid local retrieval, kernel outcome
 redaction, `/organism` routes, and `gaia organism`. See
 `docs/architecture/memory_organism.md`.
 
@@ -71,9 +72,11 @@ memory text. A missing or wrong key fails closed.
 
 Identity, timeline, and preference categories are present. Timeline records
 require `event_at`. Identity and preference approval do not become factual
-knowledge. A new preference supersedes only a preference it cites. Still open:
-retrieval beyond BM25. The hash chain is tamper-evident, not cryptographic
-immutability. Phase 4 scoped memory stays in process memory.
+knowledge. A new preference supersedes only a preference it cites. Hybrid
+retrieval combines BM25 with character n-grams and a hashed derived index.
+Neural embeddings and calibrated confidence remain open. The hash chain is
+tamper-evident, not cryptographic immutability. Phase 4 scoped memory stays
+in process memory.
 
 The light client is deferred until these local platform gaps are closed.
 

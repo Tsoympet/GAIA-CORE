@@ -150,9 +150,11 @@ Delivered: task state machine, hash-linked checkpoints, crash recovery that
 interrupts in-flight work, process-local approvals, redaction, and optional
 field encryption. The journal does not replace the live kernel store.
 
-Still open: desktop continuity surface, and cryptographic immutability
-(explicitly false). Session id, user id, workspace id, creation time, and
-redacted metadata are restored. Approval grants are not.
+Delivered later on this stack: a desktop Continuity page that can inspect,
+publish, and verify the journal. Still open: streaming continuity events,
+repository/process snapshots, and cryptographic immutability (explicitly
+false). Session id, user id, workspace id, creation time, and redacted
+metadata are restored. Approval grants are not.
 
 ## R3 — Memory Organism and Evidence Ledger
 
@@ -161,9 +163,10 @@ redacted metadata are restored. Approval grants are not.
 Delivered: promotion rules, corrections, body purge, checkpoint digest
 citations, `/organism` routes, optional field encryption, timeline records
 ordered by `event_at`, identity approval that does not become factual
-knowledge, and preference approval that supersedes only a cited preference.
-Phase 4 scoped memory stays in process memory. Retrieval beyond BM25 is still
-open.
+knowledge, preference approval that supersedes only a cited preference, and
+local hybrid retrieval (BM25 + character n-grams) with a hashed derived
+index that deletion removes. Phase 4 scoped memory stays in process memory.
+Neural embeddings and calibrated confidence remain open.
 
 ## Next phase
 

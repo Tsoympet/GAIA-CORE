@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from gaia.core.runtime import GaiaRuntime
 from gaia.evidence.ledger import EvidenceError
 from gaia.organism.organism import MemoryCategory, MemoryOrganism, PromotionError
+from gaia.organism.retrieval import RetrievalMode
 
 router = APIRouter(prefix="/organism", tags=["organism"])
 
@@ -274,6 +275,13 @@ async def search_memories(
     q: str = "",
     owner_id: str | None = None,
     project_id: str | None = None,
+    category: MemoryCategory | None = None,
+    evidence_id: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    mode: RetrievalMode = RetrievalMode.HYBRID,
+    include_identity: bool = False,
+    include_preference: bool = False,
     limit: int = 10,
 ) -> dict[str, object]:
     """Search retained memories. Contradicted, stale, and simulation records are omitted."""
@@ -282,11 +290,21 @@ async def search_memories(
         q,
         owner_id=owner_id,
         project_id=project_id,
+        category=category,
+        evidence_id=evidence_id,
+        since=since,
+        until=until,
+        mode=mode,
+        include_identity=include_identity,
+        include_preference=include_preference,
         limit=limit,
     )
     return {
         "hits": [hit.model_dump(mode="json") for hit in hits],
         "count": len(hits),
+        "ranker": mode.value,
+        "uncalibrated": True,
+        "neural_embeddings": False,
     }
 
 

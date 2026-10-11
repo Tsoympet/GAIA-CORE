@@ -36,8 +36,10 @@ payload remains in the continuity journal.
 - Secret assignments in kernel outcomes are redacted before they are stored.
 - The evidence hash chain is tamper-evident against accidental corruption and
   naive payload edits. It is not cryptographic immutability.
-- Embedding retrieval and desktop presentation are not provided by this
-  decision. Field encryption is a later, separate decision.
+- Hybrid local retrieval (BM25 + character n-grams) and a hashed derived
+  index are provided later. Neural embeddings and desktop organism
+  presentation are not provided by this decision. Field encryption is a
+  later, separate decision.
 - Phase 4 `/memory` routes continue to use the in-memory manager.
 
 ## Rollback
