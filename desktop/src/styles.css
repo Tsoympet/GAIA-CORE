@@ -209,7 +209,8 @@ textarea {
   padding-top: 10px;
 }
 
-.goalList button {
+.goalList button,
+.goalListStatic {
   width: 100%;
   text-align: left;
   display: grid;

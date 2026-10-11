@@ -174,8 +174,10 @@ export function ContinuityPage() {
             <ul className="goalList">
               {tasks.map((task) => (
                 <li key={task.task_id}>
-                  <strong>{task.state}</strong>
-                  <span>{task.objective}</span>
+                  <div className="goalListStatic">
+                    <strong>{task.state}</strong>
+                    <span>{task.objective}</span>
+                  </div>
                 </li>
               ))}
             </ul>
