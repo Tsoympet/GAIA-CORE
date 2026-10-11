@@ -150,8 +150,9 @@ Delivered: task state machine, hash-linked checkpoints, crash recovery that
 interrupts in-flight work, process-local approvals, redaction, and optional
 field encryption. The journal does not replace the live kernel store.
 
-Still open: desktop continuity surface, session metadata beyond id and user id,
-and cryptographic immutability (explicitly false).
+Still open: desktop continuity surface, and cryptographic immutability
+(explicitly false). Session id, user id, workspace id, creation time, and
+redacted metadata are restored. Approval grants are not.
 
 ## R3 — Memory Organism and Evidence Ledger
 
