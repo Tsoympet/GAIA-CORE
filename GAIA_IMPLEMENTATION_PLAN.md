@@ -69,29 +69,21 @@ back to an empty version 0 without dropping the other group.
 Also delivered: optional AES-GCM field encryption for evidence bodies and
 memory text. A missing or wrong key fails closed.
 
-Identity and timeline categories are present. Timeline records require
-`event_at`. Identity approval does not become factual knowledge. Still open:
+Identity, timeline, and preference categories are present. Timeline records
+require `event_at`. Identity and preference approval do not become factual
+knowledge. A new preference supersedes only a preference it cites. Still open:
 retrieval beyond BM25. The hash chain is tamper-evident, not cryptographic
 immutability. Phase 4 scoped memory stays in process memory.
 
 The light client is deferred until these local platform gaps are closed.
 
-Still required by the long-term architecture:
+The organism keeps these classes separate: working, episodic, semantic,
+procedural, project, correction, user-preference, simulation, identity, and
+timeline. Preference and identity stay non-factual.
 
-Separate and govern:
-
-- working memory;
-- episodic memory;
-- semantic memory;
-- procedural memory;
-- project memory;
-- correction memory;
-- user-preference memory;
-- simulation memory;
-- identity memory;
-- timeline memory.
-
-Every important record must include provenance, confidence, validation state, retention policy, contradictions, dependencies, and derived-record lineage. Deletion must include derived summaries and indexes.
+Still required: provenance, confidence, validation state, retention policy,
+contradictions, dependencies, and derived-record lineage on every important
+record. Deletion must include derived summaries and indexes.
 
 ## R4 — Living Project Intelligence
 

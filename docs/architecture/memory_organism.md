@@ -21,9 +21,10 @@ Allowed path:
    `project`, `simulation`, or `timeline`. A timeline record requires
    `event_at`. That instant is the event time, not the row's creation time.
 3. Propose a candidate in `semantic`, `procedural`, `project`, `simulation`,
-   or `identity`. The candidate must cite at least one source memory.
-   Identity must cite an observation. It cannot be recorded directly, and it
-   cannot be revised from identity records alone.
+   `identity`, or `preference`. The candidate must cite at least one source
+   memory. Identity and preference must each cite an observation. Neither can
+   be recorded directly. Identity cannot be revised from identity records
+   alone. Preference cannot be revised from preference records alone.
 4. Validate the candidate. Validation does not approve it.
 5. Approve a validated memory. `policy_effect` stays `none`.
 
@@ -32,14 +33,22 @@ Refusals that the tests cover:
 - Instruction-like text from a `document`, `tool`, or `model` source is stored
   as episodic with `untrusted_instruction` set. It cannot become a candidate.
 - The candidate text itself cannot contain the same instruction markers.
-- Simulation memory cannot be cited as the source of a factual candidate
-  or an identity candidate.
+- Simulation memory cannot be cited as the source of a factual candidate,
+  an identity candidate, or a preference candidate.
 - Approval of a simulation memory, if reached, does not set
   `approved_knowledge`.
 - Approval of identity does not set `approved_knowledge` and does not change
-  policy. A later approved identity for the same owner marks the previous
+  policy. A later approved identity for the same owner marks every other
   approved identity contradicted. The original content and hash stay unchanged.
-- Identity cannot be cited as the source of factual knowledge.
+- Identity cannot be cited as the source of factual knowledge or of a
+  preference.
+- Approval of a preference does not set `approved_knowledge` and does not
+  change policy. A later approved preference contradicts only an approved
+  preference it cites for the same owner. Unrelated preferences stay approved.
+  The original content and hash stay unchanged.
+- A preference cannot cite another owner's preference.
+- Preference cannot be cited as the source of factual knowledge or of an
+  identity.
 - A candidate cannot be approved before validation.
 - Deleted memories cannot support a new candidate.
 
@@ -52,7 +61,9 @@ That recording does not grant authority and does not change security policy.
 Default search returns `recorded` and `approved` memories only. It excludes
 deleted text, candidates, validated-but-unapproved memories, rejected memories,
 contradicted memories, stale memories, simulation memories, identity memories,
-and untrusted instructions. Callers opt in to those classes with explicit flags.
+preference memories, and untrusted instructions. Callers opt in to those
+classes with explicit flags. A category filter for identity or preference
+includes that class without the matching include flag.
 `list_timeline` returns recorded timeline entries for one owner, oldest
 `event_at` first. It does not use BM25.
 
@@ -115,8 +126,10 @@ children that name the deleted memory as parent become `rejected`.
   encryption and it is not cryptographic immutability.
 - No hybrid or embedding retrieval. BM25 is the only ranker. Timeline order
   is separate from that ranker.
-- No user-preference category. Autobiographical kernel notes are not identity
-  memory. Identity approval is not factual knowledge and does not change policy.
+- Preference and identity approval are not factual knowledge and do not change
+  policy. A preference supersedes only a preference it cites. Identity
+  supersedes every other approved identity for that owner. Autobiographical
+  kernel notes are neither identity nor preference memory.
 - When both `continuity_path` and `organism_path` are set, each published
   checkpoint is cited as evidence. The citation stores the checkpoint id,
   payload digest, parent id, reason, and kernel id. It does not store the
