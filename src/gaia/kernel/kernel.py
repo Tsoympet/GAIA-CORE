@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +30,18 @@ from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import Orchestrator
 from gaia.security.permission_manager import PermissionManager
 from gaia.security.policy import SecurityPolicy
+
+if TYPE_CHECKING:
+    from gaia.continuity.journal import ContinuityJournal
+
+_TERMINAL_GOALS: frozenset[GoalStatus] = frozenset(
+    {
+        GoalStatus.COMPLETED,
+        GoalStatus.FAILED,
+        GoalStatus.CANCELLED,
+        GoalStatus.BLOCKED,
+    }
+)
 
 
 class KernelRunResult(BaseModel):
@@ -192,11 +204,7 @@ class CognitiveKernel:
                 task_id=goal.id,
                 status="blocked",
                 answer="Task blocked by GAIA Cognitive Kernel policy gate.",
-                confidence=1.0,
-                artifacts={
-                    "policy": policy.model_dump(mode="json"),
-                    "goal_id": goal.id,
-                },
+                extra={"policy": policy.model_dump(mode="json")},
             )
             verification = self.verification.verify(response)
             self.state.failed_verifications += int(not verification.passed)
@@ -207,10 +215,12 @@ class CognitiveKernel:
                 payload={"reasons": policy.reasons},
             )
             self.state.touch(KernelStatus.IDLE, last_goal_id=goal.id)
-            return KernelRunResult(
-                goal=self.goals.require(goal.id),
-                response=response,
-                policy=policy,
+            self._checkpoint(goal.id, "policy_block")
+            return self._result(
+                goal.id,
+                response,
+                policy,
+                tracker,
                 verification=verification,
                 budget=tracker.snapshot.model_dump(mode="json"),
                 resumed=resumed,
@@ -220,7 +230,7 @@ class CognitiveKernel:
         self.goals.activate(goal.id)
         self._persist_goal(self.goals.require(goal.id))
         self.state.active_goal_id = goal.id
-        self.state.active_session_id = session_id
+        self.state.active_session_id = goal.session_id
         self.state.touch(KernelStatus.RUNNING, last_goal_id=goal.id)
         await self.events.emit(
             "goal.activated",
@@ -230,7 +240,6 @@ class CognitiveKernel:
         )
 
         started = perf_counter()
-        interrupted = False
         try:
             if self.interrupts.is_interrupted(goal.id):
                 raise InterruptedError("goal interrupted before execution")
@@ -244,9 +253,9 @@ class CognitiveKernel:
                 payload={"resumed": resumed},
             )
             response = await self.orchestrator.run(
-                objective,
-                session_id,
-                capabilities,
+                goal.objective,
+                goal.session_id,
+                goal.capabilities,
             )
             elapsed_ms = int((perf_counter() - started) * 1000)
             node_count_raw = response.artifacts.get("node_count", 1)
@@ -262,12 +271,12 @@ class CognitiveKernel:
             self._persist_budget(goal.id, tracker)
 
             if self.interrupts.is_interrupted(goal.id):
-                interrupted = True
                 interrupt = self.interrupts.get(goal.id)
                 reason = interrupt.reason if interrupt else "interrupted"
                 self.goals.interrupt(goal.id, reason)
                 self._persist_goal(self.goals.require(goal.id))
                 self.interrupts.acknowledge(goal.id)
+                self._track(goal.id, TaskState.INTERRUPTED, reason)
                 response.status = "interrupted"
                 response.artifacts = {
                     **response.artifacts,
@@ -281,17 +290,18 @@ class CognitiveKernel:
                     payload={"reason": reason},
                 )
                 self.state.touch(KernelStatus.INTERRUPTED, last_goal_id=goal.id)
-                return KernelRunResult(
-                    goal=self.goals.require(goal.id),
-                    response=response,
-                    policy=policy,
-                    verification=None,
-                    budget=tracker.snapshot.model_dump(mode="json"),
+                self._checkpoint(goal.id, "interrupted")
+                return self._result(
+                    goal.id,
+                    response,
+                    policy,
+                    tracker,
                     interrupted=True,
                     resumed=resumed,
                     artifacts={"kernel_path": "interrupted"},
                 )
 
+            self._track(goal.id, TaskState.VERIFYING, "verification started")
             verification = self.verification.verify(response)
             self.contexts.put(
                 goal.id,
@@ -311,10 +321,8 @@ class CognitiveKernel:
             }
 
             if verification.passed and response.status == "completed":
-                self.goals.complete(
-                    goal.id,
-                    metadata={"task_id": response.task_id},
-                )
+                self.goals.complete(goal.id, metadata={"task_id": response.task_id})
+                self._track(goal.id, TaskState.COMPLETED, "verification passed")
                 self.state.verified_runs += 1
                 await self.events.emit(
                     "goal.completed",
@@ -328,6 +336,7 @@ class CognitiveKernel:
                     "blocked by orchestrator security policy",
                     metadata={"task_id": response.task_id},
                 )
+                self._track(goal.id, TaskState.BLOCKED, "orchestrator blocked the run")
                 self.state.failed_verifications += int(not verification.passed)
                 await self.events.emit(
                     "goal.blocked",
@@ -336,11 +345,13 @@ class CognitiveKernel:
                     payload={"source": "orchestrator"},
                 )
             else:
+                failure = "; ".join(verification.issues) or "verification failed"
                 self.goals.fail(
                     goal.id,
-                    "; ".join(verification.issues) or "verification failed",
+                    failure,
                     metadata={"task_id": response.task_id},
                 )
+                self._track(goal.id, TaskState.FAILED, failure)
                 self.state.failed_verifications += 1
                 if response.status == "completed":
                     response.status = "failed_verification"
@@ -353,10 +364,12 @@ class CognitiveKernel:
 
             self._persist_goal(self.goals.require(goal.id))
             self.state.touch(KernelStatus.IDLE, last_goal_id=goal.id)
-            return KernelRunResult(
-                goal=self.goals.require(goal.id),
-                response=response,
-                policy=policy,
+            self._checkpoint(goal.id, checkpoint_reason)
+            return self._result(
+                goal.id,
+                response,
+                policy,
+                tracker,
                 verification=verification,
                 budget=tracker.snapshot.model_dump(mode="json"),
                 interrupted=interrupted,
@@ -366,23 +379,16 @@ class CognitiveKernel:
 
         except BudgetExceededError as exc:
             self.state.budget_violations += 1
-            self.interrupts.request(
-                goal.id,
-                str(exc),
-                kind=InterruptKind.BUDGET,
-            )
+            self.interrupts.request(goal.id, str(exc), kind=InterruptKind.BUDGET)
             self.goals.fail(goal.id, str(exc))
             self._persist_goal(self.goals.require(goal.id))
             self.interrupts.acknowledge(goal.id)
-            response = AggregatedResponse(
-                task_id=goal.id,
+            self._track(goal.id, TaskState.FAILED, str(exc))
+            response = self._terminal_response(
+                goal.id,
                 status="budget_exceeded",
                 answer=f"Task stopped: {exc}",
-                confidence=1.0,
-                artifacts={
-                    "goal_id": goal.id,
-                    "budget": tracker.snapshot.model_dump(mode="json"),
-                },
+                extra={"budget": tracker.snapshot.model_dump(mode="json")},
             )
             await self.events.emit(
                 "goal.budget_exceeded",
@@ -391,12 +397,12 @@ class CognitiveKernel:
                 payload={"error": str(exc)},
             )
             self.state.touch(KernelStatus.DEGRADED, last_goal_id=goal.id)
-            return KernelRunResult(
-                goal=self.goals.require(goal.id),
-                response=response,
-                policy=policy,
-                verification=None,
-                budget=tracker.snapshot.model_dump(mode="json"),
+            self._checkpoint(goal.id, "budget_exceeded")
+            return self._result(
+                goal.id,
+                response,
+                policy,
+                tracker,
                 interrupted=True,
                 resumed=resumed,
                 artifacts={"kernel_path": "budget_exceeded"},
@@ -405,12 +411,11 @@ class CognitiveKernel:
             self.goals.interrupt(goal.id, str(exc))
             self._persist_goal(self.goals.require(goal.id))
             self.interrupts.acknowledge(goal.id)
-            response = AggregatedResponse(
-                task_id=goal.id,
+            self._track(goal.id, TaskState.INTERRUPTED, str(exc))
+            response = self._terminal_response(
+                goal.id,
                 status="interrupted",
                 answer=f"Task interrupted: {exc}",
-                confidence=1.0,
-                artifacts={"goal_id": goal.id},
             )
             await self.events.emit(
                 "goal.interrupted",
@@ -419,12 +424,12 @@ class CognitiveKernel:
                 payload={"reason": str(exc), "phase": "before_run"},
             )
             self.state.touch(KernelStatus.INTERRUPTED, last_goal_id=goal.id)
-            return KernelRunResult(
-                goal=self.goals.require(goal.id),
-                response=response,
-                policy=policy,
-                verification=None,
-                budget=tracker.snapshot.model_dump(mode="json"),
+            self._checkpoint(goal.id, "interrupted_before_run")
+            return self._result(
+                goal.id,
+                response,
+                policy,
+                tracker,
                 interrupted=True,
                 resumed=resumed,
                 artifacts={"kernel_path": "interrupted_before_run"},
@@ -555,6 +560,107 @@ def _as_int(value: object) -> int:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return 0
+
+    def _task_state(self, goal_id: str) -> TaskState | None:
+        if self.continuity is None:
+            return None
+        task = self.continuity.store.get_task_by_goal(goal_id)
+        if task is None:
+            return None
+        return task.state
+
+    def _approval_live(self, goal: Goal) -> bool:
+        if self.continuity is None:
+            return False
+        task = self.continuity.store.get_task_by_goal(goal.id)
+        if task is None:
+            return False
+        return self.continuity.approval_is_live(task.task_id, task.action_fingerprint)
+
+    def _track(self, goal_id: str, state: TaskState, reason: str) -> None:
+        if self.continuity is None:
+            return
+        goal = self.goals.get(goal_id)
+        if goal is None:
+            return
+        self.continuity.record(goal, state, reason)
+        self._persist_context(goal_id)
+
+    def _persist_context(self, goal_id: str) -> None:
+        if self.continuity is None:
+            return
+        context = self.contexts.get(goal_id)
+        if context is not None:
+            self.continuity.record_context(context)
+
+    def _checkpoint(self, goal_id: str, reason: str) -> None:
+        if self.continuity is None:
+            return
+        tracker = self._budgets.get(goal_id)
+        if tracker is not None:
+            self.continuity.store.update_task_budget(
+                goal_id,
+                tracker.snapshot.model_dump(mode="json"),
+            )
+        self.continuity.publish(reason=reason, kernel_id=self.state.kernel_id)
+
+    def _fail_open(self, goal_id: str, reason: str) -> None:
+        goal = self.goals.get(goal_id)
+        if goal is None:
+            return
+        if goal.status not in _TERMINAL_GOALS:
+            try:
+                self.goals.fail(goal_id, reason)
+            except RuntimeError:
+                return
+        try:
+            self._track(goal_id, TaskState.FAILED, reason)
+        except TaskTransitionError:
+            return
+        try:
+            self._checkpoint(goal_id, "execution_failed")
+        except Exception:
+            return
+
+    def _terminal_response(
+        self,
+        goal_id: str,
+        *,
+        status: str,
+        answer: str,
+        extra: dict[str, Any] | None = None,
+    ) -> AggregatedResponse:
+        artifacts: dict[str, Any] = {"goal_id": goal_id}
+        if extra:
+            artifacts.update(extra)
+        return AggregatedResponse(
+            task_id=goal_id,
+            status=status,
+            answer=answer,
+            confidence=1.0,
+            artifacts=artifacts,
+        )
+
+    def _result(
+        self,
+        goal_id: str,
+        response: AggregatedResponse,
+        policy: PolicyGateDecision,
+        tracker: ResourceBudgetTracker,
+        *,
+        verification: VerificationReport | None = None,
+        interrupted: bool = False,
+        kernel_path: str,
+    ) -> KernelRunResult:
+        return KernelRunResult(
+            goal=self.goals.require(goal_id),
+            response=response,
+            policy=policy,
+            verification=verification,
+            budget=tracker.snapshot.model_dump(mode="json"),
+            interrupted=interrupted,
+            artifacts={"kernel_path": kernel_path},
+        )
 
 
 def create_cognitive_kernel(

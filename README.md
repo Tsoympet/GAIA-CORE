@@ -408,10 +408,13 @@ This repository currently captures that architecture vision and bootstrap direct
 
 This bootstrap now includes first-phase foundation modules under `src/gaia/`:
 
-- `security`: permission management, command/file/network guards, audit logging, secrets redaction, self-modification approval checks, and an autonomy kill switch.
+- `security`: permission management, command/file/network guards, audit logging, secrets redaction, self-modification approval checks, an autonomy kill switch, and optional AES-GCM field encryption (`gaia data-key`).
 - `memory`: scoped project/user/session/timeline memory, symbolic facts, vector-store abstraction, in-memory vector search, indexing, retrieval, and retention policy hooks.
 - `models`: a model registry, local-first router, Ollama client, local placeholder client, and disabled-by-default cloud fallback adapter.
-- `server`: a FastAPI application factory with typed Pydantic v2 schemas and route modules for chat, agents, memory, models, tools, workspaces, security, self-model, metacognition, dreaming, and idle cognition.
+- `kernel`: goal, context, budget, policy, verification, and interrupt control over the recovered orchestrator. In-memory unless a continuity journal is configured.
+- `continuity`: optional local SQLite journal for task state, checkpoints, recovery, and non-reusable approvals. Status is `unavailable` when no journal path is set. The hash chain is not cryptographic immutability. See `docs/architecture/cognitive_continuity.md`.
+- `organism` and `evidence`: optional local SQLite Memory Organism and evidence ledger. Status is `unavailable` when no organism path is set. Promotion cannot change security policy, and the evidence hash chain is not cryptographic immutability. See `docs/architecture/memory_organism.md`.
+- `server`: a FastAPI application factory with typed Pydantic v2 schemas and route modules for chat, agents, memory, models, tools, workspaces, security, self-model, metacognition, dreaming, idle cognition, the kernel, and the organism.
 - `desktop`: a Tauri + React + TypeScript mission-control shell with panels for the primary GAIA operating surfaces.
 
 ## First Runnable Foundation

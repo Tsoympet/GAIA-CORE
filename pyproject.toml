@@ -25,6 +25,7 @@ dependencies = [
   "typer>=0.12,<1.0",
   "rich>=13.7,<14.0",
   "structlog>=24.1,<26.0",
+  "cryptography>=44,<48",
 ]
 
 [project.optional-dependencies]

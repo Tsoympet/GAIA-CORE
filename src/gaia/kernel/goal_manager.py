@@ -20,6 +20,7 @@ class GoalStatus(StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
+    WAITING_FOR_USER = "waiting_for_user"
 
 
 class Goal(BaseModel):
@@ -108,14 +109,43 @@ class GoalManager:
             goals = [goal for goal in goals if goal.status == status]
         return sorted(goals, key=lambda goal: goal.created_at)
 
-    def activate(self, goal_id: str) -> Goal:
-        """Mark a pending or interrupted goal as active."""
+    def discard(self, goal_id: str) -> None:
+        """Drop a goal from the in-memory registry."""
+        self._goals.pop(goal_id, None)
+
+    def replace_all(self, goals: list[Goal]) -> None:
+        """Replace the in-memory registry with persisted goals."""
+        self._goals = {goal.id: goal.model_copy(deep=True) for goal in goals}
+
+    def restore(self, goal: Goal) -> Goal:
+        """Load a previously persisted goal without changing its timestamps."""
+        restored = goal.model_copy(deep=True)
+        self._goals[restored.id] = restored
+        return restored
+
+    def activate(self, goal_id: str, *, from_waiting: bool = False) -> Goal:
+        """Mark a pending, interrupted, or explicitly approved waiting goal as active."""
         goal = self.require(goal_id)
-        if goal.status not in {GoalStatus.PENDING, GoalStatus.INTERRUPTED}:
+        allowed = {GoalStatus.PENDING, GoalStatus.INTERRUPTED}
+        if from_waiting:
+            allowed.add(GoalStatus.WAITING_FOR_USER)
+        if goal.status not in allowed:
             raise RuntimeError(
                 f"goal {goal_id} cannot activate from status {goal.status.value}"
             )
         goal.status = GoalStatus.ACTIVE
+        goal._touch()
+        return goal
+
+    def wait(self, goal_id: str, reason: str) -> Goal:
+        """Park a non-terminal goal until a human decision is recorded."""
+        goal = self.require(goal_id)
+        if goal.status in self._TERMINAL:
+            raise RuntimeError(
+                f"goal {goal_id} already terminal with status {goal.status.value}"
+            )
+        goal.status = GoalStatus.WAITING_FOR_USER
+        goal.error = reason
         goal._touch()
         return goal
 

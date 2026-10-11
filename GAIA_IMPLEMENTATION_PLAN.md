@@ -39,9 +39,42 @@ regression tests, preserving the recovered orchestrator as the execution engine.
 
 ## R2 — Cognitive Continuity
 
-Implement structured durable checkpoints containing objectives, plans, decisions, failures, open questions, repository state, permissions, evidence, and the next safe action. Support recovery after restarts, crashes, context compression, and model replacement.
+Status: partial. Opt-in local SQLite journal.
+
+Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
+of in-flight work, non-reusable approvals, redaction, branches, resume, audit
+export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
+
+Still open: streaming events, desktop surfaces, and session metadata beyond
+the id and user id. Explicit session ids are adopted and restored from the
+journal.
+Optional AES-GCM field encryption seals secret JSON when a data key is set.
+Checkpoints are tamper-evident, not a cryptographic ledger.
 
 ## R3 — Memory Organism and Provenance Ledger
+
+Status: partial. Opt-in local SQLite evidence ledger and memory organism.
+
+Delivered: schema v1, evidence hash chain with body purge, promotion and
+refusal rules, corrections, deletion, BM25 retrieval, kernel outcome
+redaction, `/organism` routes, and `gaia organism`. See
+`docs/architecture/memory_organism.md`.
+
+Also delivered: published continuity checkpoints are cited in the evidence
+ledger by digest when both stores are configured. The payload stays in the
+continuity journal. Organism tables and evidence tables can each be forced
+back to an empty version 0 without dropping the other group.
+
+Also delivered: optional AES-GCM field encryption for evidence bodies and
+memory text. A missing or wrong key fails closed.
+
+Still open: retrieval beyond BM25, and identity and timeline categories. The
+hash chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
+memory stays in process memory.
+
+The light client is deferred until these local platform gaps are closed.
+
+Still required by the long-term architecture:
 
 Separate and govern:
 

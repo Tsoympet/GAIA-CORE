@@ -87,7 +87,7 @@ Implement:
 
 ### R3 — Memory Organism and Provenance Ledger
 
-Implement durable working, episodic, semantic, procedural, project, correction, simulation, identity, timeline and evidence memories with explicit promotion rules.
+Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints. Remaining work is encryption, retrieval beyond BM25, and identity and timeline categories.
 
 ### R4 — Living Project Intelligence
 

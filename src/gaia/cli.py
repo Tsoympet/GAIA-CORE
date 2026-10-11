@@ -25,7 +25,13 @@ def status(config_dir: Path = Path("config")) -> None:
 
 
 @app.command()
-def run(task: str, config_dir: Path = Path("config")) -> None:
+def run(
+    task: str,
+    config_dir: Path = Path("config"),
+    continuity_db: Path | None = None,
+    organism_db: Path | None = None,
+    data_key_file: Path | None = None,
+) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
 

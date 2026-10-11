@@ -38,10 +38,20 @@ class SessionManager:
         return session
 
     async def get_or_create(self, session_id: str | None = None) -> Session:
-        """Return an existing session or create an anonymous one."""
-        if session_id and session_id in self._sessions:
-            return self._sessions[session_id]
+        """Return an existing session, adopt an explicit id, or create one."""
+        if session_id:
+            existing = self._sessions.get(session_id)
+            if existing is not None:
+                return existing
+            adopted = Session(id=session_id)
+            self._sessions[adopted.id] = adopted
+            return adopted
         return await self.create_session()
+
+    def remember(self, session: Session) -> Session:
+        """Keep a restored session without minting a new id."""
+        self._sessions[session.id] = session
+        return session
 
     def get(self, session_id: str) -> Session | None:
         """Return a session by id when present."""

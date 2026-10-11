@@ -111,6 +111,16 @@ class GaiaRuntime(BaseModel):
             budget=request.budget,
             metadata=request.metadata,
         )
+        if self.organism is not None:
+            project_id = request.metadata.get("project_id")
+            self.organism.record_kernel_outcome(
+                objective=request.task,
+                answer=result.response.answer,
+                status=result.response.status,
+                session_id=session.id,
+                execution_id=result.goal.id,
+                project_id=project_id if isinstance(project_id, str) else None,
+            )
         return result.response
 
 
@@ -165,6 +175,11 @@ def create_runtime(
         security_policy=security_policy,
         agent_registry=agent_registry,
     )
+    cipher = FieldCipher(data_key) if data_key is not None else None
+    continuity: ContinuityJournal | None = None
+    if continuity_path is not None:
+        store = ContinuityStore(continuity_path, cipher=cipher)
+        continuity = ContinuityJournal(store, store.recover())
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
         security_policy=security_policy,
@@ -186,3 +201,8 @@ def create_runtime(
         event_bus=event_bus,
         kernel_config=kernel_config,
     )
+    if continuity is not None:
+        for session_id, user_id in continuity.store.list_sessions():
+            if runtime.sessions.get(session_id) is None:
+                runtime.sessions.remember(Session(id=session_id, user_id=user_id))
+    return runtime

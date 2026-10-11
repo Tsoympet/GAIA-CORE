@@ -103,6 +103,18 @@ class ContextManager:
             return {}
         return context.model_dump(mode="json")
 
+    def replace_all(self, contexts: list[WorkingContext]) -> None:
+        """Replace in-memory working contexts with persisted contexts."""
+        self._contexts = {
+            context.goal_id: context.model_copy(deep=True) for context in contexts
+        }
+
+    def restore(self, context: WorkingContext) -> WorkingContext:
+        """Load a previously persisted working context."""
+        restored = context.model_copy(deep=True)
+        self._contexts[restored.goal_id] = restored
+        return restored
+
     def release(self, goal_id: str) -> None:
         """Drop a working context when a goal terminates."""
         self._contexts.pop(goal_id, None)
