@@ -14,7 +14,8 @@ workspace store already uses SQLite from the Python standard library.
 
 Persist continuity in a SQLite file addressed by `continuity_path`.
 
-- Schema version 1 is migrated on open.
+- Schema version 2 is migrated on open. Version 2 stores session workspace id
+  and redacted metadata beside the session id and user id.
 - Checkpoints are published inside one transaction. The stored payload is
   canonical JSON and is linked by SHA-256 to the previous published payload.
 - Recovery, not every read, normalizes in-flight work and revokes approvals.

@@ -9,6 +9,7 @@ from gaia.continuity.records import ApprovalEvent, Checkpoint, RecoveryReport, T
 from gaia.continuity.redaction import is_sensitive_key, redact_mapping, redact_value
 from gaia.continuity.store import ContinuityStore
 from gaia.continuity.task_state import TaskState
+from gaia.core.session import Session
 from gaia.kernel.context_manager import ContextManager, WorkingContext
 from gaia.kernel.goal_manager import Goal, GoalManager
 
@@ -23,6 +24,8 @@ LIMITATIONS: tuple[str, ...] = (
     "Field encryption is off unless a 32-byte data key is configured. "
     "Encryption does not make the hash chain cryptographic immutability.",
     "A second live process cannot recover or mutate a locked journal.",
+    "Session records restore the id, user id, workspace id, creation time, and "
+    "redacted metadata. They do not restore approval grants.",
 )
 
 
@@ -76,6 +79,11 @@ class ContinuityJournal:
             goals.restore(goal)
         for context in loaded_contexts:
             contexts.restore(context)
+
+    def remember_session(self, session: Session) -> Session:
+        """Persist a session and redact secret metadata in the live object."""
+        session.metadata = redact_mapping(session.metadata)
+        return self.store.upsert_session(session)
 
     def record(self, goal: Goal, state: TaskState, reason: str) -> TaskRun:
         """Persist a goal and advance its task state."""
