@@ -165,8 +165,9 @@ citations, `/organism` routes, optional field encryption, timeline records
 ordered by `event_at`, identity approval that does not become factual
 knowledge, preference approval that supersedes only a cited preference, and
 local hybrid retrieval (BM25 + character n-grams) with a hashed derived
-index that deletion removes. Phase 4 scoped memory stays in process memory.
-Neural embeddings and calibrated confidence remain open.
+index that deletion removes, and a desktop Organism page for status, search,
+and promotion. Phase 4 scoped memory stays in process memory. Neural
+embeddings and calibrated confidence remain open.
 
 ## Next phase
 

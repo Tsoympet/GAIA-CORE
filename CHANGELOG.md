@@ -4,6 +4,7 @@
 
 ### Added
 
+- Desktop Memory Organism page for status, observation recording, hybrid search, timeline, and the candidate/validate/approve path. An unconfigured runtime stays unavailable. Approval still cannot change policy.
 - Hybrid organism retrieval: default ranking combines BM25, character n-gram cosine, metadata overlap, confidence, and recency. `mode=bm25` keeps the earlier lexical-only ranker. Scores stay uncalibrated. This is not a neural embedding.
 - Organism schema v3 stores a hashed term and n-gram index. Deletion removes those derived rows. Forced rollback to schema 2 drops the index and keeps memories.
 - Search filters for `evidence_id`, `since`, and `until`, plus ranker metadata on `/organism/memories/search`.

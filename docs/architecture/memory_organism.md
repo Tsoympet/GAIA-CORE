@@ -146,7 +146,9 @@ children that name the deleted memory as parent become `rejected`.
   checkpoint payload. Binding is not automatic for an organism opened on its
   own.
 - Phase 4 scoped memory remains in process memory.
-- Desktop mission control is not wired to these routes.
+- Desktop mission control can inspect status, record an observation, search,
+  and run the promotion path. It does not stream organism events and does not
+  present scores as calibrated confidence or neural embeddings.
 - This capability stays `PARTIAL`.
 
 ## Rollback

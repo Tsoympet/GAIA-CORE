@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ContinuityPage } from './pages/Continuity';
 import { KernelPage } from './pages/Kernel';
+import { OrganismPage } from './pages/Organism';
 import './styles.css';
 
 type Panel = {
@@ -24,7 +25,7 @@ const panels: Panel[] = [
   { title: 'Settings', description: 'Runtime, desktop, model, and policy configuration.', signal: 'editable' },
 ];
 
-type View = 'home' | 'kernel' | 'continuity';
+type View = 'home' | 'kernel' | 'continuity' | 'organism';
 
 function App() {
   const [view, setView] = useState<View>('kernel');
@@ -40,6 +41,9 @@ function App() {
         </button>
         <button type="button" className={view === 'continuity' ? 'active' : ''} onClick={() => setView('continuity')}>
           Continuity
+        </button>
+        <button type="button" className={view === 'organism' ? 'active' : ''} onClick={() => setView('organism')}>
+          Organism
         </button>
       </nav>
 
@@ -73,6 +77,16 @@ function App() {
                 Open continuity journal
               </button>
             </article>
+            <article className="panel kernelCallout">
+              <div className="panelHeader">
+                <h2>Memory Organism</h2>
+                <span>partial</span>
+              </div>
+              <p>Evidence, promotion, and hybrid search. Scores are uncalibrated and not neural embeddings.</p>
+              <button type="button" onClick={() => setView('organism')}>
+                Open memory organism
+              </button>
+            </article>
             {panels.map((panel) => (
               <article className="panel" key={panel.title}>
                 <div className="panelHeader">
@@ -86,8 +100,10 @@ function App() {
         </>
       ) : view === 'kernel' ? (
         <KernelPage />
-      ) : (
+      ) : view === 'continuity' ? (
         <ContinuityPage />
+      ) : (
+        <OrganismPage />
       )}
     </main>
   );

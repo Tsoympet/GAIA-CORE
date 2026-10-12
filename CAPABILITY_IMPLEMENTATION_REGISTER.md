@@ -66,7 +66,7 @@ Allowed states:
 | GAIA Forge | MISSING | Self-evolve concept only | Workflow discovery, candidate generation, sandbox tests, adversarial evaluation, approval-gated promotion |
 | Research Laboratory | MISSING | Weekly external research process only | Campaign manager, frozen baselines, hypotheses, branches, budgets, paper-to-code, reproduction and evidence packages |
 | Automated science | MISSING | None | Dataset and experiment governance, statistical checks, reproducibility, critic and human review |
-| Desktop mission control | SCAFFOLD | Tauri/React shell and voice panels | Complete navigation, runtime streaming, task graph, projects, memory, evidence, skills, research, security and rollback |
+| Desktop mission control | SCAFFOLD | Tauri/React shell with live kernel, continuity journal, organism, and voice panels | Complete navigation, runtime streaming, task graph, projects, Phase 4 memory, skills, research, security and rollback |
 | Observability | MISSING | Basic logging | Structured event schema, OpenTelemetry, metrics, traces, dashboards, privacy controls and retention |
 | Plugin ecosystem | MISSING | None | Signed manifests, capability declarations, dependency isolation, license checks and governance |
 | Deployment and installers | SCAFFOLD | Docker, Compose, NGINX and systemd placeholders | Reproducible images, migrations, health checks, Windows/Linux installers, update and rollback channels |

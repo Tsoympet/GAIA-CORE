@@ -74,9 +74,10 @@ Identity, timeline, and preference categories are present. Timeline records
 require `event_at`. Identity and preference approval do not become factual
 knowledge. A new preference supersedes only a preference it cites. Hybrid
 retrieval combines BM25 with character n-grams and a hashed derived index.
-Neural embeddings and calibrated confidence remain open. The hash chain is
-tamper-evident, not cryptographic immutability. Phase 4 scoped memory stays
-in process memory.
+A desktop Organism page can inspect status, record evidence, search, and
+promote a cited candidate. Neural embeddings and calibrated confidence
+remain open. The hash chain is tamper-evident, not cryptographic
+immutability. Phase 4 scoped memory stays in process memory.
 
 The light client is deferred until these local platform gaps are closed.
 
