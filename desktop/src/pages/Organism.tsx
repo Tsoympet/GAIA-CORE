@@ -356,10 +356,8 @@ export function OrganismPage() {
             <h2>Store</h2>
             <span>{status?.encrypted_at_rest ? 'sealed' : 'plaintext fields'}</span>
           </div>
-          <p className="muted">
-            {status?.db_path || 'No organism path is configured.'} Indexed terms are hashed. Deletion
-            removes those derived rows.
-          </p>
+          <p className="muted">{status?.db_path || 'No organism path is configured.'}</p>
+          <p className="muted">Indexed terms are hashed. Deletion removes those derived rows.</p>
         </section>
 
         <section className="kernelPanel">
