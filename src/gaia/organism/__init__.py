@@ -9,6 +9,7 @@ from gaia.organism.organism import (
     PromotionError,
     RetrievalHit,
 )
+from gaia.organism.retrieval import RetrievalMode, ScoreComponents
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -18,4 +19,6 @@ __all__ = [
     "OrganismMemory",
     "PromotionError",
     "RetrievalHit",
+    "RetrievalMode",
+    "ScoreComponents",
 ]

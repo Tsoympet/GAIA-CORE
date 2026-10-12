@@ -191,7 +191,7 @@ def test_schema_v1_gains_event_at_without_dropping_memories(tmp_path: Path) -> N
     assert "event_at" not in columns
 
     upgraded = MemoryOrganism(path)
-    assert upgraded.migrate() == 2
+    assert upgraded.migrate() == 3
     restored = upgraded.get(memory.memory_id)
     assert restored is not None
     assert restored.content == memory.content

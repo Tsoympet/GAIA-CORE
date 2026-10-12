@@ -4,6 +4,9 @@
 
 ### Added
 
+- Hybrid organism retrieval: default ranking combines BM25, character n-gram cosine, metadata overlap, confidence, and recency. `mode=bm25` keeps the earlier lexical-only ranker. Scores stay uncalibrated. This is not a neural embedding.
+- Organism schema v3 stores a hashed term and n-gram index. Deletion removes those derived rows. Forced rollback to schema 2 drops the index and keeps memories.
+- Search filters for `evidence_id`, `since`, and `until`, plus ranker metadata on `/organism/memories/search`.
 - Optional AES-GCM field encryption for continuity JSON, evidence bodies, and organism memory text. A 32-byte key is read from a file. `gaia data-key` creates one and refuses to overwrite it.
 - Explicit session ids are adopted by the runtime and restored from the continuity journal after a restart.
 - `cryptography` as a runtime dependency for that cipher. The hash chain remains tamper-evident and is not cryptographic immutability.
@@ -30,6 +33,6 @@
 - Field encryption is off until a data key is configured. Attaching a key seals existing plaintext fields. A missing or wrong key does not return sealed text and does not quarantine checkpoints.
 - The light client is not part of this work. It waits until the local platform milestones are further along.
 - Checkpoint hashes and evidence header hashes detect corruption and naive tampering. They are not cryptographic immutability.
-- BM25 scores are uncalibrated retrieval weights, not probabilities.
+- Hybrid and BM25 scores are uncalibrated retrieval weights, not probabilities. Character n-grams are lexical features, not embeddings.
 - Approval of organism memory cannot change security policy.
 - No new third-party dependencies were added. SQLite and hashing use the Python standard library.

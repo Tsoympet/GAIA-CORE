@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -37,7 +38,15 @@ from gaia.organism.guards import (
     looks_like_untrusted_instruction,
     redact_assignments,
 )
-from gaia.organism.retrieval import bm25_scores
+from gaia.organism.retrieval import (
+    RankedDocument,
+    RetrievalMode,
+    ScoreComponents,
+    char_ngrams,
+    query_index_keys,
+    rank_documents,
+    tokenize,
+)
 from gaia.security.field_cipher import (
     DataKeyError,
     FieldCipher,
@@ -46,7 +55,7 @@ from gaia.security.field_cipher import (
     seal_if_plain,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 ORGANISM_SQL = """
 CREATE TABLE IF NOT EXISTS organism_schema_migrations (
@@ -90,12 +99,44 @@ CREATE TABLE IF NOT EXISTS organism_contradictions (
     reason TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS organism_retrieval_docs (
+    memory_id TEXT PRIMARY KEY,
+    content_sha256 TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
+    ngram_count INTEGER NOT NULL,
+    indexed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS organism_term_postings (
+    term TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    frequency INTEGER NOT NULL,
+    PRIMARY KEY (term, memory_id)
+);
+CREATE TABLE IF NOT EXISTS organism_ngram_postings (
+    ngram TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    frequency INTEGER NOT NULL,
+    PRIMARY KEY (ngram, memory_id)
+);
+CREATE INDEX IF NOT EXISTS organism_term_postings_memory
+    ON organism_term_postings(memory_id);
+CREATE INDEX IF NOT EXISTS organism_ngram_postings_memory
+    ON organism_ngram_postings(memory_id);
 """
 
 DROP_ORGANISM_V1 = """
+DROP TABLE IF EXISTS organism_ngram_postings;
+DROP TABLE IF EXISTS organism_term_postings;
+DROP TABLE IF EXISTS organism_retrieval_docs;
 DROP TABLE IF EXISTS organism_contradictions;
 DROP TABLE IF EXISTS organism_events;
 DROP TABLE IF EXISTS organism_memories;
+"""
+
+DROP_ORGANISM_V3 = """
+DROP TABLE IF EXISTS organism_ngram_postings;
+DROP TABLE IF EXISTS organism_term_postings;
+DROP TABLE IF EXISTS organism_retrieval_docs;
 """
 
 
@@ -211,6 +252,8 @@ class RetrievalHit(BaseModel):
     memory: OrganismMemory
     score: float
     effective_status: str
+    ranker: RetrievalMode = RetrievalMode.HYBRID
+    components: ScoreComponents | None = None
 
 
 class MemoryOrganism:
@@ -261,6 +304,35 @@ class MemoryOrganism:
                     (_now().isoformat(),),
                 )
                 current = 2
+            if current < 3:
+                _execute_sql_script(connection, ORGANISM_SQL)
+                for row in connection.execute(
+                    """
+                    SELECT memory_id, content, content_sha256, status
+                    FROM organism_memories
+                    """
+                ).fetchall():
+                    if str(row["status"]) == MemoryStatus.DELETED.value:
+                        _drop_retrieval_index(connection, str(row["memory_id"]))
+                        continue
+                    try:
+                        plaintext = open_field(self.cipher, str(row["content"]))
+                    except DataKeyError:
+                        continue
+                    _upsert_retrieval_index(
+                        connection,
+                        str(row["memory_id"]),
+                        plaintext,
+                        str(row["content_sha256"]),
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO organism_schema_migrations (version, name, applied_at)
+                    VALUES (3, 'hybrid_retrieval_index', ?)
+                    """,
+                    (_now().isoformat(),),
+                )
+                current = 3
             if current > SCHEMA_VERSION:
                 raise PromotionError(
                     f"organism schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -312,18 +384,26 @@ class MemoryOrganism:
             if target == 0 and current >= 1:
                 _execute_sql_script(connection, DROP_ORGANISM_V1)
                 connection.execute("DELETE FROM organism_schema_migrations WHERE version >= 1")
-            elif target <= 1 and current >= 2:
-                columns = {
-                    str(row[1])
-                    for row in connection.execute(
-                        "PRAGMA table_info(organism_memories)"
-                    ).fetchall()
-                }
-                if "event_at" in columns:
-                    connection.execute("ALTER TABLE organism_memories DROP COLUMN event_at")
-                connection.execute(
-                    "DELETE FROM organism_schema_migrations WHERE version >= 2"
-                )
+            else:
+                if target < 3 and current >= 3:
+                    _execute_sql_script(connection, DROP_ORGANISM_V3)
+                    connection.execute(
+                        "DELETE FROM organism_schema_migrations WHERE version >= 3"
+                    )
+                if target < 2 and current >= 2:
+                    columns = {
+                        str(row[1])
+                        for row in connection.execute(
+                            "PRAGMA table_info(organism_memories)"
+                        ).fetchall()
+                    }
+                    if "event_at" in columns:
+                        connection.execute(
+                            "ALTER TABLE organism_memories DROP COLUMN event_at"
+                        )
+                    connection.execute(
+                        "DELETE FROM organism_schema_migrations WHERE version >= 2"
+                    )
             return _organism_schema_version(connection)
 
     def record_episodic(
@@ -696,6 +776,7 @@ class MemoryOrganism:
                 (MemoryStatus.DELETED.value, self._seal(""), _now().isoformat(), memory_id),
             )
             _event(connection, memory_id, "deleted", {"reason": reason})
+            _drop_retrieval_index(connection, memory_id)
             children = connection.execute(
                 """
                 SELECT memory_id, status FROM organism_memories
@@ -747,9 +828,17 @@ class MemoryOrganism:
         include_identity: bool = False,
         include_preference: bool = False,
         include_untrusted_instructions: bool = False,
+        evidence_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        mode: RetrievalMode = RetrievalMode.HYBRID,
         limit: int = 10,
     ) -> list[RetrievalHit]:
-        """Rank retained memories with BM25, confidence, and recency."""
+        """Rank retained memories with the selected local ranker.
+
+        Default hybrid ranking uses BM25, character n-grams, confidence, and
+        recency. ``mode=bm25`` keeps the earlier lexical-only ranker.
+        """
         memories = self._all()
         eligible: list[OrganismMemory] = []
         for memory in memories:
@@ -765,6 +854,12 @@ class MemoryOrganism:
             if category is not None and memory.category is not category:
                 continue
             if memory.confidence < min_confidence:
+                continue
+            if evidence_id is not None and evidence_id not in memory.source_evidence_ids:
+                continue
+            if since is not None and memory.created_at < since:
+                continue
+            if until is not None and memory.created_at > until:
                 continue
             if memory.untrusted_instruction and not include_untrusted_instructions:
                 continue
@@ -786,26 +881,42 @@ class MemoryOrganism:
             if effective == "stale" and not include_stale:
                 continue
             eligible.append(memory)
-        scores = bm25_scores(
+        if query.strip():
+            candidates = self._index_candidates(query)
+            if candidates is not None:
+                eligible = [
+                    memory for memory in eligible if memory.memory_id in candidates
+                ]
+        scores = rank_documents(
             query,
-            [(memory.memory_id, memory.content or "") for memory in eligible],
+            [
+                RankedDocument(
+                    document_id=memory.memory_id,
+                    text=memory.content or "",
+                    confidence=memory.confidence,
+                    created_at=memory.created_at,
+                    category=memory.category.value,
+                    project_id=memory.project_id,
+                    owner_id=memory.owner_id,
+                )
+                for memory in eligible
+            ],
+            now=_now(),
+            mode=mode,
         )
-        now = _now()
         ranked: list[RetrievalHit] = []
         for memory in eligible:
-            age_days = max(0.0, (now - memory.created_at).total_seconds() / 86400.0)
-            recency = 1.0 / (1.0 + age_days)
-            lexical = scores.get(memory.memory_id, 0.0)
-            if query.strip() and lexical <= 0.0:
+            scored = scores.get(memory.memory_id)
+            if scored is None:
                 continue
-            score = (lexical if query.strip() else recency) * (0.5 + 0.5 * memory.confidence) * (
-                recency if query.strip() else 1.0
-            )
+            score, components = scored
             ranked.append(
                 RetrievalHit(
                     memory=memory,
                     score=score,
                     effective_status=memory.effective_status,
+                    ranker=mode,
+                    components=components,
                 )
             )
         ranked.sort(key=lambda hit: hit.score, reverse=True)
@@ -820,7 +931,7 @@ class MemoryOrganism:
         """Return recorded timeline entries for an owner, oldest event first.
 
         Deleted, contradicted, stale, and untrusted entries are omitted.
-        Ordering uses ``event_at``, not insertion time or BM25.
+        Ordering uses ``event_at``, not insertion time or the search ranker.
         """
         entries = [
             memory
@@ -924,8 +1035,17 @@ class MemoryOrganism:
             "evidence": evidence,
             "db_path": str(self.db_path),
             "continuity_checkpoints_bound": self.continuity_bound,
+            "retrieval": {
+                "default_ranker": RetrievalMode.HYBRID.value,
+                "available_rankers": [mode.value for mode in RetrievalMode],
+                "neural_embeddings": False,
+                "uncalibrated": True,
+                "index": self.retrieval_index_stats(),
+            },
             "limitations": [
-                "BM25 scores are uncalibrated retrieval weights.",
+                "Hybrid scores combine BM25, character n-grams, and metadata overlap.",
+                "Those scores are uncalibrated retrieval weights, not probabilities.",
+                "Character n-grams are lexical features, not neural embeddings.",
                 "Approval cannot modify security policy or persistent instructions.",
                 "Simulation memory cannot be promoted into factual knowledge.",
                 "Identity approval does not set approved knowledge or change policy.",
@@ -996,6 +1116,7 @@ class MemoryOrganism:
                 ),
             )
             _event(connection, memory_id, event_type, event_detail)
+            _upsert_retrieval_index(connection, memory_id, content, digest)
         return self.require(memory_id)
 
     def _set_status(
@@ -1026,6 +1147,55 @@ class MemoryOrganism:
                 """,
                 (str(uuid4()), memory_id, other_memory_id, reason, _now().isoformat()),
             )
+
+    def retrieval_index_stats(self) -> dict[str, int | bool]:
+        """Return derived-index counts. Deleted memories have no postings."""
+        self.migrate()
+        with self._read() as connection:
+            if not _has_table(connection, "organism_retrieval_docs"):
+                return {
+                    "documents": 0,
+                    "term_postings": 0,
+                    "ngram_postings": 0,
+                    "hashed_terms": True,
+                }
+            documents = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_retrieval_docs"
+            ).fetchone()
+            terms = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_term_postings"
+            ).fetchone()
+            ngrams = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_ngram_postings"
+            ).fetchone()
+        return {
+            "documents": 0 if documents is None else int(documents["count"]),
+            "term_postings": 0 if terms is None else int(terms["count"]),
+            "ngram_postings": 0 if ngrams is None else int(ngrams["count"]),
+            "hashed_terms": True,
+        }
+
+    def _index_candidates(self, query: str) -> set[str] | None:
+        terms, ngrams = query_index_keys(query)
+        if not terms and not ngrams:
+            return None
+        with self._read() as connection:
+            if not _retrieval_index_ready(connection):
+                return None
+            ids: set[str] = set()
+            for term in terms:
+                rows = connection.execute(
+                    "SELECT memory_id FROM organism_term_postings WHERE term = ?",
+                    (sha256_text(term),),
+                )
+                ids.update(str(row["memory_id"]) for row in rows)
+            for ngram in ngrams:
+                rows = connection.execute(
+                    "SELECT memory_id FROM organism_ngram_postings WHERE ngram = ?",
+                    (sha256_text(ngram),),
+                )
+                ids.update(str(row["memory_id"]) for row in rows)
+        return ids
 
     def _all(self) -> list[OrganismMemory]:
         self.migrate()
@@ -1069,6 +1239,83 @@ def _bounded(confidence: float) -> float:
     if confidence < 0.0 or confidence > 1.0:
         raise PromotionError("confidence must be between 0 and 1")
     return confidence
+
+
+def _has_table(connection: sqlite3.Connection, name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def _retrieval_index_ready(connection: sqlite3.Connection) -> bool:
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return False
+    memories = connection.execute(
+        "SELECT COUNT(*) AS count FROM organism_memories WHERE status != ?",
+        (MemoryStatus.DELETED.value,),
+    ).fetchone()
+    docs = connection.execute(
+        "SELECT COUNT(*) AS count FROM organism_retrieval_docs"
+    ).fetchone()
+    memory_count = 0 if memories is None else int(memories["count"])
+    doc_count = 0 if docs is None else int(docs["count"])
+    return doc_count >= memory_count
+
+
+def _drop_retrieval_index(connection: sqlite3.Connection, memory_id: str) -> None:
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return
+    connection.execute(
+        "DELETE FROM organism_term_postings WHERE memory_id = ?",
+        (memory_id,),
+    )
+    connection.execute(
+        "DELETE FROM organism_ngram_postings WHERE memory_id = ?",
+        (memory_id,),
+    )
+    connection.execute(
+        "DELETE FROM organism_retrieval_docs WHERE memory_id = ?",
+        (memory_id,),
+    )
+
+
+def _upsert_retrieval_index(
+    connection: sqlite3.Connection,
+    memory_id: str,
+    content: str,
+    digest: str,
+) -> None:
+    _drop_retrieval_index(connection, memory_id)
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return
+    tokens = tokenize(content)
+    ngrams = char_ngrams(content)
+    token_counts = Counter(tokens)
+    now = _now().isoformat()
+    connection.execute(
+        """
+        INSERT INTO organism_retrieval_docs (
+            memory_id, content_sha256, token_count, ngram_count, indexed_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (memory_id, digest, len(tokens), sum(ngrams.values()), now),
+    )
+    connection.executemany(
+        """
+        INSERT INTO organism_term_postings (term, memory_id, frequency)
+        VALUES (?, ?, ?)
+        """,
+        [(sha256_text(term), memory_id, frequency) for term, frequency in token_counts.items()],
+    )
+    connection.executemany(
+        """
+        INSERT INTO organism_ngram_postings (ngram, memory_id, frequency)
+        VALUES (?, ?, ?)
+        """,
+        [(sha256_text(gram), memory_id, frequency) for gram, frequency in ngrams.items()],
+    )
 
 
 def _organism_schema_version(connection: sqlite3.Connection) -> int:
