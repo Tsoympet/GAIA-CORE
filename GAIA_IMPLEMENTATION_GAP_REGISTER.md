@@ -34,7 +34,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
 | Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata, desktop journal page | Streaming events, model-switch continuity, cryptographic immutability |
-| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline, timeline records ordered by event time, non-factual identity approval, citation-based preference supersession, and hybrid BM25 + character n-gram retrieval with a hashed derived index | Neural embeddings and calibrated confidence |
+| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline, timeline records ordered by event time, non-factual identity approval, citation-based preference supersession, hybrid BM25 + character n-gram retrieval with a hashed derived index, and a desktop status/search/promotion page | Neural embeddings and calibrated confidence |
 | Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge, checkpoint digest citations, optional field encryption | Signatures and cryptographic immutability |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
@@ -48,7 +48,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Coding and repository intelligence | SCAFFOLDED | Deterministic capability agent | Real repository tools, isolated execution, test/CI analysis and patch workflow |
 | CAD/CAE engineering integration | SCAFFOLDED | CAD/engineering labels | File adapters, geometry metadata, solver interfaces, simulation provenance |
 | Robotics and physical AI | MISSING | Architecture discussion only | Simulation adapters, safety interlocks, deterministic controller and operator presence |
-| Desktop mission-control application | SCAFFOLDED | React/Tauri shell and panels | Live backend integration, project/memory/task views, permissions and rollback UI |
+| Desktop mission-control application | SCAFFOLDED | React/Tauri shell with live kernel, continuity, and organism pages | Project/Phase 4 memory/task views, permissions and rollback UI |
 | Packaging and updates | PARTIAL | Docker/deployment scaffolding | Windows/Linux installers, signed releases, migrations, backups and safe updater |
 | Observability | PARTIAL | Response artifacts and basic logs | Persistent traces, metrics, resource use, security events and operator diagnostics |
 

@@ -174,7 +174,9 @@ textarea {
   gap: 16px;
 }
 
-.kernelPanel textarea {
+.kernelPanel textarea,
+.kernelPanel input,
+.kernelPanel select {
   width: 100%;
   margin-top: 14px;
   box-sizing: border-box;
@@ -183,7 +185,25 @@ textarea {
   background: rgba(4, 12, 22, 0.85);
   color: #e5f7ff;
   padding: 12px;
+}
+
+.kernelPanel textarea {
   resize: vertical;
+}
+
+.fieldLabel {
+  display: block;
+  margin-top: 12px;
+  color: #8fb4c9;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.kernelPanel .fieldLabel + input,
+.kernelPanel .fieldLabel + select,
+.kernelPanel .fieldLabel + textarea {
+  margin-top: 6px;
 }
 
 .kernelActions,
