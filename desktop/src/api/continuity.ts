@@ -17,6 +17,18 @@ export type ContinuityStatus = {
   db_path?: string;
   limitations?: string[];
   approvals_reusable?: boolean;
+  streaming?: boolean;
+  recent_event_count?: number;
+};
+
+export type ContinuityEvent = {
+  event_id?: string;
+  name: string;
+  payload?: Record<string, unknown>;
+  created_at?: string;
+  timestamp?: string;
+  domain?: string;
+  cryptographic_immutability?: boolean;
 };
 
 export type CheckpointSummary = {
@@ -74,6 +86,24 @@ export async function publishContinuityCheckpoint(): Promise<{ checkpoint: Check
       headers: { 'content-type': 'application/json' },
     }),
   );
+}
+
+export function openContinuityEventStream(
+  onEvent: (payload: ContinuityEvent | { events: ContinuityEvent[]; status?: string }) => void,
+): EventSource {
+  const source = new EventSource(`${API_BASE}/kernel/continuity/events/stream`);
+  source.addEventListener('snapshot', (event) => {
+    const data = JSON.parse((event as MessageEvent).data) as {
+      events: ContinuityEvent[];
+      status?: string;
+    };
+    onEvent(data);
+  });
+  source.addEventListener('continuity', (event) => {
+    const data = JSON.parse((event as MessageEvent).data) as ContinuityEvent;
+    onEvent(data);
+  });
+  return source;
 }
 
 export async function verifyContinuityCheckpoint(checkpointId: string): Promise<VerifyResult> {

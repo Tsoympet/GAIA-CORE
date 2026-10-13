@@ -4,6 +4,7 @@
 
 ### Added
 
+- Process-local continuity event stream at `/kernel/continuity/events/stream`. Task transitions, published checkpoints, approvals, rollback, and recovery emit live events without checkpoint payloads. The desktop Continuity page follows that stream.
 - Desktop Memory Organism page for status, observation recording, hybrid search, timeline, and the candidate/validate/approve path. An unconfigured runtime stays unavailable. Approval still cannot change policy.
 - Hybrid organism retrieval: default ranking combines BM25, character n-gram cosine, metadata overlap, confidence, and recency. `mode=bm25` keeps the earlier lexical-only ranker. Scores stay uncalibrated. This is not a neural embedding.
 - Organism schema v3 stores a hashed term and n-gram index. Deletion removes those derived rows. Forced rollback to schema 2 drops the index and keeps memories.

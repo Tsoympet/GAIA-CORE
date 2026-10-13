@@ -208,7 +208,7 @@ def create_runtime(
     continuity: ContinuityJournal | None = None
     if continuity_path is not None:
         store = ContinuityStore(continuity_path, cipher=cipher)
-        continuity = ContinuityJournal(store, store.recover())
+        continuity = ContinuityJournal(store, store.recover(), event_bus=event_bus)
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
         security_policy=security_policy,

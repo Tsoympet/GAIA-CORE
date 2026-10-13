@@ -3,9 +3,11 @@ import {
   getContinuityStatus,
   listContinuityCheckpoints,
   listContinuityTasks,
+  openContinuityEventStream,
   publishContinuityCheckpoint,
   verifyContinuityCheckpoint,
   type CheckpointSummary,
+  type ContinuityEvent,
   type ContinuityStatus,
   type ContinuityTask,
   type VerifyResult,
@@ -23,6 +25,8 @@ export function ContinuityPage() {
   const [verify, setVerify] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [events, setEvents] = useState<ContinuityEvent[]>([]);
 
   const journalReady = status?.status === 'available' || status?.status === 'degraded';
 
@@ -36,6 +40,7 @@ export function ContinuityPage() {
         setTasks([]);
         setIntegrityOk(null);
         setVerify(null);
+        setEvents([]);
         return;
       }
       const [nextCheckpoints, nextTasks] = await Promise.all([
@@ -52,6 +57,20 @@ export function ContinuityPage() {
 
   useEffect(() => {
     void refresh();
+    const source = openContinuityEventStream((payload) => {
+      if ('events' in payload && Array.isArray(payload.events)) {
+        setEvents(payload.events);
+        return;
+      }
+      setEvents((current) => [...current, payload as ContinuityEvent].slice(-50));
+      void refresh();
+    });
+    setStreaming(true);
+    source.onerror = () => setStreaming(false);
+    return () => {
+      source.close();
+      setStreaming(false);
+    };
   }, []);
 
   async function publish() {
@@ -91,6 +110,7 @@ export function ContinuityPage() {
         <div className="kernelSignals">
           <span>{status?.status || 'loading'}</span>
           <span>{status?.durable ? 'durable' : 'not configured'}</span>
+          <span>{streaming ? 'streaming' : 'stream idle'}</span>
           <span>{integrityOk === null ? 'no chain' : integrityOk ? 'chain ok' : 'chain degraded'}</span>
         </div>
       </header>
@@ -198,6 +218,29 @@ export function ContinuityPage() {
               Head <span title={status.published_head}>{shortId(status.published_head)}</span>
             </p>
           ) : null}
+        </section>
+
+        <section className="kernelPanel kernelEvents">
+          <div className="panelHeader">
+            <h2>Live events</h2>
+            <span>{events.length}</span>
+          </div>
+          {events.length === 0 ? (
+            <p className="muted">
+              No live continuity events in this process. The stream is not a second durable ledger.
+            </p>
+          ) : (
+            <ol>
+              {[...events].reverse().map((event) => (
+                <li key={event.event_id || `${event.name}-${event.created_at || event.timestamp || ''}`}>
+                  <strong>{event.name}</strong>
+                  <span>
+                    {String(event.payload?.state || event.payload?.reason || event.domain || 'live')}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
 
         <section className="kernelPanel">
