@@ -86,6 +86,7 @@ goal id and reason. It does not rewrite published checkpoints.
 - `POST /kernel/continuity/branches/{branch_id}/materialize`
 - `GET /kernel/continuity/audit`
 - `POST /kernel/continuity/goals/{goal_id}/delete`
+- `GET /kernel/continuity/events/stream`
 
 If no journal is configured, `GET /kernel/continuity` returns status
 `unavailable`. It does not report a durable journal that is not there.
@@ -103,8 +104,9 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
 - Desktop mission control can inspect status, publish a checkpoint, verify the
-  hash chain, and list task runs. It does not stream continuity events, and it
-  does not present the chain as cryptographic immutability.
+  hash chain, list task runs, and follow the live event stream. The stream is
+  process-local. It is not a second durable ledger, and it does not present the
+  chain as cryptographic immutability.
 - Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the
