@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 MIGRATION_V1 = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -98,7 +98,55 @@ ALTER TABLE sessions ADD COLUMN workspace_id TEXT;
 ALTER TABLE sessions ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';
 """
 
+MIGRATION_V3 = """
+CREATE TABLE IF NOT EXISTS repository_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    checkpoint_id TEXT NOT NULL,
+    repository_root TEXT NOT NULL,
+    available INTEGER NOT NULL,
+    head_commit TEXT,
+    branch TEXT,
+    detached INTEGER NOT NULL,
+    dirty INTEGER NOT NULL,
+    changed_path_count INTEGER NOT NULL,
+    changed_paths_sha256 TEXT NOT NULL,
+    changed_paths_json TEXT NOT NULL,
+    changed_paths_truncated INTEGER NOT NULL,
+    modifies_worktree INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    captured_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS process_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    checkpoint_id TEXT NOT NULL,
+    kernel_id TEXT NOT NULL,
+    process_nonce TEXT NOT NULL,
+    python_version TEXT NOT NULL,
+    pid INTEGER NOT NULL,
+    model_id TEXT NOT NULL,
+    model_configuration_sha256 TEXT NOT NULL,
+    tool_policy_sha256 TEXT NOT NULL,
+    resumes_process INTEGER NOT NULL,
+    switches_model INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    captured_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_repository_snapshots_checkpoint
+    ON repository_snapshots(checkpoint_id);
+CREATE INDEX IF NOT EXISTS idx_process_snapshots_checkpoint
+    ON process_snapshots(checkpoint_id);
+"""
+
+DROP_V3 = """
+DROP TABLE IF EXISTS repository_snapshots;
+DROP TABLE IF EXISTS process_snapshots;
+"""
+
 DROP_V1 = """
+DROP TABLE IF EXISTS repository_snapshots;
+DROP TABLE IF EXISTS process_snapshots;
 DROP TABLE IF EXISTS quarantine;
 DROP TABLE IF EXISTS approval_events;
 DROP TABLE IF EXISTS branches;

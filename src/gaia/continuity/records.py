@@ -76,6 +76,52 @@ class ApprovalEvent(BaseModel):
     created_at: datetime
 
 
+class RepositorySnapshot(BaseModel):
+    """Read-only observation of a git worktree at checkpoint publication.
+
+    ``modifies_worktree`` is always false. Rollback restores journal rows and
+    does not check out commits or edit files.
+    """
+
+    snapshot_id: str
+    checkpoint_id: str
+    repository_root: str = ""
+    available: bool = False
+    head_commit: str | None = None
+    branch: str | None = None
+    detached: bool = False
+    dirty: bool = False
+    changed_path_count: int = 0
+    changed_paths_sha256: str = ""
+    changed_paths: list[str] = Field(default_factory=list)
+    changed_paths_truncated: bool = False
+    modifies_worktree: bool = False
+    note: str
+    captured_at: datetime
+
+
+class ProcessSnapshot(BaseModel):
+    """Read-only observation of the process that published a checkpoint.
+
+    The pid and process nonce identify the publisher. They are not
+    authorization, and resume does not revive that process or switch models.
+    """
+
+    snapshot_id: str
+    checkpoint_id: str
+    kernel_id: str
+    process_nonce: str
+    python_version: str
+    pid: int
+    model_id: str = ""
+    model_configuration_sha256: str = ""
+    tool_policy_sha256: str = ""
+    resumes_process: bool = False
+    switches_model: bool = False
+    note: str
+    captured_at: datetime
+
+
 class QuarantineRecord(BaseModel):
     """Dead-letter record for drafts, tampered snapshots, or deletions."""
 

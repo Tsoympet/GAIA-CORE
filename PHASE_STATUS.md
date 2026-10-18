@@ -151,11 +151,13 @@ interrupts in-flight work, process-local approvals, redaction, and optional
 field encryption. The journal does not replace the live kernel store.
 
 Delivered later on this stack: a desktop Continuity page that can inspect,
-publish, and verify the journal, plus a process-local SSE stream of
-checkpoint, task, approval, and recovery events. Still open:
-repository/process snapshots, and cryptographic immutability (explicitly
-false). Session id, user id, workspace id, creation time, and redacted
-metadata are restored. Approval grants are not.
+publish, and verify the journal, a process-local SSE stream of checkpoint,
+task, approval, and recovery events, and read-only repository and process
+snapshots. Resume is refused when the worktree, model, or tool policy differs
+from the latest observation. Snapshots do not modify the worktree or switch
+models. Still open: automatic model migration after a switch, and
+cryptographic immutability (explicitly false). Session id, user id, workspace
+id, creation time, and redacted metadata are restored. Approval grants are not.
 
 ## R3 — Memory Organism and Evidence Ledger
 
@@ -172,5 +174,7 @@ embeddings and calibrated confidence remain open.
 
 ## Next phase
 
-Close the remaining R2 and R3 gaps above. The light client stays deferred
-until those local platform gaps are closed.
+Close the remaining R2 and R3 gaps above. Automatic model migration and
+cryptographic immutability stay open on the continuity side. Neural embeddings
+and calibrated confidence stay open on the organism side. The light client
+stays deferred until those local platform gaps are closed.

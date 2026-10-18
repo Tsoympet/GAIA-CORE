@@ -528,6 +528,22 @@ async def stream_continuity_events(
     )
 
 
+@router.get("/continuity/snapshots")
+async def continuity_snapshots(
+    request: Request,
+    checkpoint_id: str | None = None,
+) -> dict[str, object]:
+    """Return repository and process observations for one checkpoint.
+
+    Observations do not modify the worktree, resume a process, or switch models.
+    """
+    journal = _journal(request)
+    try:
+        return journal.environment_report(checkpoint_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/continuity/checkpoints")
 async def list_checkpoints(request: Request) -> dict[str, object]:
     """List published continuity checkpoints without payload bodies."""

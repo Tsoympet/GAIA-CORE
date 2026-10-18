@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from gaia.continuity.errors import ContinuityIntegrityError
 from gaia.continuity.task_state import TaskState, TaskTransitionError
 from gaia.core.event_bus import EventBus
 from gaia.kernel.context_manager import ContextManager
@@ -534,6 +535,11 @@ class CognitiveKernel:
         a live grant. Stored approval events are not reusable.
         """
         goal = self.goals.require(goal_id)
+        if self.continuity is not None:
+            try:
+                self.continuity.assert_resume_current()
+            except ContinuityIntegrityError as exc:
+                raise RuntimeError(str(exc)) from exc
         resume_meta = {
             **dict(metadata or {}),
             "resume_of": goal_id,

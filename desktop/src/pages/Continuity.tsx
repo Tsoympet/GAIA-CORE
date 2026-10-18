@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  getContinuitySnapshots,
   getContinuityStatus,
   listContinuityCheckpoints,
   listContinuityTasks,
@@ -10,6 +11,7 @@ import {
   type ContinuityEvent,
   type ContinuityStatus,
   type ContinuityTask,
+  type EnvironmentReport,
   type VerifyResult,
 } from '../api/continuity';
 
@@ -27,6 +29,7 @@ export function ContinuityPage() {
   const [busy, setBusy] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [events, setEvents] = useState<ContinuityEvent[]>([]);
+  const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
 
   const journalReady = status?.status === 'available' || status?.status === 'degraded';
 
@@ -41,15 +44,18 @@ export function ContinuityPage() {
         setIntegrityOk(null);
         setVerify(null);
         setEvents([]);
+        setEnvironment(null);
         return;
       }
-      const [nextCheckpoints, nextTasks] = await Promise.all([
+      const [nextCheckpoints, nextTasks, nextEnvironment] = await Promise.all([
         listContinuityCheckpoints(),
         listContinuityTasks(),
+        getContinuitySnapshots(),
       ]);
       setCheckpoints(nextCheckpoints.checkpoints);
       setIntegrityOk(nextCheckpoints.integrity_ok);
       setTasks(nextTasks.tasks);
+      setEnvironment(nextEnvironment);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load continuity');
     }
@@ -241,6 +247,34 @@ export function ContinuityPage() {
               ))}
             </ol>
           )}
+        </section>
+
+        <section className="kernelPanel">
+          <div className="panelHeader">
+            <h2>Environment</h2>
+            <span>observation</span>
+          </div>
+          {environment?.repository?.available ? (
+            <p className="muted">
+              {environment.repository.branch || 'detached'} ·{' '}
+              {environment.repository.head_commit
+                ? shortId(environment.repository.head_commit)
+                : 'no commit'}{' '}
+              · {environment.repository.dirty ? 'dirty' : 'clean'} ·{' '}
+              {environment.repository.changed_path_count} paths
+            </p>
+          ) : (
+            <p className="muted">
+              {environment?.repository?.note || 'No repository observation is recorded.'}
+            </p>
+          )}
+          <p className="muted">
+            Model {environment?.process?.model_id || 'unset'}. Resume does not modify the worktree or
+            switch models.
+          </p>
+          {environment?.comparison.notes?.length ? (
+            <p className="kernelError">{environment.comparison.notes[0]}</p>
+          ) : null}
         </section>
 
         <section className="kernelPanel">

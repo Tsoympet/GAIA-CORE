@@ -95,7 +95,7 @@ def test_schema_v1_session_row_upgrades_without_dropping_identity(tmp_path: Path
         )
 
     store = ContinuityStore(path)
-    assert store.schema_version() == 2
+    assert store.schema_version() == 3
     loaded = store.list_sessions()
     assert len(loaded) == 1
     assert loaded[0].id == "legacy"
@@ -108,7 +108,7 @@ def test_schema_v1_session_row_upgrades_without_dropping_identity(tmp_path: Path
     assert "metadata_json" not in columns
     assert "workspace_id" not in columns
     upgraded = ContinuityStore(path)
-    assert upgraded.schema_version() == 2
+    assert upgraded.schema_version() == 3
     assert upgraded.list_sessions()[0].user_id == "ada"
 
 

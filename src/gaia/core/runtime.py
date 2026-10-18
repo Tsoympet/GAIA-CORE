@@ -155,6 +155,7 @@ def create_runtime(
     continuity_path: Path | str | None = None,
     organism_path: Path | str | None = None,
     data_key: bytes | None = None,
+    repository_root: Path | str | None = None,
 ) -> GaiaRuntime:
     """Create the default GAIA runtime composition.
 
@@ -208,7 +209,19 @@ def create_runtime(
     continuity: ContinuityJournal | None = None
     if continuity_path is not None:
         store = ContinuityStore(continuity_path, cipher=cipher)
-        continuity = ContinuityJournal(store, store.recover(), event_bus=event_bus)
+        model_id, model_configuration, tool_policy = _continuity_environment(
+            model_catalog,
+            security_policy,
+        )
+        continuity = ContinuityJournal(
+            store,
+            store.recover(),
+            event_bus=event_bus,
+            repository_root=None if repository_root is None else Path(repository_root),
+            model_id=model_id,
+            model_configuration=model_configuration,
+            tool_policy=tool_policy,
+        )
     kernel = create_cognitive_kernel(
         orchestrator=orchestrator,
         security_policy=security_policy,
@@ -240,3 +253,21 @@ def create_runtime(
             if runtime.sessions.get(persisted.id) is None:
                 runtime.sessions.remember(persisted)
     return runtime
+
+
+def _continuity_environment(
+    catalog: ModelCatalog,
+    policy: SecurityPolicy,
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Capture the local model and tool policy observed by a continuity journal."""
+    local = [provider for provider in catalog.enabled_providers() if provider.local]
+    model_id = local[0].name if local else ""
+    return (
+        model_id,
+        catalog.model_dump(mode="json"),
+        {
+            "sandbox_required": policy.sandbox_required,
+            "human_override_available": policy.human_override_available,
+            "blocked_terms": list(policy.blocked_terms),
+        },
+    )

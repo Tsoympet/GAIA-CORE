@@ -48,6 +48,51 @@ export type ContinuityTask = {
   updated_at: string;
 };
 
+export type EnvironmentComparison = {
+  comparable: boolean;
+  repository_diverged: boolean;
+  repository_recheck_required: boolean;
+  model_switched: boolean;
+  tool_policy_changed: boolean;
+  index_matches_payload: boolean;
+  modifies_worktree: boolean;
+  resumes_process: boolean;
+  switches_model: boolean;
+  notes: string[];
+};
+
+export type RepositorySnapshot = {
+  checkpoint_id: string;
+  available: boolean;
+  head_commit: string | null;
+  branch: string | null;
+  detached: boolean;
+  dirty: boolean;
+  changed_path_count: number;
+  modifies_worktree: boolean;
+  note: string;
+};
+
+export type ProcessSnapshot = {
+  checkpoint_id: string;
+  model_id: string;
+  python_version: string;
+  resumes_process: boolean;
+  switches_model: boolean;
+  note: string;
+};
+
+export type EnvironmentReport = {
+  checkpoint_id: string | null;
+  repository: RepositorySnapshot | null;
+  process: ProcessSnapshot | null;
+  comparison: EnvironmentComparison;
+  cryptographic_immutability: boolean;
+  modifies_worktree: boolean;
+  resumes_process: boolean;
+  switches_model: boolean;
+};
+
 export type VerifyResult = {
   checkpoint_id: string;
   verified: boolean;
@@ -73,6 +118,10 @@ export async function listContinuityCheckpoints(): Promise<{
   integrity_ok: boolean;
 }> {
   return parse(await fetch(`${API_BASE}/kernel/continuity/checkpoints`));
+}
+
+export async function getContinuitySnapshots(): Promise<EnvironmentReport> {
+  return parse(await fetch(`${API_BASE}/kernel/continuity/snapshots`));
 }
 
 export async function listContinuityTasks(): Promise<{ tasks: ContinuityTask[]; count: number }> {
