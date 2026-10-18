@@ -151,7 +151,8 @@ interrupts in-flight work, process-local approvals, redaction, and optional
 field encryption. The journal does not replace the live kernel store.
 
 Delivered later on this stack: a desktop Continuity page that can inspect,
-publish, and verify the journal. Still open: streaming continuity events,
+publish, and verify the journal, plus a process-local SSE stream of
+checkpoint, task, approval, and recovery events. Still open:
 repository/process snapshots, and cryptographic immutability (explicitly
 false). Session id, user id, workspace id, creation time, and redacted
 metadata are restored. Approval grants are not.

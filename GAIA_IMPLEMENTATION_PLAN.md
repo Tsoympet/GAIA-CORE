@@ -46,8 +46,8 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: streaming events and repository/process snapshots. A desktop
-Continuity page can inspect, publish, and verify the journal. Explicit
+Still open: repository/process snapshots. A desktop Continuity page can
+inspect, publish, verify, and follow a process-local event stream. Explicit
 session ids, user id, workspace id, creation time, and redacted metadata
 are restored from the journal. Approval grants are not.
 Optional AES-GCM field encryption seals secret JSON when a data key is set.

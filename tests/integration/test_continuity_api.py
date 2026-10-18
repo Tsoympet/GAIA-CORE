@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
+from gaia.core.event_bus import Event, EventDomain
 from gaia.core.runtime import create_runtime
 from gaia.server.app import create_app
 
@@ -70,6 +74,18 @@ def test_continuity_checkpoint_verify_and_audit(tmp_path: Path) -> None:
 
     runtime_status = client.get("/runtime/status")
     assert runtime_status.json()["continuity"] == "available"
+    assert payload["streaming"] is True
+    assert payload["cryptographic_immutability"] is False
+
+    stream = client.get("/kernel/continuity/events/stream", params={"once": "true"})
+    assert stream.status_code == 200
+    assert "text/event-stream" in stream.headers["content-type"]
+    assert "event: snapshot" in stream.text
+    data_line = next(line for line in stream.text.splitlines() if line.startswith("data:"))
+    snapshot = json.loads(data_line.removeprefix("data:").strip())
+    assert snapshot["cryptographic_immutability"] is False
+    assert any(item["name"] == "checkpoint_published" for item in snapshot["events"])
+    assert all("payload_json" not in item.get("payload", {}) for item in snapshot["events"])
 
 
 def test_continuity_branch_and_delete_live_goal(tmp_path: Path) -> None:
@@ -113,3 +129,38 @@ def test_continuity_branch_and_delete_live_goal(tmp_path: Path) -> None:
     missing = client.get(f"/kernel/goals/{goal_id}")
     assert missing.status_code == 404
     assert client.get("/kernel/continuity/checkpoints").json()["integrity_ok"] is True
+
+
+def test_continuity_stream_is_unavailable_without_a_journal() -> None:
+    client = TestClient(create_app())
+    stream = client.get("/kernel/continuity/events/stream", params={"once": "true"})
+    assert stream.status_code == 200
+    data_line = next(line for line in stream.text.splitlines() if line.startswith("data:"))
+    snapshot = json.loads(data_line.removeprefix("data:").strip())
+    assert snapshot["status"] == "unavailable"
+    assert snapshot["events"] == []
+
+
+@pytest.mark.asyncio
+async def test_continuity_bus_receives_published_checkpoint(tmp_path: Path) -> None:
+    runtime = create_runtime(continuity_path=tmp_path / "continuity.sqlite3")
+    assert runtime.kernel.continuity is not None
+    received: list[Event] = []
+
+    async def capture(event: Event) -> None:
+        received.append(event)
+
+    await runtime.event_bus.subscribe(EventDomain.CONTINUITY, capture)
+    checkpoint = runtime.kernel.continuity.publish(
+        reason="stream-test",
+        kernel_id=runtime.kernel.state.kernel_id,
+    )
+    await asyncio.sleep(0.05)
+    names = [event.name for event in received]
+    assert "checkpoint_published" in names
+    assert any(
+        event.payload.get("checkpoint_id") == checkpoint.checkpoint_id for event in received
+    )
+    recent = runtime.kernel.continuity.recent_events()
+    assert recent[-1].name == "checkpoint_published"
+    assert "payload_json" not in recent[-1].payload
