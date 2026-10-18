@@ -18,14 +18,17 @@ from gaia.continuity.errors import ContinuityIntegrityError, ContinuityLockedErr
 from gaia.continuity.records import (
     ApprovalEvent,
     Checkpoint,
+    ProcessSnapshot,
     QuarantineRecord,
     RecoveryReport,
+    RepositorySnapshot,
     TaskRun,
     WorkBranch,
 )
 from gaia.continuity.redaction import is_sensitive_key, redact_mapping, redact_value
-from gaia.continuity.schema import DROP_V1, MIGRATION_V1, MIGRATION_V2
+from gaia.continuity.schema import DROP_V1, DROP_V3, MIGRATION_V1, MIGRATION_V2, MIGRATION_V3
 from gaia.continuity.schema import SCHEMA_VERSION as SCHEMA_VERSION
+from gaia.continuity.snapshots import ProcessObservation, RepositoryObservation
 from gaia.continuity.task_state import (
     UNSAFE_RECOVERY_STATES,
     TaskState,
@@ -95,6 +98,18 @@ def _redacted_mapping(value: dict[str, Any]) -> dict[str, Any]:
     return redact_mapping(value)
 
 
+def _reject_repository_claim(observation: RepositoryObservation) -> None:
+    if observation.modifies_worktree:
+        raise ContinuityIntegrityError("repository snapshots cannot modify the worktree")
+
+
+def _reject_process_claim(observation: ProcessObservation) -> None:
+    if observation.resumes_process or observation.switches_model:
+        raise ContinuityIntegrityError(
+            "process snapshots cannot resume a process or switch models"
+        )
+
+
 class ContinuityStore:
     """Local-first durable journal for goals, task state, and checkpoints.
 
@@ -126,6 +141,11 @@ class ContinuityStore:
                 _execute_sql_script(connection, MIGRATION_V2)
                 self._record_migration(connection, 2, "session_metadata")
                 current = 2
+            if current < 3:
+                _execute_sql_script(connection, MIGRATION_V3)
+                self._record_migration(connection, 3, "repository_process_snapshots")
+                self._backfill_environment_snapshots(connection)
+                current = 3
             if current > SCHEMA_VERSION:
                 raise ContinuityIntegrityError(
                     f"continuity schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -174,6 +194,22 @@ class ContinuityStore:
             changed += _reseal_column(
                 connection, self.cipher, "sessions", "session_id", "metadata_json"
             )
+            changed += _reseal_column(
+                connection, self.cipher, "repository_snapshots", "snapshot_id", "repository_root"
+            )
+            changed += _reseal_column(
+                connection,
+                self.cipher,
+                "repository_snapshots",
+                "snapshot_id",
+                "changed_paths_json",
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "repository_snapshots", "snapshot_id", "note"
+            )
+            changed += _reseal_column(
+                connection, self.cipher, "process_snapshots", "snapshot_id", "note"
+            )
         return changed
 
     def _seal(self, plaintext: str) -> str:
@@ -207,6 +243,9 @@ class ContinuityStore:
                     "schema rollback would drop published continuity history; "
                     "export an audit bundle and pass force=True"
                 )
+            if current >= 3 and target <= 2:
+                _execute_sql_script(connection, DROP_V3)
+                connection.execute("DELETE FROM schema_migrations WHERE version >= 3")
             if target == 0 and current >= 1:
                 _execute_sql_script(connection, DROP_V1)
                 connection.execute("DELETE FROM schema_migrations WHERE version >= 1")
@@ -540,6 +579,8 @@ class ContinuityStore:
         reason: str,
         kernel_id: str,
         parent_checkpoint_id: str | None = None,
+        repository: RepositoryObservation | None = None,
+        process: ProcessObservation | None = None,
     ) -> Checkpoint:
         """Publish a hash-linked snapshot in one transaction.
 
@@ -549,6 +590,12 @@ class ContinuityStore:
         self._ensure_lock()
         with self._transaction() as connection:
             payload = self._snapshot_on(connection)
+            if repository is not None:
+                _reject_repository_claim(repository)
+                payload["repository"] = repository.model_dump(mode="json")
+            if process is not None:
+                _reject_process_claim(process)
+                payload["process"] = process.model_dump(mode="json")
             payload_json = canonical_json(payload)
             digest = sha256_text(payload_json)
             previous = self._latest_published_on(connection)
@@ -572,6 +619,10 @@ class ContinuityStore:
                 raise ContinuityIntegrityError("checkpoint hash did not match its payload")
             checkpoint.publication = "published"
             self._insert_checkpoint(connection, checkpoint)
+            if repository is not None:
+                self._insert_repository_snapshot(connection, checkpoint.checkpoint_id, repository)
+            if process is not None:
+                self._insert_process_snapshot(connection, checkpoint.checkpoint_id, process)
         if self.checkpoint_witness is not None:
             self.checkpoint_witness(checkpoint)
         return checkpoint
@@ -624,6 +675,51 @@ class ContinuityStore:
         self.migrate()
         with self._read() as connection:
             return self._chain_ok(connection)
+
+    def get_repository_snapshot(self, checkpoint_id: str) -> RepositorySnapshot | None:
+        """Return the repository observation indexed for one checkpoint."""
+        self.migrate()
+        with self._read() as connection:
+            return self._repository_snapshot_on(connection, checkpoint_id)
+
+    def get_process_snapshot(self, checkpoint_id: str) -> ProcessSnapshot | None:
+        """Return the process observation indexed for one checkpoint."""
+        self.migrate()
+        with self._read() as connection:
+            return self._process_snapshot_on(connection, checkpoint_id)
+
+    def list_repository_snapshots(self) -> list[RepositorySnapshot]:
+        """Return repository observations in capture order."""
+        self.migrate()
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM repository_snapshots ORDER BY captured_at ASC"
+            ).fetchall()
+        return [self._repository_from_row(row) for row in rows]
+
+    def list_process_snapshots(self) -> list[ProcessSnapshot]:
+        """Return process observations in capture order."""
+        self.migrate()
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM process_snapshots ORDER BY captured_at ASC"
+            ).fetchall()
+        return [self._process_from_row(row) for row in rows]
+
+    def latest_environment_checkpoint(self) -> Checkpoint | None:
+        """Return the newest published checkpoint that recorded an environment.
+
+        A post-recovery checkpoint normalizes the journal and does not replace
+        the last repository or process observation.
+        """
+        for checkpoint in reversed(self.list_checkpoints()):
+            full = self.get_checkpoint(checkpoint.checkpoint_id)
+            if full is None or full.payload_json is None:
+                continue
+            payload = json_object(full.payload_json)
+            if "repository" in payload or "process" in payload:
+                return full
+        return None
 
     def rollback_to(self, checkpoint_id: str, *, kernel_id: str = "rollback") -> Checkpoint:
         """Restore live rows from a verified checkpoint, then publish that restoration.
@@ -898,6 +994,33 @@ class ContinuityStore:
             "quarantine": [record.model_dump(mode="json") for record in self.list_quarantine()],
             "approval_events": approvals,
             "branches": [branch.model_dump(mode="json") for branch in self.list_branches()],
+            "repository_snapshots": [
+                {
+                    "checkpoint_id": item.checkpoint_id,
+                    "available": item.available,
+                    "head_commit": item.head_commit,
+                    "branch": item.branch,
+                    "detached": item.detached,
+                    "dirty": item.dirty,
+                    "changed_path_count": item.changed_path_count,
+                    "changed_paths_sha256": item.changed_paths_sha256,
+                    "modifies_worktree": False,
+                }
+                for item in self.list_repository_snapshots()
+            ],
+            "process_snapshots": [
+                {
+                    "checkpoint_id": item.checkpoint_id,
+                    "kernel_id": item.kernel_id,
+                    "model_id": item.model_id,
+                    "model_configuration_sha256": item.model_configuration_sha256,
+                    "tool_policy_sha256": item.tool_policy_sha256,
+                    "python_version": item.python_version,
+                    "resumes_process": False,
+                    "switches_model": False,
+                }
+                for item in self.list_process_snapshots()
+            ],
         }
 
     def status_summary(self, recovery: RecoveryReport | None = None) -> dict[str, Any]:
@@ -942,6 +1065,11 @@ class ContinuityStore:
             "encrypted_at_rest": self.cipher is not None,
             "cryptographic_immutability": False,
             "checkpoint_count": len(published),
+            "repository_snapshot_count": len(self.list_repository_snapshots()),
+            "process_snapshot_count": len(self.list_process_snapshots()),
+            "modifies_worktree": False,
+            "resumes_process": False,
+            "switches_model": False,
             "published_head": head,
             "integrity": "verified" if integrity_ok else "degraded",
             "db_path": str(self.db_path),
@@ -1276,6 +1404,157 @@ class ContinuityStore:
         if row is None:
             return None
         return self._checkpoint_from_row(row, include_payload=False)
+
+    def _insert_repository_snapshot(
+        self,
+        connection: sqlite3.Connection,
+        checkpoint_id: str,
+        observation: RepositoryObservation,
+    ) -> None:
+        _reject_repository_claim(observation)
+        connection.execute(
+            """
+            INSERT INTO repository_snapshots (
+                snapshot_id, checkpoint_id, repository_root, available, head_commit,
+                branch, detached, dirty, changed_path_count, changed_paths_sha256,
+                changed_paths_json, changed_paths_truncated, modifies_worktree,
+                note, captured_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+            """,
+            (
+                str(uuid4()),
+                checkpoint_id,
+                self._seal(observation.repository_root),
+                int(observation.available),
+                observation.head_commit,
+                observation.branch,
+                int(observation.detached),
+                int(observation.dirty),
+                observation.changed_path_count,
+                observation.changed_paths_sha256,
+                self._seal(canonical_json(observation.changed_paths)),
+                int(observation.changed_paths_truncated),
+                self._seal(observation.note),
+                observation.captured_at.isoformat(),
+            ),
+        )
+
+    def _insert_process_snapshot(
+        self,
+        connection: sqlite3.Connection,
+        checkpoint_id: str,
+        observation: ProcessObservation,
+    ) -> None:
+        _reject_process_claim(observation)
+        connection.execute(
+            """
+            INSERT INTO process_snapshots (
+                snapshot_id, checkpoint_id, kernel_id, process_nonce, python_version,
+                pid, model_id, model_configuration_sha256, tool_policy_sha256,
+                resumes_process, switches_model, note, captured_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+            """,
+            (
+                str(uuid4()),
+                checkpoint_id,
+                observation.kernel_id,
+                observation.process_nonce,
+                observation.python_version,
+                observation.pid,
+                observation.model_id,
+                observation.model_configuration_sha256,
+                observation.tool_policy_sha256,
+                self._seal(observation.note),
+                observation.captured_at.isoformat(),
+            ),
+        )
+
+    def _backfill_environment_snapshots(self, connection: sqlite3.Connection) -> None:
+        """Rebuild observation rows from checkpoint payloads after a schema upgrade."""
+        for row in self._published_rows(connection):
+            checkpoint_id = str(row["checkpoint_id"])
+            payload = json_object(self._open(str(row["payload_json"])))
+            repository = payload.get("repository")
+            process = payload.get("process")
+            if isinstance(repository, dict) and self._repository_snapshot_on(
+                connection, checkpoint_id
+            ) is None:
+                observation = RepositoryObservation.model_validate(repository)
+                if not observation.modifies_worktree:
+                    self._insert_repository_snapshot(connection, checkpoint_id, observation)
+            if isinstance(process, dict) and self._process_snapshot_on(
+                connection, checkpoint_id
+            ) is None:
+                observation_process = ProcessObservation.model_validate(process)
+                if (
+                    not observation_process.resumes_process
+                    and not observation_process.switches_model
+                ):
+                    self._insert_process_snapshot(connection, checkpoint_id, observation_process)
+
+    def _repository_snapshot_on(
+        self,
+        connection: sqlite3.Connection,
+        checkpoint_id: str,
+    ) -> RepositorySnapshot | None:
+        row = connection.execute(
+            "SELECT * FROM repository_snapshots WHERE checkpoint_id = ?",
+            (checkpoint_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._repository_from_row(row)
+
+    def _process_snapshot_on(
+        self,
+        connection: sqlite3.Connection,
+        checkpoint_id: str,
+    ) -> ProcessSnapshot | None:
+        row = connection.execute(
+            "SELECT * FROM process_snapshots WHERE checkpoint_id = ?",
+            (checkpoint_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._process_from_row(row)
+
+    def _repository_from_row(self, row: sqlite3.Row) -> RepositorySnapshot:
+        paths_raw = json.loads(self._open(str(row["changed_paths_json"])))
+        paths = [str(item) for item in paths_raw] if isinstance(paths_raw, list) else []
+        return RepositorySnapshot(
+            snapshot_id=str(row["snapshot_id"]),
+            checkpoint_id=str(row["checkpoint_id"]),
+            repository_root=self._open(str(row["repository_root"])),
+            available=bool(row["available"]),
+            head_commit=None if row["head_commit"] is None else str(row["head_commit"]),
+            branch=None if row["branch"] is None else str(row["branch"]),
+            detached=bool(row["detached"]),
+            dirty=bool(row["dirty"]),
+            changed_path_count=int(row["changed_path_count"]),
+            changed_paths_sha256=str(row["changed_paths_sha256"]),
+            changed_paths=paths,
+            changed_paths_truncated=bool(row["changed_paths_truncated"]),
+            modifies_worktree=False,
+            note=self._open(str(row["note"])),
+            captured_at=datetime.fromisoformat(str(row["captured_at"])),
+        )
+
+    def _process_from_row(self, row: sqlite3.Row) -> ProcessSnapshot:
+        return ProcessSnapshot(
+            snapshot_id=str(row["snapshot_id"]),
+            checkpoint_id=str(row["checkpoint_id"]),
+            kernel_id=str(row["kernel_id"]),
+            process_nonce=str(row["process_nonce"]),
+            python_version=str(row["python_version"]),
+            pid=int(row["pid"]),
+            model_id=str(row["model_id"]),
+            model_configuration_sha256=str(row["model_configuration_sha256"]),
+            tool_policy_sha256=str(row["tool_policy_sha256"]),
+            resumes_process=False,
+            switches_model=False,
+            note=self._open(str(row["note"])),
+            captured_at=datetime.fromisoformat(str(row["captured_at"])),
+        )
 
     def _insert_checkpoint(self, connection: sqlite3.Connection, checkpoint: Checkpoint) -> None:
         if checkpoint.payload_json is None:

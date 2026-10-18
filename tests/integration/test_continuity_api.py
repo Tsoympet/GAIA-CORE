@@ -25,6 +25,8 @@ def test_continuity_is_unavailable_until_configured() -> None:
 
     publish = client.post("/kernel/continuity/checkpoints")
     assert publish.status_code == 409
+    snapshots = client.get("/kernel/continuity/snapshots")
+    assert snapshots.status_code == 409
 
     runtime_status = client.get("/runtime/status")
     assert runtime_status.json()["continuity"] == "unavailable"
@@ -66,6 +68,19 @@ def test_continuity_checkpoint_verify_and_audit(tmp_path: Path) -> None:
     tasks = client.get("/kernel/continuity/tasks")
     assert tasks.status_code == 200
     assert any(item["goal_id"] == goal_id for item in tasks.json()["tasks"])
+
+    snapshots = client.get("/kernel/continuity/snapshots")
+    assert snapshots.status_code == 200
+    environment = snapshots.json()
+    assert environment["cryptographic_immutability"] is False
+    assert environment["modifies_worktree"] is False
+    assert environment["resumes_process"] is False
+    assert environment["switches_model"] is False
+    assert environment["process"]["model_id"]
+    assert environment["process"]["resumes_process"] is False
+    assert environment["comparison"]["model_switched"] is False
+    assert environment["repository"]["available"] is False
+    assert environment["comparison"]["repository_diverged"] is False
 
     audit = client.get("/kernel/continuity/audit")
     assert audit.status_code == 200

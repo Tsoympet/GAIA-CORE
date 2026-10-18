@@ -24,6 +24,8 @@ goals and contexts, then those live rows are written back to `KernelStore`.
 - Work branches that record a parent checkpoint, snapshot hashes, model
   configuration, and tool policy.
 - Approval audit events that are marked non-reusable.
+- Read-only repository and process observations linked to the checkpoint that
+  recorded them. The git worktree itself is not stored.
 
 ## Recovery rules
 
@@ -60,13 +62,16 @@ rows in place.
 
 ## Schema
 
-Schema version 2 is applied automatically. Version 2 adds `workspace_id` and
-`metadata_json` to `sessions`. `rollback_schema(1)` drops those columns and
-keeps the version 1 session id, user id, and creation time.
-`rollback_schema(0, force=True)` drops continuity tables. Rollback to version 0
-is refused while published checkpoints exist unless `force` is set, because a
-downgrade destroys that history. Re-opening the database applies version 2
-again. Export an audit bundle first.
+Schema version 3 is applied automatically. Version 2 adds `workspace_id` and
+`metadata_json` to `sessions`. Version 3 adds repository and process
+observation tables. `rollback_schema(2)` drops those observation tables and
+keeps checkpoint payloads. Re-opening the database applies version 3 again and
+rebuilds the observation rows from those payloads. `rollback_schema(1)` drops
+the version 2 session columns and keeps the version 1 session id, user id, and
+creation time. `rollback_schema(0, force=True)` drops continuity tables.
+Rollback below the current version is refused while published checkpoints
+exist unless `force` is set, because a downgrade can destroy history. Export
+an audit bundle first.
 
 Live goal deletion removes the working rows and writes a tombstone with the
 goal id and reason. It does not rewrite published checkpoints.
@@ -87,12 +92,15 @@ goal id and reason. It does not rewrite published checkpoints.
 - `GET /kernel/continuity/audit`
 - `POST /kernel/continuity/goals/{goal_id}/delete`
 - `GET /kernel/continuity/events/stream`
+- `GET /kernel/continuity/snapshots`
 
 If no journal is configured, `GET /kernel/continuity` returns status
 `unavailable`. It does not report a durable journal that is not there.
 
 `gaia continuity --db <path>` inspects an existing file and does not run
-recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
+recovery. `gaia run` and `gaia serve` accept `--continuity-db` and
+`--repository-root`. Without a repository root, the snapshot records that no
+worktree was configured.
 
 ## Current limitations
 
@@ -104,9 +112,16 @@ recovery. `gaia run` and `gaia serve` accept `--continuity-db`.
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
 - Desktop mission control can inspect status, publish a checkpoint, verify the
-  hash chain, list task runs, and follow the live event stream. The stream is
-  process-local. It is not a second durable ledger, and it does not present the
-  chain as cryptographic immutability.
+  hash chain, list task runs, follow the live event stream, and show the latest
+  repository and process observation. The stream is process-local. It is not a
+  second durable ledger, and it does not present the chain as cryptographic
+  immutability.
+- Repository and process snapshots record git HEAD, a redacted change list, and
+  hashes of the model and tool policy. They do not store file contents or
+  remote URLs. Rollback does not check out commits. Resume does not revive the
+  publishing process. If the worktree, model, or tool policy differs from the
+  latest observation, resume is refused. GAIA does not switch models to make
+  that resume succeed.
 - Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the

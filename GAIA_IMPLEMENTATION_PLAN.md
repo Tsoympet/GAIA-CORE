@@ -46,8 +46,12 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: repository/process snapshots. A desktop Continuity page can
-inspect, publish, verify, and follow a process-local event stream. Explicit
+Delivered on this stack: read-only repository and process snapshots. A
+checkpoint records git HEAD, a redacted path list, and hashes of the model
+and tool policy. Resume is refused when those differ. The snapshot does not
+modify the worktree or switch models. Automatic model migration remains open.
+A desktop Continuity page can inspect, publish, verify, and follow a
+process-local event stream. Explicit
 session ids, user id, workspace id, creation time, and redacted metadata
 are restored from the journal. Approval grants are not.
 Optional AES-GCM field encryption seals secret JSON when a data key is set.

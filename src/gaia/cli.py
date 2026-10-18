@@ -37,6 +37,7 @@ def run(
     continuity_db: Path | None = None,
     organism_db: Path | None = None,
     data_key_file: Path | None = None,
+    repository_root: Path | None = None,
 ) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
@@ -47,6 +48,7 @@ def run(
         continuity_path=continuity_db,
         organism_path=organism_db,
         data_key=_load_data_key(data_key_file),
+        repository_root=repository_root,
     )
     result = asyncio.run(runtime.submit_task(TaskRequest(task=task)))
     console.print(result.model_dump(mode="json"))
@@ -59,6 +61,7 @@ def serve(
     continuity_db: Path | None = None,
     organism_db: Path | None = None,
     data_key_file: Path | None = None,
+    repository_root: Path | None = None,
 ) -> None:
     """Run the GAIA API server with durable Cognitive Kernel persistence."""
     import uvicorn
@@ -69,6 +72,7 @@ def serve(
         continuity_path=continuity_db,
         organism_path=organism_db,
         data_key=_load_data_key(data_key_file),
+        repository_root=repository_root,
     )
     uvicorn.run(create_app(runtime), host=host, port=port)
 

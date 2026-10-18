@@ -33,7 +33,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
-| Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata, desktop journal page, and a process-local event stream | Repository/process snapshots, model-switch continuity, cryptographic immutability |
+| Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata, desktop journal page, process-local event stream, and read-only repository/process snapshots. Resume refuses worktree, model, or tool-policy drift and does not switch models | Automatic model migration, cryptographic immutability |
 | Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline, timeline records ordered by event time, non-factual identity approval, citation-based preference supersession, hybrid BM25 + character n-gram retrieval with a hashed derived index, and a desktop status/search/promotion page | Neural embeddings and calibrated confidence |
 | Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge, checkpoint digest citations, optional field encryption | Signatures and cryptographic immutability |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
@@ -84,6 +84,10 @@ Implement:
 - stale resource and permission validation;
 - model-switch continuity;
 - rollback to the last verified checkpoint.
+
+Read-only repository and process snapshots are recorded on schema v3. Resume
+refuses worktree, model, or tool-policy drift. Automatic migration onto a
+different model remains open.
 
 ### R3 — Memory Organism and Provenance Ledger
 

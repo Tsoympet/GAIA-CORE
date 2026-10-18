@@ -4,6 +4,7 @@
 
 ### Added
 
+- Read-only repository and process snapshots on continuity schema v3. Publishing a checkpoint records git HEAD, a redacted changed-path list, and hashes of the model and tool policy. File contents and remote URLs are not stored. Rollback does not change the worktree. Resume is refused when the worktree, model, or tool policy differs, and it does not switch models. `GET /kernel/continuity/snapshots` and the desktop Continuity page show the latest observation.
 - Process-local continuity event stream at `/kernel/continuity/events/stream`. Task transitions, published checkpoints, approvals, rollback, and recovery emit live events without checkpoint payloads. The desktop Continuity page follows that stream.
 - Desktop Memory Organism page for status, observation recording, hybrid search, timeline, and the candidate/validate/approve path. An unconfigured runtime stays unavailable. Approval still cannot change policy.
 - Hybrid organism retrieval: default ranking combines BM25, character n-gram cosine, metadata overlap, confidence, and recency. `mode=bm25` keeps the earlier lexical-only ranker. Scores stay uncalibrated. This is not a neural embedding.

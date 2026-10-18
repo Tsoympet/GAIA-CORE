@@ -170,7 +170,7 @@ def test_schema_rollback_requires_force_and_can_be_reapplied(tmp_path: Path) -> 
         }
     assert "goals" not in names
     assert "checkpoints" not in names
-    assert ContinuityStore(path).schema_version() == 2
+    assert ContinuityStore(path).schema_version() == 3
 
 
 def test_branch_redacts_policy_secrets_and_requires_verified_parent(tmp_path: Path) -> None:
@@ -233,7 +233,7 @@ def test_live_lock_blocks_recovery_and_dead_lock_can_be_replaced(tmp_path: Path)
 
     store.lock_path.write_text(str(process.pid), encoding="utf-8")
     report = store.recover()
-    assert report.schema_version == 2
+    assert report.schema_version == 3
     assert store.lock_path.read_text(encoding="utf-8").strip() == str(__import__("os").getpid())
 
 
