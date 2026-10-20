@@ -53,10 +53,22 @@ export type GoalDetail = {
   events: KernelEvent[];
 };
 
+function errorMessage(body: string, status: number): string {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    if (typeof parsed.detail === 'string' && parsed.detail.trim()) {
+      return parsed.detail;
+    }
+  } catch {
+    // The body is already the operator-facing text.
+  }
+  return body || `HTTP ${status}`;
+}
+
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `HTTP ${response.status}`);
+    throw new Error(errorMessage(detail, response.status));
   }
   return response.json() as Promise<T>;
 }
