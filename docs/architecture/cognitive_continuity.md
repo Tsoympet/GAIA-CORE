@@ -44,9 +44,14 @@ starts:
   and similar names) are redacted before they are stored and again on recovery.
 - A second live process that holds the journal lock is not interrupted.
 
-Resume re-runs policy checks. A waiting task runs only when the same process
-holds a live grant for that goal's action fingerprint. A database row is not
-authorization.
+Resume re-runs policy checks. A capability whose name is a permission
+identifier is checked against the live permission manager before the task is
+reclassified. A revoked, missing, or kill-switched permission blocks resume
+and is not granted. An exhausted resource budget, including a step counter
+already at its limit, also blocks resume. The counters are not reset. A
+routing label that is not a permission identifier is not treated as one. A
+waiting task runs only when the same process holds a live grant for that
+goal's action fingerprint. A database row is not authorization.
 
 ## Sessions
 
@@ -129,6 +134,9 @@ worktree was configured.
   reruns the task under the current model. The migration row does not execute
   the task, grant approval, change tool policy, or modify the worktree.
   Previous model output is not stored as a new fact.
+- Resume does not apply a stale permission or continue an exhausted budget.
+  The kernel page reports that check. It does not grant a permission or clear
+  the counters.
 - Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the

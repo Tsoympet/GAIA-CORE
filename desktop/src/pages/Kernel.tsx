@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   backupKernel,
   cancelGoal,
@@ -10,6 +10,7 @@ import {
   openKernelEventStream,
   resumeGoal,
   submitKernelTask,
+  type GoalDetail,
   type KernelEvent,
 } from '../api/kernel';
 import { useKernelStore } from '../state/kernelStore';
@@ -37,6 +38,7 @@ export function KernelPage() {
     setStreaming,
   } = useKernelStore();
 
+  const [detail, setDetail] = useState<GoalDetail | null>(null);
   const selectedGoal = useMemo(
     () => goals.find((goal) => goal.id === selectedGoalId) || null,
     [goals, selectedGoalId],
@@ -87,8 +89,9 @@ export function KernelPage() {
   async function onSelectGoal(goalId: string) {
     setSelectedGoalId(goalId);
     try {
-      const detail = await getGoal(goalId);
-      setEvents(detail.events);
+      const nextDetail = await getGoal(goalId);
+      setDetail(nextDetail);
+      setEvents(nextDetail.events);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load goal');
     }
@@ -159,6 +162,10 @@ export function KernelPage() {
             <h2>Goals</h2>
             <span>{goals.length}</span>
           </div>
+          <p className="muted">
+            Resume rechecks a capability that names a permission, and it refuses an exhausted
+            budget. It does not grant the permission or clear the counters.
+          </p>
           <ul className="goalList">
             {goals.map((goal) => (
               <li key={goal.id}>
@@ -195,6 +202,19 @@ export function KernelPage() {
             <>
               <p>{selectedGoal.objective}</p>
               <p className="muted">Session {selectedGoal.session_id}</p>
+              <p className="muted">
+                {selectedGoal.capabilities.length > 0
+                  ? selectedGoal.capabilities.join(', ')
+                  : 'No named permissions'}
+              </p>
+              {detail?.goal.id === selectedGoal.id && detail.budget ? (
+                <p className="muted">
+                  Steps {String(detail.budget.steps_used ?? 0)}
+                  {detail.budget.exhausted_resource
+                    ? ` · exhausted ${String(detail.budget.exhausted_resource)}`
+                    : ''}
+                </p>
+              ) : null}
               {selectedGoal.error ? <p className="kernelError">{selectedGoal.error}</p> : null}
             </>
           ) : (
