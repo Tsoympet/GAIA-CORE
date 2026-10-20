@@ -129,8 +129,13 @@ async def test_resume_refuses_a_diverged_worktree_or_model(tmp_path: Path) -> No
     journal = clean.kernel.continuity
     assert journal is not None
     journal.model_id = "other-model"
-    with pytest.raises(RuntimeError, match="does not switch models"):
-        await clean.kernel.resume(waiting.id)
+    resumed = await clean.kernel.resume(waiting.id)
+    assert resumed.goal.status is GoalStatus.COMPLETED
+    migrations = journal.store.list_model_migrations()
+    assert len(migrations) == 1
+    assert migrations[0].to_model_id == "other-model"
+    assert migrations[0].executes_task is False
+    assert migrations[0].automatic is True
 
 
 def test_schema_rollback_drops_snapshots_and_reopens_from_the_payload(tmp_path: Path) -> None:
@@ -150,7 +155,7 @@ def test_schema_rollback_drops_snapshots_and_reopens_from_the_payload(tmp_path: 
     assert "checkpoints" in names
 
     restored = ContinuityStore(path)
-    assert restored.schema_version() == 3
+    assert restored.schema_version() == 4
     snapshot = restored.get_repository_snapshot(checkpoint.checkpoint_id)
     assert snapshot is not None
     assert snapshot.head_commit == _head(repo)

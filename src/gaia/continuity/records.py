@@ -122,6 +122,40 @@ class ProcessSnapshot(BaseModel):
     captured_at: datetime
 
 
+class ModelMigration(BaseModel):
+    """Audited move from one model observation to the current model.
+
+    ``executes_task`` is always false. The migration does not run the task,
+    grant approval, change tool policy, or modify the worktree. Resume may
+    rerun the task afterward under the current model.
+    """
+
+    migration_id: str
+    from_checkpoint_id: str
+    to_checkpoint_id: str
+    from_model_id: str
+    to_model_id: str
+    from_model_configuration_sha256: str
+    to_model_configuration_sha256: str
+    reason: str
+    automatic: bool = True
+    executes_task: bool = False
+    created_at: datetime
+
+
+class ModelMigrationRequest(BaseModel):
+    """Fields known before the destination checkpoint id exists."""
+
+    from_checkpoint_id: str
+    from_model_id: str
+    to_model_id: str
+    from_model_configuration_sha256: str
+    to_model_configuration_sha256: str
+    reason: str
+    automatic: bool = True
+    executes_task: bool = False
+
+
 class QuarantineRecord(BaseModel):
     """Dead-letter record for drafts, tampered snapshots, or deletions."""
 

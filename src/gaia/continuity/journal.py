@@ -13,7 +13,14 @@ from pydantic import BaseModel, Field
 
 from gaia.continuity.codec import json_object
 from gaia.continuity.errors import ContinuityIntegrityError
-from gaia.continuity.records import ApprovalEvent, Checkpoint, RecoveryReport, TaskRun
+from gaia.continuity.records import (
+    ApprovalEvent,
+    Checkpoint,
+    ModelMigration,
+    ModelMigrationRequest,
+    RecoveryReport,
+    TaskRun,
+)
 from gaia.continuity.redaction import is_sensitive_key, redact_mapping, redact_value
 from gaia.continuity.snapshots import (
     EnvironmentComparison,
@@ -47,7 +54,10 @@ LIMITATIONS: tuple[str, ...] = (
     "Continuity events are a live process stream over the EventBus. They are not "
     "a second durable ledger and they are not cryptographic immutability.",
     "Repository and process snapshots are observations. Rollback and resume do "
-    "not change the git worktree, revive the publishing process, or switch models.",
+    "not change the git worktree or revive the publishing process. A model "
+    "change is recorded as a migration and the task reruns under the current "
+    "model. The migration does not execute by itself, grant approval, change "
+    "tool policy, or modify the worktree.",
 )
 
 
@@ -184,6 +194,7 @@ class ContinuityJournal:
         reason: str,
         kernel_id: str,
         parent_checkpoint_id: str | None = None,
+        model_migration: ModelMigrationRequest | None = None,
     ) -> Checkpoint:
         """Publish a verified checkpoint of the current journal."""
         repository = observe_repository(self.repository_root)
@@ -194,6 +205,7 @@ class ContinuityJournal:
             parent_checkpoint_id=parent_checkpoint_id,
             repository=repository,
             process=process,
+            model_migration=model_migration,
         )
         self._emit(
             "checkpoint_published",
@@ -213,7 +225,61 @@ class ContinuityJournal:
                 "switches_model": False,
             },
         )
+        if model_migration is not None:
+            self._emit(
+                "model_migrated",
+                {
+                    "from_checkpoint_id": model_migration.from_checkpoint_id,
+                    "to_checkpoint_id": checkpoint.checkpoint_id,
+                    "from_model_id": model_migration.from_model_id,
+                    "to_model_id": model_migration.to_model_id,
+                    "automatic": True,
+                    "executes_task": False,
+                    "cryptographic_immutability": False,
+                },
+            )
         return checkpoint
+
+    def migrate_model_for_resume(self, *, kernel_id: str) -> ModelMigration | None:
+        """Record a model change so resume can rerun under the current model.
+
+        Repository drift, tool-policy drift, and a broken snapshot index still
+        block resume. The migration does not run the task or grant approval.
+        """
+        checkpoint = self._environment_checkpoint(None)
+        if checkpoint is None:
+            return None
+        comparison = self._compare(checkpoint)
+        if not comparison.model_migration_available:
+            return None
+        recorded = self.store.get_process_snapshot(checkpoint.checkpoint_id)
+        if recorded is None:
+            raise ContinuityIntegrityError("process snapshot is missing")
+        live = self._observe_process(kernel_id)
+        request = ModelMigrationRequest(
+            from_checkpoint_id=checkpoint.checkpoint_id,
+            from_model_id=recorded.model_id,
+            to_model_id=live.model_id,
+            from_model_configuration_sha256=recorded.model_configuration_sha256,
+            to_model_configuration_sha256=live.model_configuration_sha256,
+            reason="resume continued under the current model",
+            automatic=True,
+            executes_task=False,
+        )
+        published = self.publish(
+            reason="model_migration",
+            kernel_id=kernel_id,
+            parent_checkpoint_id=checkpoint.checkpoint_id,
+            model_migration=request,
+        )
+        matches = [
+            item
+            for item in self.store.list_model_migrations()
+            if item.to_checkpoint_id == published.checkpoint_id
+        ]
+        if not matches:
+            raise ContinuityIntegrityError("model migration was not recorded")
+        return matches[-1]
 
     def environment_report(self, checkpoint_id: str | None = None) -> dict[str, Any]:
         """Compare a stored environment observation with this process."""

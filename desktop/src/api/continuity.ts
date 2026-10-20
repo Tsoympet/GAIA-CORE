@@ -53,6 +53,7 @@ export type EnvironmentComparison = {
   repository_diverged: boolean;
   repository_recheck_required: boolean;
   model_switched: boolean;
+  model_migration_available: boolean;
   tool_policy_changed: boolean;
   index_matches_payload: boolean;
   modifies_worktree: boolean;
@@ -80,6 +81,15 @@ export type ProcessSnapshot = {
   resumes_process: boolean;
   switches_model: boolean;
   note: string;
+};
+
+export type ModelMigration = {
+  migration_id: string;
+  from_model_id: string;
+  to_model_id: string;
+  automatic: boolean;
+  executes_task: boolean;
+  reason: string;
 };
 
 export type EnvironmentReport = {
@@ -118,6 +128,14 @@ export async function listContinuityCheckpoints(): Promise<{
   integrity_ok: boolean;
 }> {
   return parse(await fetch(`${API_BASE}/kernel/continuity/checkpoints`));
+}
+
+export async function listModelMigrations(): Promise<{
+  migrations: ModelMigration[];
+  count: number;
+  executes_task: boolean;
+}> {
+  return parse(await fetch(`${API_BASE}/kernel/continuity/model-migrations`));
 }
 
 export async function getContinuitySnapshots(): Promise<EnvironmentReport> {

@@ -48,8 +48,9 @@ export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
 Delivered on this stack: read-only repository and process snapshots. A
 checkpoint records git HEAD, a redacted path list, and hashes of the model
-and tool policy. Resume is refused when those differ. The snapshot does not
-modify the worktree or switch models. Automatic model migration remains open.
+and tool policy. Resume is refused when the worktree or tool policy differs.
+The snapshot does not modify the worktree. A model change is recorded and the
+task reruns under the current model. The migration does not change tool policy.
 A desktop Continuity page can inspect, publish, verify, and follow a
 process-local event stream. Explicit
 session ids, user id, workspace id, creation time, and redacted metadata

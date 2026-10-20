@@ -60,6 +60,7 @@ class EnvironmentComparison(BaseModel):
     repository_diverged: bool = False
     repository_recheck_required: bool = False
     model_switched: bool = False
+    model_migration_available: bool = False
     tool_policy_changed: bool = False
     index_matches_payload: bool = True
     modifies_worktree: bool = False
@@ -230,28 +231,48 @@ def compare_environment(
         if process_row is None or not _same_process(recorded_process, process_row):
             index_ok = False
             notes.append("process snapshot index does not match the checkpoint payload")
-        elif (
-            recorded_process.model_id != live_process.model_id
-            or recorded_process.model_configuration_sha256
-            != live_process.model_configuration_sha256
-        ):
-            model_switched = True
+        else:
+            model_switched = (
+                recorded_process.model_id != live_process.model_id
+                or recorded_process.model_configuration_sha256
+                != live_process.model_configuration_sha256
+            )
+            policy_changed = (
+                recorded_process.tool_policy_sha256 != live_process.tool_policy_sha256
+            )
+            if policy_changed:
+                notes.append(
+                    "tool policy differs from the checkpoint observation; "
+                    "resume does not apply a different policy"
+                )
+
+    migration_available = (
+        model_switched
+        and index_ok
+        and not repository_diverged
+        and not recheck_required
+        and not policy_changed
+        and not modifies_worktree
+        and not resumes_process
+        and not switches_model
+    )
+    if model_switched:
+        if migration_available:
             notes.append(
                 "model configuration differs from the checkpoint observation; "
-                "resume does not switch models"
+                "resume records a migration and reruns under the current model"
             )
-        elif recorded_process.tool_policy_sha256 != live_process.tool_policy_sha256:
-            policy_changed = True
+        else:
             notes.append(
-                "tool policy differs from the checkpoint observation; "
-                "resume does not apply a different policy"
+                "model configuration differs from the checkpoint observation; "
+                "resume does not migrate it while another observation blocks"
             )
-
     return EnvironmentComparison(
         comparable=True,
         repository_diverged=repository_diverged,
         repository_recheck_required=recheck_required,
         model_switched=model_switched,
+        model_migration_available=migration_available,
         tool_policy_changed=policy_changed,
         index_matches_payload=index_ok,
         modifies_worktree=modifies_worktree,

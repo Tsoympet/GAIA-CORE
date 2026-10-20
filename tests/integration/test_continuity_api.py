@@ -27,6 +27,8 @@ def test_continuity_is_unavailable_until_configured() -> None:
     assert publish.status_code == 409
     snapshots = client.get("/kernel/continuity/snapshots")
     assert snapshots.status_code == 409
+    migrations = client.get("/kernel/continuity/model-migrations")
+    assert migrations.status_code == 409
 
     runtime_status = client.get("/runtime/status")
     assert runtime_status.json()["continuity"] == "unavailable"
@@ -79,6 +81,10 @@ def test_continuity_checkpoint_verify_and_audit(tmp_path: Path) -> None:
     assert environment["process"]["model_id"]
     assert environment["process"]["resumes_process"] is False
     assert environment["comparison"]["model_switched"] is False
+    migrations = client.get("/kernel/continuity/model-migrations")
+    assert migrations.status_code == 200
+    assert migrations.json()["count"] == 0
+    assert migrations.json()["executes_task"] is False
     assert environment["repository"]["available"] is False
     assert environment["comparison"]["repository_diverged"] is False
 

@@ -18,6 +18,8 @@ from gaia.continuity.errors import ContinuityIntegrityError, ContinuityLockedErr
 from gaia.continuity.records import (
     ApprovalEvent,
     Checkpoint,
+    ModelMigration,
+    ModelMigrationRequest,
     ProcessSnapshot,
     QuarantineRecord,
     RecoveryReport,
@@ -26,7 +28,15 @@ from gaia.continuity.records import (
     WorkBranch,
 )
 from gaia.continuity.redaction import is_sensitive_key, redact_mapping, redact_value
-from gaia.continuity.schema import DROP_V1, DROP_V3, MIGRATION_V1, MIGRATION_V2, MIGRATION_V3
+from gaia.continuity.schema import (
+    DROP_V1,
+    DROP_V3,
+    DROP_V4,
+    MIGRATION_V1,
+    MIGRATION_V2,
+    MIGRATION_V3,
+    MIGRATION_V4,
+)
 from gaia.continuity.schema import SCHEMA_VERSION as SCHEMA_VERSION
 from gaia.continuity.snapshots import ProcessObservation, RepositoryObservation
 from gaia.continuity.task_state import (
@@ -110,6 +120,11 @@ def _reject_process_claim(observation: ProcessObservation) -> None:
         )
 
 
+def _reject_model_migration(request: ModelMigrationRequest) -> None:
+    if request.executes_task:
+        raise ContinuityIntegrityError("model migration does not execute a task")
+
+
 class ContinuityStore:
     """Local-first durable journal for goals, task state, and checkpoints.
 
@@ -146,6 +161,10 @@ class ContinuityStore:
                 self._record_migration(connection, 3, "repository_process_snapshots")
                 self._backfill_environment_snapshots(connection)
                 current = 3
+            if current < 4:
+                _execute_sql_script(connection, MIGRATION_V4)
+                self._record_migration(connection, 4, "model_migration")
+                current = 4
             if current > SCHEMA_VERSION:
                 raise ContinuityIntegrityError(
                     f"continuity schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -210,6 +229,9 @@ class ContinuityStore:
             changed += _reseal_column(
                 connection, self.cipher, "process_snapshots", "snapshot_id", "note"
             )
+            changed += _reseal_column(
+                connection, self.cipher, "model_migrations", "migration_id", "reason"
+            )
         return changed
 
     def _seal(self, plaintext: str) -> str:
@@ -243,6 +265,9 @@ class ContinuityStore:
                     "schema rollback would drop published continuity history; "
                     "export an audit bundle and pass force=True"
                 )
+            if current >= 4 and target <= 3:
+                _execute_sql_script(connection, DROP_V4)
+                connection.execute("DELETE FROM schema_migrations WHERE version >= 4")
             if current >= 3 and target <= 2:
                 _execute_sql_script(connection, DROP_V3)
                 connection.execute("DELETE FROM schema_migrations WHERE version >= 3")
@@ -581,6 +606,7 @@ class ContinuityStore:
         parent_checkpoint_id: str | None = None,
         repository: RepositoryObservation | None = None,
         process: ProcessObservation | None = None,
+        model_migration: ModelMigrationRequest | None = None,
     ) -> Checkpoint:
         """Publish a hash-linked snapshot in one transaction.
 
@@ -596,6 +622,23 @@ class ContinuityStore:
             if process is not None:
                 _reject_process_claim(process)
                 payload["process"] = process.model_dump(mode="json")
+            migration_id = str(uuid4())
+            checkpoint_id = str(uuid4())
+            if model_migration is not None:
+                _reject_model_migration(model_migration)
+                payload["model_migration"] = {
+                    "migration_id": migration_id,
+                    "from_checkpoint_id": model_migration.from_checkpoint_id,
+                    "to_checkpoint_id": checkpoint_id,
+                    "from_model_id": model_migration.from_model_id,
+                    "to_model_id": model_migration.to_model_id,
+                    "from_model_configuration_sha256": (
+                        model_migration.from_model_configuration_sha256
+                    ),
+                    "to_model_configuration_sha256": model_migration.to_model_configuration_sha256,
+                    "automatic": True,
+                    "executes_task": False,
+                }
             payload_json = canonical_json(payload)
             digest = sha256_text(payload_json)
             previous = self._latest_published_on(connection)
@@ -604,7 +647,7 @@ class ContinuityStore:
             if parent_id is None and previous is not None:
                 parent_id = previous.checkpoint_id
             checkpoint = Checkpoint(
-                checkpoint_id=str(uuid4()),
+                checkpoint_id=checkpoint_id,
                 parent_checkpoint_id=parent_id,
                 schema_version=SCHEMA_VERSION,
                 reason=reason,
@@ -623,6 +666,13 @@ class ContinuityStore:
                 self._insert_repository_snapshot(connection, checkpoint.checkpoint_id, repository)
             if process is not None:
                 self._insert_process_snapshot(connection, checkpoint.checkpoint_id, process)
+            if model_migration is not None:
+                self._insert_model_migration(
+                    connection,
+                    migration_id=migration_id,
+                    to_checkpoint_id=checkpoint.checkpoint_id,
+                    request=model_migration,
+                )
         if self.checkpoint_witness is not None:
             self.checkpoint_witness(checkpoint)
         return checkpoint
@@ -705,6 +755,15 @@ class ContinuityStore:
                 "SELECT * FROM process_snapshots ORDER BY captured_at ASC"
             ).fetchall()
         return [self._process_from_row(row) for row in rows]
+
+    def list_model_migrations(self) -> list[ModelMigration]:
+        """Return model migrations in record order."""
+        self.migrate()
+        with self._read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM model_migrations ORDER BY created_at ASC"
+            ).fetchall()
+        return [self._model_migration_from_row(row) for row in rows]
 
     def latest_environment_checkpoint(self) -> Checkpoint | None:
         """Return the newest published checkpoint that recorded an environment.
@@ -1021,6 +1080,9 @@ class ContinuityStore:
                 }
                 for item in self.list_process_snapshots()
             ],
+            "model_migrations": [
+                item.model_dump(mode="json") for item in self.list_model_migrations()
+            ],
         }
 
     def status_summary(self, recovery: RecoveryReport | None = None) -> dict[str, Any]:
@@ -1070,6 +1132,7 @@ class ContinuityStore:
             "modifies_worktree": False,
             "resumes_process": False,
             "switches_model": False,
+            "model_migration_count": len(self.list_model_migrations()),
             "published_head": head,
             "integrity": "verified" if integrity_ok else "degraded",
             "db_path": str(self.db_path),
@@ -1437,6 +1500,52 @@ class ContinuityStore:
                 self._seal(observation.note),
                 observation.captured_at.isoformat(),
             ),
+        )
+
+    def _insert_model_migration(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        migration_id: str,
+        to_checkpoint_id: str,
+        request: ModelMigrationRequest,
+    ) -> None:
+        _reject_model_migration(request)
+        connection.execute(
+            """
+            INSERT INTO model_migrations (
+                migration_id, from_checkpoint_id, to_checkpoint_id, from_model_id,
+                to_model_id, from_model_configuration_sha256, to_model_configuration_sha256,
+                reason, automatic, executes_task, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            """,
+            (
+                migration_id,
+                request.from_checkpoint_id,
+                to_checkpoint_id,
+                request.from_model_id,
+                request.to_model_id,
+                request.from_model_configuration_sha256,
+                request.to_model_configuration_sha256,
+                self._seal(request.reason),
+                int(request.automatic),
+                _now().isoformat(),
+            ),
+        )
+
+    def _model_migration_from_row(self, row: sqlite3.Row) -> ModelMigration:
+        return ModelMigration(
+            migration_id=str(row["migration_id"]),
+            from_checkpoint_id=str(row["from_checkpoint_id"]),
+            to_checkpoint_id=str(row["to_checkpoint_id"]),
+            from_model_id=str(row["from_model_id"]),
+            to_model_id=str(row["to_model_id"]),
+            from_model_configuration_sha256=str(row["from_model_configuration_sha256"]),
+            to_model_configuration_sha256=str(row["to_model_configuration_sha256"]),
+            reason=self._open(str(row["reason"])),
+            automatic=bool(row["automatic"]),
+            executes_task=False,
+            created_at=datetime.fromisoformat(str(row["created_at"])),
         )
 
     def _insert_process_snapshot(
