@@ -157,7 +157,9 @@ snapshots. Resume is refused when the worktree, model, or tool policy differs
 from the latest observation. Snapshots do not modify the worktree. A model
 change is recorded on resume and the task reruns under the current model.
 The migration does not execute by itself, grant approval, or change tool
-policy. Still open: cryptographic immutability (explicitly false). Session id,
+policy. Resume also rechecks a capability that names a permission and refuses
+an exhausted resource budget. It does not grant the permission or reset the
+counters. Still open: cryptographic immutability (explicitly false). Session id,
 user id, workspace
 id, creation time, and redacted metadata are restored. Approval grants are not.
 

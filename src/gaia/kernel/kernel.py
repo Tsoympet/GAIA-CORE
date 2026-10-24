@@ -22,6 +22,7 @@ from gaia.kernel.resource_budget import (
     ResourceBudget,
     ResourceBudgetTracker,
 )
+from gaia.kernel.resume_gate import exhausted_resume_resource, first_denied_permission
 from gaia.kernel.state import KernelState, KernelStatus
 from gaia.kernel.store import KernelStore
 from gaia.kernel.verification_coordinator import (
@@ -530,13 +531,21 @@ class CognitiveKernel:
     ) -> KernelRunResult:
         """Resume an interrupted goal, or a waiting goal with a live approval.
 
-        KernelStore resume re-runs an interrupted goal. When the continuity
-        journal is configured, a model change is recorded first and the task
-        reruns under the current model. A waiting goal runs only if this
-        process holds a live grant. Stored approval events are not reusable.
-        The migration does not grant approval or change tool policy.
+        KernelStore resume re-runs an interrupted goal. A capability that
+        names a permission is rechecked against the live policy first. An
+        exhausted budget is refused. Neither check grants a permission or
+        resets counters. When the continuity journal is configured, a model
+        change is recorded after those checks and the task reruns under the
+        current model. A waiting goal runs only if this process holds a live
+        grant. Stored approval events are not reusable. The migration does
+        not grant approval or change tool policy.
         """
         goal = self.goals.require(goal_id)
+        if goal.status not in {GoalStatus.INTERRUPTED, GoalStatus.WAITING_FOR_USER}:
+            raise RuntimeError(
+                f"goal {goal_id} cannot resume from status {goal.status.value}"
+            )
+        self._refuse_stale_resume(goal)
         if self.continuity is not None:
             try:
                 self.continuity.migrate_model_for_resume(kernel_id=self.state.kernel_id)
@@ -580,6 +589,20 @@ class CognitiveKernel:
         raise RuntimeError(
             f"goal {goal_id} cannot resume from status {goal.status.value}"
         )
+
+    def _refuse_stale_resume(self, goal: Goal) -> None:
+        """Stop resume before it reclassifies a goal or spends a budget."""
+        denied = first_denied_permission(goal.capabilities, self.policy)
+        if denied is not None:
+            raise RuntimeError(f"resume does not apply a stale permission: {denied.value}")
+        tracker = self._budgets.get(goal.id)
+        if tracker is None:
+            return
+        resource = exhausted_resume_resource(tracker.snapshot)
+        if resource is not None:
+            raise RuntimeError(
+                f"resume does not continue an exhausted resource budget: {resource}"
+            )
 
     def grant_approval(self, goal_id: str, approver: str) -> Goal:
         """Grant a process-local approval for a waiting goal."""
