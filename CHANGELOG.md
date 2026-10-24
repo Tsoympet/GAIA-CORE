@@ -4,6 +4,7 @@
 
 ### Added
 
+- Automatic model migration on continuity schema v4. When resume finds only a model change, it records the previous and current model ids and configuration hashes, then reruns the task under the current model. The migration does not execute by itself, grant approval, change tool policy, or modify the worktree. Repository drift and tool-policy drift still block resume. `GET /kernel/continuity/model-migrations` lists the records.
 - Read-only repository and process snapshots on continuity schema v3. Publishing a checkpoint records git HEAD, a redacted changed-path list, and hashes of the model and tool policy. File contents and remote URLs are not stored. Rollback does not change the worktree. Resume is refused when the worktree, model, or tool policy differs, and it does not switch models. `GET /kernel/continuity/snapshots` and the desktop Continuity page show the latest observation.
 - Process-local continuity event stream at `/kernel/continuity/events/stream`. Task transitions, published checkpoints, approvals, rollback, and recovery emit live events without checkpoint payloads. The desktop Continuity page follows that stream.
 - Desktop Memory Organism page for status, observation recording, hybrid search, timeline, and the candidate/validate/approve path. An unconfigured runtime stays unavailable. Approval still cannot change policy.

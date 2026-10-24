@@ -154,9 +154,11 @@ Delivered later on this stack: a desktop Continuity page that can inspect,
 publish, and verify the journal, a process-local SSE stream of checkpoint,
 task, approval, and recovery events, and read-only repository and process
 snapshots. Resume is refused when the worktree, model, or tool policy differs
-from the latest observation. Snapshots do not modify the worktree or switch
-models. Still open: automatic model migration after a switch, and
-cryptographic immutability (explicitly false). Session id, user id, workspace
+from the latest observation. Snapshots do not modify the worktree. A model
+change is recorded on resume and the task reruns under the current model.
+The migration does not execute by itself, grant approval, or change tool
+policy. Still open: cryptographic immutability (explicitly false). Session id,
+user id, workspace
 id, creation time, and redacted metadata are restored. Approval grants are not.
 
 ## R3 — Memory Organism and Evidence Ledger
@@ -174,7 +176,7 @@ embeddings and calibrated confidence remain open.
 
 ## Next phase
 
-Close the remaining R2 and R3 gaps above. Automatic model migration and
-cryptographic immutability stay open on the continuity side. Neural embeddings
+Close the remaining R2 and R3 gaps above. Cryptographic immutability stays
+open on the continuity side and is explicitly not claimed. Neural embeddings
 and calibrated confidence stay open on the organism side. The light client
 stays deferred until those local platform gaps are closed.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getContinuitySnapshots,
   getContinuityStatus,
+  listModelMigrations,
   listContinuityCheckpoints,
   listContinuityTasks,
   openContinuityEventStream,
@@ -12,6 +13,7 @@ import {
   type ContinuityStatus,
   type ContinuityTask,
   type EnvironmentReport,
+  type ModelMigration,
   type VerifyResult,
 } from '../api/continuity';
 
@@ -30,6 +32,7 @@ export function ContinuityPage() {
   const [streaming, setStreaming] = useState(false);
   const [events, setEvents] = useState<ContinuityEvent[]>([]);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [migrations, setMigrations] = useState<ModelMigration[]>([]);
 
   const journalReady = status?.status === 'available' || status?.status === 'degraded';
 
@@ -45,17 +48,20 @@ export function ContinuityPage() {
         setVerify(null);
         setEvents([]);
         setEnvironment(null);
+        setMigrations([]);
         return;
       }
-      const [nextCheckpoints, nextTasks, nextEnvironment] = await Promise.all([
+      const [nextCheckpoints, nextTasks, nextEnvironment, nextMigrations] = await Promise.all([
         listContinuityCheckpoints(),
         listContinuityTasks(),
         getContinuitySnapshots(),
+        listModelMigrations(),
       ]);
       setCheckpoints(nextCheckpoints.checkpoints);
       setIntegrityOk(nextCheckpoints.integrity_ok);
       setTasks(nextTasks.tasks);
       setEnvironment(nextEnvironment);
+      setMigrations(nextMigrations.migrations);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load continuity');
     }
@@ -269,10 +275,31 @@ export function ContinuityPage() {
             </p>
           )}
           <p className="muted">
-            Model {environment?.process?.model_id || 'unset'}. Resume does not modify the worktree or
-            switch models.
+            Model {environment?.process?.model_id || 'unset'}. Resume does not modify the worktree. A
+            model change is recorded and the task reruns under the current model.
           </p>
-          {environment?.comparison.notes?.length ? (
+          {migrations.length === 0 ? (
+            <p className="muted">No model migrations.</p>
+          ) : (
+            <ul className="goalList">
+              {migrations.map((migration) => (
+                <li key={migration.migration_id}>
+                  <div className="goalListStatic">
+                    <strong>
+                      {migration.from_model_id || 'unset'} → {migration.to_model_id || 'unset'}
+                    </strong>
+                    <span>{migration.executes_task ? 'executes' : 'does not execute'}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {environment?.comparison.model_migration_available ? (
+            <p className="muted">
+              Resume will record a migration from the previous model. It does not change tool policy.
+            </p>
+          ) : null}
+          {environment?.comparison.notes?.length && !environment.comparison.model_migration_available ? (
             <p className="kernelError">{environment.comparison.notes[0]}</p>
           ) : null}
         </section>

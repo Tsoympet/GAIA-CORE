@@ -531,12 +531,15 @@ class CognitiveKernel:
         """Resume an interrupted goal, or a waiting goal with a live approval.
 
         KernelStore resume re-runs an interrupted goal. When the continuity
-        journal is configured, a waiting goal runs only if this process holds
-        a live grant. Stored approval events are not reusable.
+        journal is configured, a model change is recorded first and the task
+        reruns under the current model. A waiting goal runs only if this
+        process holds a live grant. Stored approval events are not reusable.
+        The migration does not grant approval or change tool policy.
         """
         goal = self.goals.require(goal_id)
         if self.continuity is not None:
             try:
+                self.continuity.migrate_model_for_resume(kernel_id=self.state.kernel_id)
                 self.continuity.assert_resume_current()
             except ContinuityIntegrityError as exc:
                 raise RuntimeError(str(exc)) from exc

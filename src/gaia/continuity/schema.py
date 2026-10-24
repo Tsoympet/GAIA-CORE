@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 MIGRATION_V1 = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -144,7 +144,31 @@ DROP TABLE IF EXISTS repository_snapshots;
 DROP TABLE IF EXISTS process_snapshots;
 """
 
+MIGRATION_V4 = """
+CREATE TABLE IF NOT EXISTS model_migrations (
+    migration_id TEXT PRIMARY KEY,
+    from_checkpoint_id TEXT NOT NULL,
+    to_checkpoint_id TEXT NOT NULL,
+    from_model_id TEXT NOT NULL,
+    to_model_id TEXT NOT NULL,
+    from_model_configuration_sha256 TEXT NOT NULL,
+    to_model_configuration_sha256 TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    automatic INTEGER NOT NULL,
+    executes_task INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_migrations_to_checkpoint
+    ON model_migrations(to_checkpoint_id);
+"""
+
+DROP_V4 = """
+DROP TABLE IF EXISTS model_migrations;
+"""
+
 DROP_V1 = """
+DROP TABLE IF EXISTS model_migrations;
 DROP TABLE IF EXISTS repository_snapshots;
 DROP TABLE IF EXISTS process_snapshots;
 DROP TABLE IF EXISTS quarantine;

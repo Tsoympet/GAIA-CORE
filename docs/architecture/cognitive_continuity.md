@@ -62,11 +62,13 @@ rows in place.
 
 ## Schema
 
-Schema version 3 is applied automatically. Version 2 adds `workspace_id` and
+Schema version 4 is applied automatically. Version 2 adds `workspace_id` and
 `metadata_json` to `sessions`. Version 3 adds repository and process
-observation tables. `rollback_schema(2)` drops those observation tables and
-keeps checkpoint payloads. Re-opening the database applies version 3 again and
-rebuilds the observation rows from those payloads. `rollback_schema(1)` drops
+observation tables. Version 4 adds model migration records.
+`rollback_schema(3)` drops those records and keeps the observation tables.
+`rollback_schema(2)` drops those observation tables and
+keeps checkpoint payloads. Re-opening the database applies the current schema
+again and rebuilds the observation rows from those payloads. `rollback_schema(1)` drops
 the version 2 session columns and keeps the version 1 session id, user id, and
 creation time. `rollback_schema(0, force=True)` drops continuity tables.
 Rollback below the current version is refused while published checkpoints
@@ -93,6 +95,7 @@ goal id and reason. It does not rewrite published checkpoints.
 - `POST /kernel/continuity/goals/{goal_id}/delete`
 - `GET /kernel/continuity/events/stream`
 - `GET /kernel/continuity/snapshots`
+- `GET /kernel/continuity/model-migrations`
 
 If no journal is configured, `GET /kernel/continuity` returns status
 `unavailable`. It does not report a durable journal that is not there.
@@ -119,9 +122,13 @@ worktree was configured.
 - Repository and process snapshots record git HEAD, a redacted change list, and
   hashes of the model and tool policy. They do not store file contents or
   remote URLs. Rollback does not check out commits. Resume does not revive the
-  publishing process. If the worktree, model, or tool policy differs from the
-  latest observation, resume is refused. GAIA does not switch models to make
-  that resume succeed.
+  publishing process. If the worktree or tool policy differs from the latest
+  observation, resume is refused.
+- A model change does not block resume by itself. Resume records a migration
+  from the previous model id and configuration hash to the current ones, then
+  reruns the task under the current model. The migration row does not execute
+  the task, grant approval, change tool policy, or modify the worktree.
+  Previous model output is not stored as a new fact.
 - Restored sessions do not carry process-local approval grants.
 - When an organism is configured on the same runtime, published checkpoints
   are cited in the evidence ledger by digest. The payload stays in the

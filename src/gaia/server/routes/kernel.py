@@ -528,6 +528,19 @@ async def stream_continuity_events(
     )
 
 
+@router.get("/continuity/model-migrations")
+async def list_model_migrations(request: Request) -> dict[str, object]:
+    """List audited model migrations. A migration does not execute a task."""
+    journal = _journal(request)
+    migrations = journal.store.list_model_migrations()
+    return {
+        "migrations": [item.model_dump(mode="json") for item in migrations],
+        "count": len(migrations),
+        "executes_task": False,
+        "cryptographic_immutability": False,
+    }
+
+
 @router.get("/continuity/snapshots")
 async def continuity_snapshots(
     request: Request,
