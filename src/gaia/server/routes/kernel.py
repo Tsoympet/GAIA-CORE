@@ -607,17 +607,19 @@ async def verify_checkpoint(checkpoint_id: str, request: Request) -> dict[str, o
 async def rollback_checkpoint(body: RollbackRequest, request: Request) -> dict[str, object]:
     """Restore live state from a verified checkpoint."""
     runtime = _runtime(request)
-    journal = _journal(request)
+    _journal(request)
     try:
-        checkpoint = journal.rollback(
-            body.checkpoint_id,
-            kernel_id=runtime.kernel.state.kernel_id,
-        )
+        checkpoint = runtime.rollback_checkpoint(body.checkpoint_id)
     except ContinuityIntegrityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    journal.hydrate(runtime.kernel.goals, runtime.kernel.contexts, replace=True)
-    runtime.kernel.mirror_live_state(drop_missing=True)
-    return {"checkpoint": checkpoint.model_dump(mode="json")}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "checkpoint": checkpoint.model_dump(mode="json"),
+        "modifies_worktree": False,
+        "restores_approvals": False,
+        "cryptographic_immutability": False,
+    }
 
 
 @router.get("/continuity/tasks")
