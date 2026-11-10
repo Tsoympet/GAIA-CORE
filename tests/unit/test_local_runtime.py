@@ -7,8 +7,8 @@ from gaia.models.cloud_client import CloudFallbackClient, CloudModelConfig
 from gaia.models.local_client import DETERMINISTIC_MODEL_ID, LocalModelClient
 from gaia.models.registry import ModelDescriptor, ModelProvider, ModelRegistry
 from gaia.models.router import ModelRouter
-from gaia.security.permission_manager import PermissionManager
-from gaia.tools import ToolCatalog
+from gaia.security.permission_manager import Permission, PermissionManager
+from gaia.tools import SAFE_LOCAL_TOOL, ToolCatalog
 from gaia.voice.synthetic_tone import tone_wav
 from gaia.voice.tts_engine import TTSEngine, TTSRequest
 
@@ -103,9 +103,43 @@ def test_tool_status_does_not_execute_and_keeps_shell_gated() -> None:
 
     assert status["execution"] == "status_only"
     assert tools["permission_checked_repo_tools"]["available"] is False
+    assert tools["permission_checked_repo_tools"]["executable"] is False
     assert tools["network"]["available"] is False
+    assert tools["network"]["executable"] is False
+    assert tools["file_write"]["executable"] is False
     assert tools["memory_manager"]["available"] is True
+    assert tools["memory_manager"]["executable"] is False
+    assert tools[SAFE_LOCAL_TOOL]["executable"] is True
     assert permissions.audit_log.recent() == []
+
+    clock = catalog.run(SAFE_LOCAL_TOOL, text="bench")
+    assert clock["executed"] is True
+    assert clock["shell"] is False
+    assert clock["network"] is False
+    assert clock["files_touched"] is False
+    result = clock["result"]
+    assert isinstance(result, dict)
+    assert result["echo"] == "bench"
+    assert isinstance(result["utc"], str)
+
+    with pytest.raises(PermissionError, match="not executed"):
+        catalog.run("permission_checked_repo_tools", text="ls")
+    with pytest.raises(PermissionError, match="not executed"):
+        catalog.run("network")
+    with pytest.raises(PermissionError, match="not executed"):
+        catalog.run("file_read")
+    with pytest.raises(PermissionError, match="not executed"):
+        catalog.run("file_write")
+
+    approved = PermissionManager()
+    approved.grant(Permission.SHELL_COMMAND, "*", human_approved=True)
+    approved.grant(Permission.FILE_WRITE, "*", human_approved=True)
+    still_closed = ToolCatalog()
+    with pytest.raises(PermissionError, match="not executed"):
+        still_closed.run("permission_checked_repo_tools")
+    with pytest.raises(PermissionError, match="not executed"):
+        still_closed.run("file_write")
+    assert still_closed.run(SAFE_LOCAL_TOOL)["executed"] is True
 
 
 @pytest.mark.asyncio

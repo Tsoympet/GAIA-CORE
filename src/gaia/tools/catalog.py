@@ -1,10 +1,18 @@
-"""Read-only catalog of GAIA tool adapters and their permission state."""
+"""Catalog of GAIA tool adapters.
+
+Status does not execute a tool. The only runnable entry is the local clock,
+which echoes a note and reads the process UTC time. Shell, network, and file
+tools stay approval-gated and are refused by ``run``.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from gaia.security.permission_manager import Permission, PermissionManager
+
+SAFE_LOCAL_TOOL = "local_clock"
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +23,7 @@ class ToolSpec:
     description: str
     execution: str
     permission: Permission | None = None
+    executable: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +37,7 @@ class ToolStatus:
     available: bool
     requires_human_approval: bool
     reason: str
+    executable: bool = False
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -38,10 +48,17 @@ class ToolStatus:
             "available": self.available,
             "requires_human_approval": self.requires_human_approval,
             "reason": self.reason,
+            "executable": self.executable,
         }
 
 
 _SPECS: tuple[ToolSpec, ...] = (
+    ToolSpec(
+        SAFE_LOCAL_TOOL,
+        "Read the process-local UTC clock and echo a note. No shell, file, or network access.",
+        "safe_local",
+        executable=True,
+    ),
     ToolSpec(
         "no_external_tool",
         "Default when a step needs no process, file, or network side effect.",
@@ -96,7 +113,7 @@ _SPECS: tuple[ToolSpec, ...] = (
 
 
 class ToolCatalog:
-    """Evaluate tool availability without executing a tool."""
+    """Evaluate tool availability. Only the local clock can run."""
 
     def __init__(self, specs: tuple[ToolSpec, ...] = _SPECS) -> None:
         self.specs = specs
@@ -124,6 +141,7 @@ class ToolCatalog:
                 available=True,
                 requires_human_approval=False,
                 reason="no elevated permission required",
+                executable=spec.executable and spec.name == SAFE_LOCAL_TOOL,
             )
         decision = permissions.check(
             spec.permission,
@@ -139,4 +157,34 @@ class ToolCatalog:
             available=decision.allowed,
             requires_human_approval=decision.requires_human_approval,
             reason=decision.reason,
+            executable=False,
         )
+
+    def run(self, name: str, text: str = "") -> dict[str, object]:
+        """Run the local clock, or refuse every other catalog name.
+
+        Refusal happens before any side effect. A granted shell or file
+        permission does not make those tools executable.
+        """
+        spec = next((item for item in self.specs if item.name == name), None)
+        if spec is None:
+            raise KeyError(name)
+        if (
+            spec.name != SAFE_LOCAL_TOOL
+            or not spec.executable
+            or spec.permission is not None
+            or spec.execution != "safe_local"
+        ):
+            raise PermissionError(f"{name} is approval-gated or unsafe and was not executed")
+        echoed = text.strip() or "local clock"
+        return {
+            "name": spec.name,
+            "executed": True,
+            "shell": False,
+            "network": False,
+            "files_touched": False,
+            "result": {
+                "utc": datetime.now(UTC).isoformat(),
+                "echo": echoed,
+            },
+        }
