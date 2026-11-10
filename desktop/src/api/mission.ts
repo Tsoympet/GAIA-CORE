@@ -89,6 +89,28 @@ export type ToolStatus = {
   available: boolean;
   requires_human_approval: boolean;
   reason: string;
+  executable: boolean;
+};
+
+export type ToolRunResult = {
+  name: string;
+  executed: boolean;
+  shell: boolean;
+  network: boolean;
+  files_touched: boolean;
+  result: {
+    utc: string;
+    echo: string;
+  };
+};
+
+export type WorkspaceLink = {
+  link_id: string;
+  workspace_id: string;
+  kind: 'task' | 'memory';
+  ref_id: string;
+  label: string;
+  created_at: string;
 };
 
 export type WorkspaceRecord = {
@@ -96,6 +118,7 @@ export type WorkspaceRecord = {
   name: string;
   description: string;
   metadata: Record<string, unknown>;
+  links: WorkspaceLink[];
   created_at: string;
   updated_at: string;
 };
@@ -273,6 +296,19 @@ export async function getTools(): Promise<{
   return payload.data;
 }
 
+export async function runTool(name: string, text: string): Promise<ToolRunResult> {
+  const response = await postJson('/tools/run', { name, text });
+  if (!response.ok) {
+    throw new Error(await readBody(response));
+  }
+  const payload = (await response.json()) as Command<ToolRunResult>;
+  const result = payload.data;
+  if (!result.executed || result.shell || result.network || result.files_touched) {
+    throw new Error('Tool run reported a side effect');
+  }
+  return result;
+}
+
 export async function listWorkspaces(): Promise<WorkspaceRecord[]> {
   return requestJson<WorkspaceRecord[]>('/workspaces');
 }
@@ -283,6 +319,23 @@ export async function createWorkspace(name: string, description: string): Promis
     throw new Error(await readBody(response));
   }
   return (await response.json()) as WorkspaceRecord;
+}
+
+export async function attachWorkspaceLink(
+  workspaceId: string,
+  kind: 'task' | 'memory',
+  refId: string,
+  label: string,
+): Promise<WorkspaceLink> {
+  const response = await postJson(`/workspaces/${encodeURIComponent(workspaceId)}/links`, {
+    kind,
+    ref_id: refId,
+    label,
+  });
+  if (!response.ok) {
+    throw new Error(await readBody(response));
+  }
+  return (await response.json()) as WorkspaceLink;
 }
 
 export async function getSecurityStatus(): Promise<SecurityStatus> {

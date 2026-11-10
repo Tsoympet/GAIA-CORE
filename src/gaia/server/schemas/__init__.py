@@ -146,10 +146,30 @@ class MemoryDeletionRequestResponse(GaiaSchema):
     reviewed_at: datetime | None = None
 
 
+class ToolRunRequest(GaiaSchema):
+    name: str = Field(min_length=1)
+    text: str = Field(default="", max_length=500)
+
+
 class WorkspaceCreateRequest(GaiaSchema):
     name: str = Field(min_length=1)
     description: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkspaceLinkCreateRequest(GaiaSchema):
+    kind: Literal["task", "memory"]
+    ref_id: str = Field(min_length=1)
+    label: str = ""
+
+
+class WorkspaceLinkResponse(GaiaSchema):
+    link_id: str
+    workspace_id: str
+    kind: Literal["task", "memory"]
+    ref_id: str
+    label: str = ""
+    created_at: datetime
 
 
 class WorkspaceResponse(GaiaSchema):
@@ -157,5 +177,6 @@ class WorkspaceResponse(GaiaSchema):
     name: str
     description: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+    links: list[WorkspaceLinkResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

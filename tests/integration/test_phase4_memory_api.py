@@ -30,6 +30,24 @@ def test_workspace_api_persists_records_with_sqlite(tmp_path: Path) -> None:
     persisted = client.get(f"/workspaces/{workspace_id}")
     assert persisted.status_code == 200
     assert persisted.json()["metadata"] == {"phase": 4}
+    assert persisted.json()["links"] == []
+
+    attached = client.post(
+        f"/workspaces/{workspace_id}/links",
+        json={"kind": "memory", "ref_id": "mem-bearing-1", "label": "bearing note"},
+    )
+    assert attached.status_code == 200
+    listed = client.get(f"/workspaces/{workspace_id}/links")
+    assert listed.status_code == 200
+    assert listed.json()[0]["ref_id"] == "mem-bearing-1"
+    assert listed.json()[0]["kind"] == "memory"
+    reloaded = client.get(f"/workspaces/{workspace_id}")
+    assert reloaded.json()["links"][0]["label"] == "bearing note"
+    missing = client.post(
+        "/workspaces/missing/links",
+        json={"kind": "task", "ref_id": "task-1"},
+    )
+    assert missing.status_code == 404
 
 
 def test_memory_review_api_exports_and_deletes_after_review(tmp_path: Path) -> None:
