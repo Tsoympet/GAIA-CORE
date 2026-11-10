@@ -108,6 +108,42 @@ def test_tool_status_does_not_execute_and_keeps_shell_gated() -> None:
     assert permissions.audit_log.recent() == []
 
 
+@pytest.mark.asyncio
+async def test_model_health_survives_an_absent_ollama_probe() -> None:
+    class _RaisingOllama:
+        async def health(self) -> dict[str, object]:
+            raise ConnectionError("connection refused")
+
+        async def generate(self, prompt: str, model_id: str, **kwargs: object) -> str:
+            del prompt, model_id, kwargs
+            raise ConnectionError("connection refused")
+
+    registry = ModelRegistry()
+    registry.register(
+        ModelDescriptor("llama3.1", ModelProvider.OLLAMA, {"chat"}, local_first=True)
+    )
+    registry.register(
+        ModelDescriptor(DETERMINISTIC_MODEL_ID, ModelProvider.LOCAL, {"chat"}, local_first=True)
+    )
+    router = ModelRouter.default(
+        registry,
+        CloudFallbackClient(CloudModelConfig(enabled=False)),
+        ollama=_RaisingOllama(),
+    )
+
+    health = await router.health()
+
+    assert health["active_provider"] == "local"
+    assert health["working_model"] == DETERMINISTIC_MODEL_ID
+    assert health["ollama_reachable"] is False
+    assert health["providers"]["ollama"]["available"] is False
+    assert health["providers"]["ollama"]["reachable"] is False
+    assert health["providers"]["local"]["available"] is True
+    assert health["providers"]["local"]["reachable"] is True
+    assert health["providers"]["local"]["neural_weights_loaded"] is False
+    assert health["providers"]["cloud"]["enabled"] is False
+
+
 def test_memory_recall_returns_owner_record() -> None:
     memory = MemoryManager()
     memory.remember("Pump curve at 50 hertz", MemoryScope.PROJECT, "local")

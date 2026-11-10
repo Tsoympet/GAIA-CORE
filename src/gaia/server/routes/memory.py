@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from gaia.memory import MemoryDeletionRequest, MemoryScope
+from gaia.memory.symbolic import SymbolicFact
 from gaia.server.deps import GaiaServices, get_services
 from gaia.server.schemas import (
     CommandResponse,
@@ -20,6 +21,8 @@ from gaia.server.schemas import (
     MemoryRecordResponse,
     MemoryStatusResponse,
     MemoryWriteRequest,
+    SymbolicFactCreate,
+    SymbolicFactResponse,
 )
 
 router = APIRouter(prefix="/memory", tags=["memory"])
@@ -61,12 +64,17 @@ async def recall_memory(
     request: MemoryRecallRequest,
     services: ServicesDep,
 ) -> list[MemoryRecallHit]:
-    """Recall retained memory for an owner."""
+    """Recall retained memory for an owner from the local vector index.
+
+    Symbolic facts that clear the same uncalibrated threshold are included.
+    ``score_calibrated`` is false: scores are not probabilities.
+    """
     try:
         matches = services.memory.recall(request.query, request.owner_id, request.limit)
+        facts = services.memory.match_facts(request.query, request.owner_id, request.limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return [
+    hits = [
         MemoryRecallHit(
             record_id=record.record_id,
             scope=record.scope.value,
@@ -74,9 +82,51 @@ async def recall_memory(
             content=record.content,
             score=score,
             created_at=record.created_at,
+            source="vector",
+            score_calibrated=False,
         )
         for record, score in matches
     ]
+    hits.extend(
+        MemoryRecallHit(
+            record_id=fact.fact_id,
+            scope="symbolic",
+            owner_id=str(fact.metadata.get("owner_id") or request.owner_id),
+            content=f"{fact.subject} {fact.predicate} {fact.object}",
+            score=score,
+            created_at=fact.created_at,
+            source="symbolic",
+            score_calibrated=False,
+        )
+        for fact, score in facts
+    )
+    hits.sort(key=lambda hit: hit.score, reverse=True)
+    return hits[: request.limit]
+
+
+@router.get("/facts", response_model=list[SymbolicFactResponse])
+async def list_facts(
+    services: ServicesDep,
+    owner_id: Annotated[str | None, Query()] = None,
+) -> list[SymbolicFactResponse]:
+    """List symbolic facts. Confidence values are uncalibrated."""
+    return [_fact_response(fact) for fact in services.memory.list_facts(owner_id)]
+
+
+@router.post("/facts", response_model=SymbolicFactResponse)
+async def add_fact(
+    request: SymbolicFactCreate,
+    services: ServicesDep,
+) -> SymbolicFactResponse:
+    """Add a symbolic fact without turning it into approved vector memory."""
+    fact = services.memory.add_fact(
+        request.subject,
+        request.predicate,
+        request.object_value,
+        request.confidence,
+        owner_id=request.owner_id,
+    )
+    return _fact_response(fact)
 
 
 @router.get("/review", response_model=list[MemoryRecordResponse])
@@ -162,6 +212,20 @@ async def review_memory_deletion(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="deletion request not found") from exc
     return _deletion_response(deletion_request)
+
+
+def _fact_response(fact: SymbolicFact) -> SymbolicFactResponse:
+    owner = fact.metadata.get("owner_id")
+    return SymbolicFactResponse(
+        fact_id=fact.fact_id,
+        subject=fact.subject,
+        predicate=fact.predicate,
+        object_value=fact.object,
+        confidence=fact.confidence,
+        owner_id=owner if isinstance(owner, str) else None,
+        created_at=fact.created_at,
+        score_calibrated=False,
+    )
 
 
 def _deletion_response(request: MemoryDeletionRequest) -> MemoryDeletionRequestResponse:

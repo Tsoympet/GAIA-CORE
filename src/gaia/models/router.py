@@ -111,18 +111,33 @@ class ModelRouter:
         )
 
     async def health(self) -> dict[str, object]:
-        """Report which provider will actually answer."""
+        """Report local client status and whether Ollama can be reached.
+
+        A missing daemon, a refused connection, or a probe error leaves this
+        report successful. The deterministic local client remains the working
+        path in that case. Cloud calls stay disabled unless configured.
+        """
         ollama_health = await self._ollama_health()
         local_health = self._local_health()
-        cloud_health = self.cloud.health()
-        ollama_ready = any(
-            model.provider == ModelProvider.OLLAMA and self._ollama_ready(model, ollama_health)
+        cloud_health = self._cloud_health()
+        ready_models = [
+            model.model_id
             for model in self.registry.list()
+            if model.provider == ModelProvider.OLLAMA
+            and self._ollama_ready(model, ollama_health)
+        ]
+        ollama_reachable = bool(ollama_health.get("reachable"))
+        listed = ollama_health.get("models")
+        ollama_models = (
+            [name for name in listed if isinstance(name, str)] if isinstance(listed, list) else []
         )
         return {
             "local_first": True,
-            "active_provider": "ollama" if ollama_ready else "local",
-            "working_model": DETERMINISTIC_MODEL_ID if not ollama_ready else "ollama",
+            "active_provider": "ollama" if ready_models else "local",
+            "working_model": ready_models[0] if ready_models else DETERMINISTIC_MODEL_ID,
+            "ollama_reachable": ollama_reachable,
+            "ollama_models": ollama_models,
+            "local_client": local_health,
             "providers": {
                 "local": local_health,
                 "ollama": ollama_health,
@@ -195,41 +210,68 @@ class ModelRouter:
                 "detail": "unprobed",
             }
         else:
-            result = probe()
-            if inspect.isawaitable(result):
-                probed = await result
-            else:
-                probed = result
+            try:
+                result = probe()
+                if inspect.isawaitable(result):
+                    probed = await result
+                else:
+                    probed = result
+            except Exception as exc:  # noqa: BLE001
+                probed = {
+                    "provider": "ollama",
+                    "available": False,
+                    "models": [],
+                    "detail": type(exc).__name__,
+                }
             report = probed if isinstance(probed, dict) else {
                 "provider": "ollama",
                 "available": False,
                 "models": [],
                 "detail": "invalid health report",
             }
+        report = _with_reachability(report, "ollama")
         self._health_at = now
         self._health_report = report
         return report
 
     def _local_health(self) -> dict[str, object]:
-        probe = getattr(self.local, "health", None)
-        if probe is None:
-            return {
-                "provider": "local",
-                "model_id": DETERMINISTIC_MODEL_ID,
-                "available": True,
-                "deterministic": True,
-                "neural_weights_loaded": False,
-            }
-        result = probe()
-        if isinstance(result, dict):
-            return result
-        return {
+        fallback = {
             "provider": "local",
             "model_id": DETERMINISTIC_MODEL_ID,
             "available": True,
             "deterministic": True,
             "neural_weights_loaded": False,
+            "detail": (
+                "Deterministic local client is the working path when Ollama "
+                "has no ready model."
+            ),
         }
+        probe = getattr(self.local, "health", None)
+        if probe is None:
+            return _with_reachability(fallback, "local")
+        try:
+            result = probe()
+        except Exception as exc:  # noqa: BLE001
+            fallback["available"] = False
+            fallback["detail"] = type(exc).__name__
+            return _with_reachability(fallback, "local")
+        if isinstance(result, dict):
+            return _with_reachability(result, "local")
+        return _with_reachability(fallback, "local")
+
+    def _cloud_health(self) -> dict[str, object]:
+        try:
+            report = self.cloud.health()
+        except Exception as exc:  # noqa: BLE001
+            report = {
+                "provider": "cloud",
+                "enabled": False,
+                "available": False,
+                "detail": type(exc).__name__,
+            }
+        if not isinstance(report, dict):
+            report = {"provider": "cloud", "enabled": False, "available": False}
+        return _with_reachability(report, "cloud")
 
     def _client_for(self, provider: ModelProvider) -> ModelClient:
         if provider == ModelProvider.OLLAMA:
@@ -237,6 +279,17 @@ class ModelRouter:
         if provider == ModelProvider.LOCAL:
             return self.local
         return self.cloud
+
+
+def _with_reachability(report: dict[str, object], provider: str) -> dict[str, object]:
+    """Attach a boolean reachability flag without raising."""
+    marked = dict(report)
+    marked.setdefault("provider", provider)
+    available = marked.get("available") is True
+    marked["reachable"] = available
+    if "models" not in marked:
+        marked["models"] = []
+    return marked
 
 
 def _model_listed(model_id: str, tag: str) -> bool:

@@ -49,6 +49,35 @@ def test_memory_recall_returns_written_record() -> None:
     hits = recalled.json()
     assert hits[0]["content"] == "Hydrostatic bearing note"
     assert hits[0]["owner_id"] == "local"
+    assert hits[0]["source"] == "vector"
+    assert hits[0]["score_calibrated"] is False
+    status = client.get("/memory/status").json()
+    assert status["scores_calibrated"] is False
+    assert status["vector_index"] == "in-process-hashed-ngram"
+    assert "uncalibrated" in status["score_note"]
+
+    fact = client.post(
+        "/memory/facts",
+        json={
+            "subject": "bearing",
+            "predicate": "prefers",
+            "object_value": "local-notes",
+            "owner_id": "local",
+            "confidence": 0.4,
+        },
+    )
+    assert fact.status_code == 200
+    assert fact.json()["score_calibrated"] is False
+    listed = client.get("/memory/facts", params={"owner_id": "local"})
+    assert listed.status_code == 200
+    assert listed.json()[0]["object_value"] == "local-notes"
+    recalled = client.post(
+        "/memory/recall",
+        json={"query": "bearing prefers local-notes", "owner_id": "local"},
+    )
+    sources = {hit["source"] for hit in recalled.json()}
+    assert "symbolic" in sources
+    assert all(hit["score_calibrated"] is False for hit in recalled.json())
 
 
 def test_model_health_keeps_cloud_disabled() -> None:
@@ -62,7 +91,14 @@ def test_model_health_keeps_cloud_disabled() -> None:
     assert health["active_provider"] == "local"
     assert health["providers"]["cloud"]["enabled"] is False
     assert health["providers"]["local"]["available"] is True
+    assert health["providers"]["local"]["reachable"] is True
     assert health["providers"]["local"]["neural_weights_loaded"] is False
+    assert health["local_client"]["model_id"] == DETERMINISTIC_MODEL_ID
+    assert isinstance(health["ollama_reachable"], bool)
+    assert health["providers"]["ollama"]["reachable"] == health["ollama_reachable"]
+    if health["ollama_reachable"] is False:
+        assert health["active_provider"] == "local"
+        assert health["working_model"] == DETERMINISTIC_MODEL_ID
 
 
 def test_tools_security_self_model_and_cognition_are_live() -> None:
@@ -84,6 +120,12 @@ def test_tools_security_self_model_and_cognition_are_live() -> None:
     assert denied.json()["data"]["requires_human_approval"] is True
     assert audit.json()["data"]["count"] >= 1
     assert any(rule["permission"] == "file.read" for rule in permissions.json()["data"]["rules"])
+
+    paused = client.post("/security/kill-switch", params={"reason": "operator pause"})
+    assert paused.status_code == 200
+    assert client.get("/security/status").json()["autonomy_kill_switch"] is True
+    assert client.delete("/security/kill-switch").status_code == 200
+    assert client.get("/security/status").json()["autonomy_kill_switch"] is False
 
     self_model = client.get("/self-model/status").json()["data"]
     assert "not sentience" in self_model["statement"]

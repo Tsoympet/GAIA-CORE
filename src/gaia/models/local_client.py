@@ -81,6 +81,7 @@ class LocalModelClient:
             "provider": "local",
             "model_id": self.model_id,
             "available": True,
+            "reachable": True,
             "deterministic": True,
             "neural_weights_loaded": False,
             "detail": (

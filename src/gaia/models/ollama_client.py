@@ -27,6 +27,7 @@ class OllamaClient:
             return {
                 "provider": "ollama",
                 "available": False,
+                "reachable": False,
                 "models": [],
                 "detail": type(exc).__name__,
             }
@@ -37,7 +38,13 @@ class OllamaClient:
                 for item in listed:
                     if isinstance(item, dict) and isinstance(item.get("name"), str):
                         names.append(item["name"])
-        return {"provider": "ollama", "available": True, "models": names, "detail": "ok"}
+        return {
+            "provider": "ollama",
+            "available": True,
+            "reachable": True,
+            "models": names,
+            "detail": "ok",
+        }
 
     async def generate(
         self,

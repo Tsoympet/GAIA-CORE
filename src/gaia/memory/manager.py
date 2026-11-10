@@ -8,12 +8,19 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from .indexer import MemoryIndexer
+from .indexer import (
+    MIN_VECTOR_SCORE,
+    SCORE_NOTE,
+    SCORES_CALIBRATED,
+    VECTOR_INDEX,
+    MemoryIndexer,
+    simple_embedding,
+)
 from .policies import MemoryPolicy
 from .retriever import MemoryRetriever
 from .scoped import MemoryRecord, MemoryScope, ScopedMemory
 from .symbolic import SymbolicFact, SymbolicMemory
-from .vector_store import InMemoryVectorStore, VectorStore
+from .vector_store import InMemoryVectorStore, VectorStore, cosine
 
 
 class MemoryConsent(StrEnum):
@@ -56,6 +63,9 @@ class MemoryStatus:
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    vector_index: str = VECTOR_INDEX
+    scores_calibrated: bool = SCORES_CALIBRATED
+    score_note: str = SCORE_NOTE
 
 
 @dataclass(slots=True)
@@ -114,10 +124,57 @@ class MemoryManager:
         predicate: str,
         object_value: str,
         confidence: float = 1.0,
+        owner_id: str | None = None,
     ) -> SymbolicFact:
+        """Store a symbolic fact. This does not replace the vector index."""
+        metadata: dict[str, Any] = {}
+        if owner_id is not None:
+            metadata["owner_id"] = owner_id
         return self.symbolic.add(
-            SymbolicFact(subject, predicate, object_value, confidence)
+            SymbolicFact(subject, predicate, object_value, confidence, metadata)
         )
+
+    def list_facts(self, owner_id: str | None = None) -> list[SymbolicFact]:
+        """List symbolic facts, optionally restricted to one owner.
+
+        Facts stored without an owner stay visible. They are process-local
+        graph rows, not scoped vector documents.
+        """
+        facts = list(self.symbolic.facts.values())
+        if owner_id is None:
+            return facts
+        return [
+            fact
+            for fact in facts
+            if fact.metadata.get("owner_id") in (None, owner_id)
+        ]
+
+    def match_facts(
+        self,
+        query: str,
+        owner_id: str,
+        limit: int = 5,
+    ) -> list[tuple[SymbolicFact, float]]:
+        """Rank symbolic facts with the same uncalibrated embedding.
+
+        The fact graph remains the source of truth. Scores are cosine values,
+        not the stored confidence and not a calibrated probability.
+        """
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        needle = query.strip()
+        if not needle:
+            raise ValueError("query must not be empty")
+        query_vector = simple_embedding(needle)
+        scored: list[tuple[SymbolicFact, float]] = []
+        for fact in self.list_facts(owner_id):
+            text = f"{fact.subject} {fact.predicate} {fact.object}"
+            score = cosine(query_vector, simple_embedding(text))
+            if score < MIN_VECTOR_SCORE:
+                continue
+            scored.append((fact, score))
+        scored.sort(key=lambda item: (-item[1], item[0].fact_id))
+        return scored[:limit]
 
     def recall(
         self,
@@ -125,27 +182,24 @@ class MemoryManager:
         owner_id: str,
         limit: int = 5,
     ) -> list[tuple[MemoryRecord, float]]:
-        """Return retained records for an owner that match the query."""
+        """Rank retained records for an owner with the in-process vector index.
+
+        Scores are uncalibrated cosine similarity. Symbolic facts are not
+        folded into this list; use ``match_facts`` for the graph.
+        """
         if limit < 1:
             raise ValueError("limit must be positive")
-        needle = query.strip().lower()
+        needle = query.strip()
         if not needle:
             raise ValueError("query must not be empty")
+        window = max(self.vector_store.count(), 1)
         matches: list[tuple[MemoryRecord, float]] = []
-        seen: set[str] = set()
-        for scope in MemoryScope:
-            for record in self.list_scope(scope, owner_id):
-                if needle in record.content.lower():
-                    matches.append((record, 1.0))
-                    seen.add(record.record_id)
-                    if len(matches) >= limit:
-                        return matches
-        for result in self.retriever.retrieve(query, limit=max(limit * 5, limit)):
+        for result in self.retriever.retrieve(needle, limit=window):
+            if result.score < MIN_VECTOR_SCORE:
+                continue
             record_id = str(
                 result.document.metadata.get("record_id", result.document.document_id)
             )
-            if record_id in seen:
-                continue
             found = self._record_by_id(record_id)
             if (
                 found is None
@@ -154,7 +208,6 @@ class MemoryManager:
             ):
                 continue
             matches.append((found, float(result.score)))
-            seen.add(found.record_id)
             if len(matches) >= limit:
                 break
         return matches

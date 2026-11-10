@@ -39,6 +39,7 @@ class CloudFallbackClient:
                 "provider": "cloud",
                 "enabled": False,
                 "available": False,
+                "reachable": False,
                 "configured_provider": self.config.provider,
                 "reason": "cloud model fallback is disabled by configuration",
             }
@@ -46,6 +47,7 @@ class CloudFallbackClient:
             "provider": "cloud",
             "enabled": True,
             "available": False,
+            "reachable": False,
             "configured_provider": self.config.provider,
             "reason": "cloud fallback is enabled but no adapter is installed",
         }

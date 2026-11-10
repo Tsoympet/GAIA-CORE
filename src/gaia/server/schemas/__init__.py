@@ -58,6 +58,8 @@ class MemoryRecallHit(GaiaSchema):
     content: str
     score: float
     created_at: datetime
+    source: Literal["vector", "symbolic"] = "vector"
+    score_calibrated: bool = False
 
 
 class MemoryRecordResponse(GaiaSchema):
@@ -96,10 +98,32 @@ class MemoryStatusResponse(GaiaSchema):
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    vector_index: str = "in-process-hashed-ngram"
+    scores_calibrated: bool = False
+    score_note: str = ""
 
 
 class MemoryConsentRequest(GaiaSchema):
     owner_id: str = Field(min_length=1)
+
+
+class SymbolicFactCreate(GaiaSchema):
+    subject: str = Field(min_length=1)
+    predicate: str = Field(min_length=1)
+    object_value: str = Field(min_length=1)
+    owner_id: str = "default"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class SymbolicFactResponse(GaiaSchema):
+    fact_id: str
+    subject: str
+    predicate: str
+    object_value: str
+    confidence: float
+    owner_id: str | None = None
+    created_at: datetime
+    score_calibrated: bool = False
 
 
 class MemoryDeletionRequestCreate(GaiaSchema):
