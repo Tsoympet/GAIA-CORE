@@ -169,6 +169,7 @@ class WorkspaceLinkResponse(GaiaSchema):
     kind: Literal["task", "memory"]
     ref_id: str
     label: str = ""
+    target_exists: bool = False
     created_at: datetime
 
 

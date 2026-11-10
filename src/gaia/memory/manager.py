@@ -12,6 +12,8 @@ from .indexer import (
     MIN_VECTOR_SCORE,
     SCORE_NOTE,
     SCORES_CALIBRATED,
+    SQLITE_SCORE_NOTE,
+    SQLITE_VECTOR_INDEX,
     VECTOR_INDEX,
     MemoryIndexer,
     simple_embedding,
@@ -19,6 +21,7 @@ from .indexer import (
 from .policies import MemoryPolicy
 from .retriever import MemoryRetriever
 from .scoped import MemoryRecord, MemoryScope, ScopedMemory
+from .sqlite_index import SQLiteVectorIndex
 from .symbolic import SymbolicFact, SymbolicMemory, fact_owner
 from .vector_store import InMemoryVectorStore, VectorStore, cosine
 
@@ -84,6 +87,9 @@ class MemoryManager:
     def __post_init__(self) -> None:
         for scope in MemoryScope:
             self.scoped.setdefault(scope, ScopedMemory(scope=scope))
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            for record in self.vector_store.load_records():
+                self.scoped[record.scope].records.setdefault(record.record_id, record)
 
     @property
     def indexer(self) -> MemoryIndexer:
@@ -106,6 +112,8 @@ class MemoryManager:
             raise PermissionError(f"memory consent revoked for owner: {owner_id}")
         record_metadata = {"index": index, **(metadata or {})}
         record = self.scoped[scope].add(content, owner_id, record_metadata)
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            self.vector_store.save_record(record)
         if index:
             self.indexer.index([record])
         return record
@@ -188,7 +196,7 @@ class MemoryManager:
         owner_id: str,
         limit: int = 5,
     ) -> list[tuple[MemoryRecord, float]]:
-        """Rank retained records for an owner with the in-process vector index.
+        """Rank retained records for an owner with the local vector index.
 
         Scores are uncalibrated cosine similarity. Symbolic facts are not
         folded into this list; use ``match_facts`` for the graph.
@@ -293,6 +301,11 @@ class MemoryManager:
             for request in self.deletion_requests.values()
             if request.status == DeletionRequestStatus.PENDING
         )
+        vector_index = VECTOR_INDEX
+        score_note = SCORE_NOTE
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            vector_index = SQLITE_VECTOR_INDEX
+            score_note = SQLITE_SCORE_NOTE
         return MemoryStatus(
             scopes={
                 scope.value: len(memory.records)
@@ -306,7 +319,13 @@ class MemoryManager:
             },
             pending_deletion_requests=pending,
             retention_days=self.policy.retention_days,
+            vector_index=vector_index,
+            score_note=score_note,
         )
+
+    def get_record(self, record_id: str) -> MemoryRecord | None:
+        """Return one scoped record by id, if it is still stored."""
+        return self._record_by_id(record_id)
 
     def _record_by_id(self, record_id: str) -> MemoryRecord | None:
         for memory in self.scoped.values():

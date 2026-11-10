@@ -123,7 +123,7 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 - synthetic voice and a generated tone, with real-person impersonation refused;
 - Tauri/React mission control wired to live overview, kernel, continuity, organism, and voice status.
 
-Chat, memory recall, permissions, audit, and the simulated self-model answer from this process. Symbolic facts are visible only to the owner stored on the fact; a fact with no owner is hidden from every owner's recall. Mission control can create a workspace and attach task or memory references in `.gaia/workspaces.sqlite3`. `POST /tools/run` executes only `local_clock`. Shell, network, and file tools stay unexecuted. Dream, idle, metacognition, and phase-4 note copies are appended to `.gaia/cognition.sqlite3` and reload after a restart. Dreaming still takes no external actions. The phase-4 vector index itself stays in process memory. Mission control opens live pages for agents, memory, models, tools, workspaces, security, the self-model, metacognition, and dreaming. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, calibrated confidence, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
+Chat, memory recall, permissions, audit, and the simulated self-model answer from this process. Symbolic facts are visible only to the owner stored on the fact; a fact with no owner is hidden from every owner's recall. Mission control can create a workspace and attach task or memory references in `.gaia/workspaces.sqlite3`. `POST /tools/run` executes only `local_clock`. Shell, network, and file tools stay unexecuted. Dream, idle, metacognition, and phase-4 note copies are appended to `.gaia/cognition.sqlite3` and reload after a restart. Dreaming still takes no external actions. Scoped phase-4 records and their hashed n-gram vectors are stored in `.gaia/phase4.sqlite3` when `gaia serve` starts, and ranked recall reloads after a restart. Those cosine scores stay uncalibrated. Symbolic facts remain in process memory. A workspace link rejects an unknown task or memory id, and a listed link reports whether that target still exists. Mission control opens live pages for agents, memory, models, tools, workspaces, security, the self-model, metacognition, and dreaming. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, calibrated confidence, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
 
 ## Implementation commitment after R0
 
@@ -172,8 +172,8 @@ ordered by `event_at`, identity approval that does not become factual
 knowledge, preference approval that supersedes only a cited preference, and
 local hybrid retrieval (BM25 + character n-grams) with a hashed derived
 index that deletion removes, and a desktop Organism page for status, search,
-and promotion. Phase 4 scoped memory stays in process memory and is ranked
-by an in-process hashed n-gram vector index. Those cosine scores are
+and promotion. Phase 4 scoped records and hashed n-gram vectors persist in
+local SQLite and reload for ranked recall. Those cosine scores are
 uncalibrated. Neural embeddings and calibrated confidence remain open.
 
 ## Next phase

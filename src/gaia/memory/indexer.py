@@ -17,9 +17,14 @@ from gaia.memory.scoped import MemoryRecord
 from gaia.memory.vector_store import VectorDocument, VectorStore
 
 VECTOR_INDEX = "in-process-hashed-ngram"
+SQLITE_VECTOR_INDEX = "sqlite-hashed-ngram"
 SCORES_CALIBRATED = False
 SCORE_NOTE = (
     "Cosine scores from the in-process hashed n-gram index are uncalibrated. "
+    "They are not probabilities or confidence."
+)
+SQLITE_SCORE_NOTE = (
+    "Cosine scores from the local SQLite hashed n-gram index are uncalibrated. "
     "They are not probabilities or confidence."
 )
 EMBEDDING_DIMENSIONS = 1024

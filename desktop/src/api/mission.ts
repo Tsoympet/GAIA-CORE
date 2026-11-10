@@ -110,6 +110,7 @@ export type WorkspaceLink = {
   kind: 'task' | 'memory';
   ref_id: string;
   label: string;
+  target_exists: boolean;
   created_at: string;
 };
 

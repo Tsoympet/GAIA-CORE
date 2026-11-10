@@ -320,6 +320,10 @@ button.panelButton h2 {
   margin-top: 16px;
 }
 
+.linkMissing {
+  color: #fda4af;
+}
+
 .kernelError {
   color: #fda4af;
   background: rgba(127, 29, 29, 0.25);

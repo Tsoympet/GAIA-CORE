@@ -172,6 +172,7 @@ export function MemoryPage() {
                 <li key={record.record_id}>
                   <strong>{record.scope}</strong>
                   <span>{record.content}</span>
+                  <span className="muted">{record.record_id}</span>
                 </li>
               ))}
             </ul>

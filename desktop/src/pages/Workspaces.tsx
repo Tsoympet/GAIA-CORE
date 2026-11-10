@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react';
+import { listGoals, type KernelGoal } from '../api/kernel';
 import {
   attachWorkspaceLink,
   createWorkspace,
   listWorkspaces,
+  reviewMemory,
   type WorkspaceRecord,
 } from '../api/mission';
 import { SurfaceFrame } from '../components/SurfaceFrame';
 
+type KnownRef = {
+  kind: 'task' | 'memory';
+  id: string;
+  label: string;
+};
+
 export function WorkspacesPage() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
+  const [known, setKnown] = useState<KnownRef[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('Bench workspace');
   const [description, setDescription] = useState('Local notes for this machine');
   const [kind, setKind] = useState<'task' | 'memory'>('memory');
-  const [refId, setRefId] = useState('mem-bearing-1');
-  const [label, setLabel] = useState('bearing note');
+  const [memoryOwner, setMemoryOwner] = useState('local');
+  const [refId, setRefId] = useState('');
+  const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,8 +47,33 @@ export function WorkspacesPage() {
     }
   }
 
+  async function loadKnown(owner: string) {
+    const notes = await reviewMemory(owner.trim() || 'local');
+    let goals: KernelGoal[] = [];
+    try {
+      goals = (await listGoals()).goals;
+    } catch {
+      goals = [];
+    }
+    setKnown([
+      ...notes.map((note) => ({
+        kind: 'memory' as const,
+        id: note.record_id,
+        label: note.content,
+      })),
+      ...goals.map((goal) => ({
+        kind: 'task' as const,
+        id: goal.id,
+        label: goal.objective,
+      })),
+    ]);
+  }
+
   useEffect(() => {
     void refresh();
+    void loadKnown(memoryOwner).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : 'Could not load references');
+    });
   }, []);
 
   async function submit() {
@@ -76,7 +111,7 @@ export function WorkspacesPage() {
       label="Workspaces"
       eyebrow="Local project"
       title="Workspaces"
-      lede="Create a local workspace and attach task or memory references. Links stay in the workspace SQLite file."
+      lede="Create a local workspace and attach a task or memory that already exists. An unknown id is rejected. A link whose target was removed later is marked missing."
       signal={`${workspaces.length} stored`}
       error={error}
     >
@@ -115,6 +150,51 @@ export function WorkspacesPage() {
             {workspaces.map((workspace) => (
               <option key={workspace.workspace_id} value={workspace.workspace_id}>
                 {workspace.name}
+              </option>
+            ))}
+          </select>
+          <label className="fieldLabel" htmlFor="workspace-memory-owner">
+            Memory owner
+          </label>
+          <input
+            id="workspace-memory-owner"
+            value={memoryOwner}
+            onChange={(event) => setMemoryOwner(event.target.value)}
+          />
+          <div className="kernelActions">
+            <button
+              type="button"
+              onClick={() =>
+                void loadKnown(memoryOwner).catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : 'Could not load references');
+                })
+              }
+              disabled={busy}
+            >
+              Load references
+            </button>
+          </div>
+          <label className="fieldLabel" htmlFor="workspace-known-ref">
+            Known reference
+          </label>
+          <select
+            id="workspace-known-ref"
+            defaultValue=""
+            onChange={(event) => {
+              const picked = known.find((item) => `${item.kind}:${item.id}` === event.target.value);
+              if (!picked) {
+                return;
+              }
+              setKind(picked.kind);
+              setRefId(picked.id);
+              setLabel(picked.label.slice(0, 80));
+              setError(null);
+            }}
+          >
+            <option value="">Choose a stored memory or task</option>
+            {known.map((item) => (
+              <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
+                {item.kind} · {item.label.slice(0, 60)}
               </option>
             ))}
           </select>
@@ -174,6 +254,9 @@ export function WorkspacesPage() {
                           <strong>
                             {link.kind} · {link.label || link.ref_id}
                           </strong>
+                          <span className={link.target_exists ? 'muted' : 'linkMissing'}>
+                            {link.target_exists ? 'target present' : 'target missing'}
+                          </span>
                           <span className="muted">{link.ref_id}</span>
                         </li>
                       ))}

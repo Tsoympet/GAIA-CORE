@@ -15,7 +15,7 @@ not replace the Phase 4 manager described below.
 The scoped memory manager provides:
 
 - project, user, session, and timeline scopes;
-- local in-memory vector indexing and retrieval;
+- local SQLite vector indexing and retrieval, with uncalibrated cosine scores;
 - symbolic fact storage, with unscoped facts hidden from every owner's list and recall;
 - retention-policy checks;
 - owner consent grant and revoke state;
@@ -28,6 +28,8 @@ The workspace store provides:
 - local SQLite persistence;
 - workspace create, list, and get operations;
 - task and memory reference links stored beside the workspace row;
+- link creation rejects an unknown task or memory id;
+- listed links report whether the target still exists;
 - JSON metadata storage;
 - operator status containing database path, workspace count, and durability state.
 
@@ -54,9 +56,11 @@ Workspace routes:
 - `GET /workspaces/{workspace_id}/links`
 
 Phase-4 memory text and symbolic facts written through the API are copied into
-`.gaia/cognition.sqlite3` as notes. The in-process vector index is still rebuilt
-empty when the process starts. Dream and metacognition notes use that same file
-and do not perform external actions.
+`.gaia/cognition.sqlite3` as notes. `gaia serve` also stores scoped records and
+their hashed n-gram vectors in `.gaia/phase4.sqlite3`, so ranked recall survives
+a new process. Cosine scores stay uncalibrated. Symbolic facts themselves stay
+in process memory. Dream and metacognition notes use the cognition file and do
+not perform external actions.
 
 ## Safety rules
 
@@ -64,13 +68,13 @@ and do not perform external actions.
 - Deletion is review-gated.
 - Approved deletion removes the scoped source record and its indexed derivative.
 - Export returns retained records grouped by scope.
-- The bootstrap vector store is in-memory and performs no external API calls.
+- The phase-4 vector index is a local SQLite file of hashed n-gram vectors and performs no external API calls. An in-memory store remains available for isolated tests.
 - Workspace persistence uses a local SQLite file and performs no network I/O.
 - Simulation memory must remain separate from validated factual memory in later phases.
 
 ## Remaining work
 
-- durable SQLite/PostgreSQL persistence for memory records;
+- PostgreSQL persistence, backup, and restore for memory records;
 - workspace-scoped memory binding and timeline events;
 - provenance, confidence, contradiction, and derived-record lineage;
 - audit events connected to the security ledger;
