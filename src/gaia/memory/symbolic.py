@@ -38,3 +38,15 @@ class SymbolicMemory:
             if (subject is None or fact.subject == subject)
             and (predicate is None or fact.predicate == predicate)
         ]
+
+
+def fact_owner(fact: SymbolicFact) -> str | None:
+    """Return a stripped owner id, or None when the fact is unscoped.
+
+    An unscoped fact must not be treated as belonging to every owner.
+    """
+    raw = fact.metadata.get("owner_id")
+    if not isinstance(raw, str):
+        return None
+    cleaned = raw.strip()
+    return cleaned or None

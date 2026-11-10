@@ -19,7 +19,7 @@ from .indexer import (
 from .policies import MemoryPolicy
 from .retriever import MemoryRetriever
 from .scoped import MemoryRecord, MemoryScope, ScopedMemory
-from .symbolic import SymbolicFact, SymbolicMemory
+from .symbolic import SymbolicFact, SymbolicMemory, fact_owner
 from .vector_store import InMemoryVectorStore, VectorStore, cosine
 
 
@@ -126,10 +126,15 @@ class MemoryManager:
         confidence: float = 1.0,
         owner_id: str | None = None,
     ) -> SymbolicFact:
-        """Store a symbolic fact. This does not replace the vector index."""
+        """Store a symbolic fact. This does not replace the vector index.
+
+        A blank owner is stored as unscoped. Unscoped facts stay on the graph
+        and are omitted from every owner's list and recall.
+        """
         metadata: dict[str, Any] = {}
-        if owner_id is not None:
-            metadata["owner_id"] = owner_id
+        cleaned = owner_id.strip() if isinstance(owner_id, str) else ""
+        if cleaned:
+            metadata["owner_id"] = cleaned
         return self.symbolic.add(
             SymbolicFact(subject, predicate, object_value, confidence, metadata)
         )
@@ -137,17 +142,18 @@ class MemoryManager:
     def list_facts(self, owner_id: str | None = None) -> list[SymbolicFact]:
         """List symbolic facts, optionally restricted to one owner.
 
-        Facts stored without an owner stay visible. They are process-local
-        graph rows, not scoped vector documents.
+        Passing an owner returns only facts stored for that owner. Facts with
+        no owner are not visible to any owner's list or recall. Omitting the
+        owner returns the whole graph, including unscoped rows, for a local
+        operator dump.
         """
         facts = list(self.symbolic.facts.values())
         if owner_id is None:
             return facts
-        return [
-            fact
-            for fact in facts
-            if fact.metadata.get("owner_id") in (None, owner_id)
-        ]
+        wanted = owner_id.strip()
+        if not wanted:
+            return []
+        return [fact for fact in facts if fact_owner(fact) == wanted]
 
     def match_facts(
         self,

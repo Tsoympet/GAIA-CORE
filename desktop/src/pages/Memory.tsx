@@ -61,7 +61,9 @@ export function MemoryPage() {
   async function recallOnly() {
     setBusy(true);
     try {
-      setHits(await recallMemory(query.trim(), ownerId.trim() || 'local'));
+      const owner = ownerId.trim() || 'local';
+      setHits(await recallMemory(query.trim(), owner));
+      await refresh(owner);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Memory recall failed');
@@ -153,7 +155,10 @@ export function MemoryPage() {
               ))}
             </ul>
           ) : (
-            <p className="muted">Recall uses the in-process vector index for notes and the symbolic graph for facts.</p>
+            <p className="muted">
+              Recall is limited to this owner. A symbolic fact stored without an owner stays hidden
+              from every owner.
+            </p>
           )}
         </article>
         <article className="kernelPanel">
