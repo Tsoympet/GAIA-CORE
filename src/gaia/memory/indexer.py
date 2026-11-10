@@ -31,6 +31,7 @@ class MemoryIndexer:
                     **record.metadata,
                     "record_id": record.record_id,
                     "scope": record.scope.value,
+                    "owner_id": record.owner_id,
                 },
             )
             for record in records

@@ -33,8 +33,8 @@ A feature is not considered implemented merely because a route, class name, conf
 | Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
-| Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata | Desktop surface, model-switch continuity, cryptographic immutability |
-| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline and `/organism` routes | Retrieval beyond BM25, identity and timeline categories |
+| Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata, desktop journal page, process-local event stream, and read-only repository/process snapshots. Resume refuses worktree, model, or tool-policy drift and does not switch models | Automatic model migration, cryptographic immutability |
+| Memory Organism | PARTIAL | Opt-in SQLite promotion pipeline, timeline records ordered by event time, non-factual identity approval, citation-based preference supersession, hybrid BM25 + character n-gram retrieval with a hashed derived index, and a desktop status/search/promotion page | Neural embeddings and calibrated confidence |
 | Evidence and Provenance Ledger | PARTIAL | Insert-only headers, body purge, checkpoint digest citations, optional field encryption | Signatures and cryptographic immutability |
 | Living Project Intelligence | MISSING | Workspace metadata only | Project graph for requirements, decisions, files, repositories, risks and versions |
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
@@ -48,7 +48,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Coding and repository intelligence | SCAFFOLDED | Deterministic capability agent | Real repository tools, isolated execution, test/CI analysis and patch workflow |
 | CAD/CAE engineering integration | SCAFFOLDED | CAD/engineering labels | File adapters, geometry metadata, solver interfaces, simulation provenance |
 | Robotics and physical AI | MISSING | Architecture discussion only | Simulation adapters, safety interlocks, deterministic controller and operator presence |
-| Desktop mission-control application | SCAFFOLDED | React/Tauri shell and panels | Live backend integration, project/memory/task views, permissions and rollback UI |
+| Desktop mission-control application | SCAFFOLDED | React/Tauri shell with live kernel, continuity, and organism pages | Project/Phase 4 memory/task views, permissions and rollback UI |
 | Packaging and updates | PARTIAL | Docker/deployment scaffolding | Windows/Linux installers, signed releases, migrations, backups and safe updater |
 | Observability | PARTIAL | Response artifacts and basic logs | Persistent traces, metrics, resource use, security events and operator diagnostics |
 
@@ -85,9 +85,13 @@ Implement:
 - model-switch continuity;
 - rollback to the last verified checkpoint.
 
+Read-only repository and process snapshots are recorded on schema v3. Resume
+refuses worktree, model, or tool-policy drift. Automatic migration onto a
+different model remains open.
+
 ### R3 — Memory Organism and Provenance Ledger
 
-Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints and optional AES-GCM field encryption. Remaining work is retrieval beyond BM25, and identity and timeline categories. The hash chain is tamper-evident, not cryptographic immutability.
+Partial delivery is in `gaia.evidence` and `gaia.organism`, including digest citations of published continuity checkpoints, optional AES-GCM field encryption, timeline records ordered by `event_at`, identity approval that does not become factual knowledge, preference approval that supersedes only a cited preference, and local hybrid retrieval. Remaining work is neural embeddings and calibrated confidence. The hash chain is tamper-evident, not cryptographic immutability.
 
 ### R4 — Living Project Intelligence
 

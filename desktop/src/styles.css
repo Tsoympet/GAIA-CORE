@@ -119,7 +119,18 @@ textarea {
 .panel p {
   color: #b8cfdd;
   line-height: 1.6;
-  margin-bottom: 0;
+}
+
+.panel textarea,
+.panel input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 209, 255, 0.22);
+  background: rgba(4, 12, 22, 0.85);
+  color: #e5f7ff;
+  padding: 12px;
 }
 
 .kernelCallout button {
@@ -174,7 +185,9 @@ textarea {
   gap: 16px;
 }
 
-.kernelPanel textarea {
+.kernelPanel textarea,
+.kernelPanel input,
+.kernelPanel select {
   width: 100%;
   margin-top: 14px;
   box-sizing: border-box;
@@ -183,7 +196,25 @@ textarea {
   background: rgba(4, 12, 22, 0.85);
   color: #e5f7ff;
   padding: 12px;
+}
+
+.kernelPanel textarea {
   resize: vertical;
+}
+
+.fieldLabel {
+  display: block;
+  margin-top: 12px;
+  color: #8fb4c9;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.kernelPanel .fieldLabel + input,
+.kernelPanel .fieldLabel + select,
+.kernelPanel .fieldLabel + textarea {
+  margin-top: 6px;
 }
 
 .kernelActions,
@@ -206,10 +237,13 @@ textarea {
 
 .goalList li {
   border-top: 1px solid rgba(148, 209, 255, 0.12);
+  display: grid;
+  gap: 4px;
   padding-top: 10px;
 }
 
-.goalList button {
+.goalList button,
+.goalListStatic {
   width: 100%;
   text-align: left;
   display: grid;
@@ -244,6 +278,22 @@ textarea {
 
 .muted {
   color: #8fb4c9;
+}
+
+.structuredResult,
+.kernelPanel pre,
+.panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: rgba(4, 12, 22, 0.72);
+  border-radius: 14px;
+  padding: 12px;
+  color: #d7eef8;
+  line-height: 1.45;
+}
+
+.overviewActions {
+  margin-top: 16px;
 }
 
 .kernelError {

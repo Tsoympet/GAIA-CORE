@@ -117,10 +117,13 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 ### Models, agents, voice, and desktop
 
-- local-first model catalog and disabled-by-default cloud fallback;
+- local-first model catalog, a deterministic local client, and a disabled-by-default cloud fallback;
+- Ollama is used only when its daemon lists a ready model;
 - canonical agent registry with specialist capability agents;
-- synthetic voice abstractions and safety controls;
-- Tauri/React desktop shell and voice panels.
+- synthetic voice and a generated tone, with real-person impersonation refused;
+- Tauri/React mission control wired to live overview, kernel, continuity, organism, and voice status.
+
+Chat, memory recall, tool status, permissions, audit, the simulated self-model, metacognition review, and idle dreaming cycles answer from this process. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
 
 ## Implementation commitment after R0
 
@@ -150,19 +153,31 @@ Delivered: task state machine, hash-linked checkpoints, crash recovery that
 interrupts in-flight work, process-local approvals, redaction, and optional
 field encryption. The journal does not replace the live kernel store.
 
-Still open: desktop continuity surface, and cryptographic immutability
-(explicitly false). Session id, user id, workspace id, creation time, and
-redacted metadata are restored. Approval grants are not.
+Delivered later on this stack: a desktop Continuity page that can inspect,
+publish, and verify the journal, a process-local SSE stream of checkpoint,
+task, approval, and recovery events, and read-only repository and process
+snapshots. Resume is refused when the worktree, model, or tool policy differs
+from the latest observation. Snapshots do not modify the worktree or switch
+models. Still open: automatic model migration after a switch, and
+cryptographic immutability (explicitly false). Session id, user id, workspace
+id, creation time, and redacted metadata are restored. Approval grants are not.
 
 ## R3 — Memory Organism and Evidence Ledger
 
 **Status: PARTIAL.** Opt-in SQLite organism and evidence ledger.
 
 Delivered: promotion rules, corrections, body purge, checkpoint digest
-citations, `/organism` routes, and optional field encryption. Phase 4 scoped
-memory stays in process memory.
+citations, `/organism` routes, optional field encryption, timeline records
+ordered by `event_at`, identity approval that does not become factual
+knowledge, preference approval that supersedes only a cited preference, and
+local hybrid retrieval (BM25 + character n-grams) with a hashed derived
+index that deletion removes, and a desktop Organism page for status, search,
+and promotion. Phase 4 scoped memory stays in process memory. Neural
+embeddings and calibrated confidence remain open.
 
 ## Next phase
 
-Close the remaining R2 and R3 gaps above. The light client stays deferred
-until those local platform gaps are closed.
+Close the remaining R2 and R3 gaps above. Automatic model migration and
+cryptographic immutability stay open on the continuity side. Neural embeddings
+and calibrated confidence stay open on the organism side. The light client
+stays deferred until those local platform gaps are closed.

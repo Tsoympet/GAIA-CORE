@@ -451,6 +451,99 @@ async def continuity_status(request: Request) -> dict[str, object]:
     return runtime.kernel.continuity.status_summary()
 
 
+@router.get("/continuity/events/stream")
+async def stream_continuity_events(
+    request: Request,
+    once: bool = False,
+) -> StreamingResponse:
+    """Stream live continuity events as Server-Sent Events.
+
+    When no journal is configured, emit an unavailable snapshot and close.
+    When ``once`` is true, emit the current snapshot and close. Live events
+    are process-local. They are not a second durable ledger.
+    """
+    runtime = _runtime(request)
+    journal = runtime.kernel.continuity
+
+    async def event_generator() -> AsyncIterator[str]:
+        if journal is None:
+            yield (
+                "event: snapshot\n"
+                f"data: {json.dumps({**_unavailable(), 'events': []}, default=str)}\n\n"
+            )
+            return
+        snapshot = [event.model_dump(mode="json") for event in journal.recent_events()]
+        snapshot_body = {
+            "status": journal.capability_status(),
+            "events": snapshot,
+            "cryptographic_immutability": False,
+        }
+        yield f"event: snapshot\ndata: {json.dumps(snapshot_body, default=str)}\n\n"
+        if once:
+            return
+
+        queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=256)
+
+        async def enqueue(event: Event) -> None:
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+                queue.put_nowait(event)
+
+        token = await runtime.event_bus.subscribe(EventDomain.CONTINUITY, enqueue)
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                payload = {
+                    "event_id": event.event_id,
+                    "domain": event.domain.value,
+                    "name": event.name,
+                    "payload": event.payload,
+                    "trace_id": event.trace_id,
+                    "timestamp": event.timestamp.isoformat(),
+                    "cryptographic_immutability": False,
+                }
+                yield f"event: continuity\ndata: {json.dumps(payload, default=str)}\n\n"
+        finally:
+            await runtime.event_bus.unsubscribe(token)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/continuity/snapshots")
+async def continuity_snapshots(
+    request: Request,
+    checkpoint_id: str | None = None,
+) -> dict[str, object]:
+    """Return repository and process observations for one checkpoint.
+
+    Observations do not modify the worktree, resume a process, or switch models.
+    """
+    journal = _journal(request)
+    try:
+        return journal.environment_report(checkpoint_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/continuity/checkpoints")
 async def list_checkpoints(request: Request) -> dict[str, object]:
     """List published continuity checkpoints without payload bodies."""
@@ -503,7 +596,7 @@ async def rollback_checkpoint(body: RollbackRequest, request: Request) -> dict[s
     runtime = _runtime(request)
     journal = _journal(request)
     try:
-        checkpoint = journal.store.rollback_to(
+        checkpoint = journal.rollback(
             body.checkpoint_id,
             kernel_id=runtime.kernel.state.kernel_id,
         )

@@ -46,9 +46,14 @@ Delivered: schema v1, validated task states, hash-linked checkpoints, recovery
 of in-flight work, non-reusable approvals, redaction, branches, resume, audit
 export, and operator routes. See `docs/architecture/cognitive_continuity.md`.
 
-Still open: streaming events and desktop surfaces. Explicit session ids,
-user id, workspace id, creation time, and redacted metadata are restored
-from the journal. Approval grants are not.
+Delivered on this stack: read-only repository and process snapshots. A
+checkpoint records git HEAD, a redacted path list, and hashes of the model
+and tool policy. Resume is refused when those differ. The snapshot does not
+modify the worktree or switch models. Automatic model migration remains open.
+A desktop Continuity page can inspect, publish, verify, and follow a
+process-local event stream. Explicit
+session ids, user id, workspace id, creation time, and redacted metadata
+are restored from the journal. Approval grants are not.
 Optional AES-GCM field encryption seals secret JSON when a data key is set.
 Checkpoints are tamper-evident, not a cryptographic ledger.
 
@@ -57,7 +62,7 @@ Checkpoints are tamper-evident, not a cryptographic ledger.
 Status: partial. Opt-in local SQLite evidence ledger and memory organism.
 
 Delivered: schema v1, evidence hash chain with body purge, promotion and
-refusal rules, corrections, deletion, BM25 retrieval, kernel outcome
+refusal rules, corrections, deletion, hybrid local retrieval, kernel outcome
 redaction, `/organism` routes, and `gaia organism`. See
 `docs/architecture/memory_organism.md`.
 
@@ -69,28 +74,24 @@ back to an empty version 0 without dropping the other group.
 Also delivered: optional AES-GCM field encryption for evidence bodies and
 memory text. A missing or wrong key fails closed.
 
-Still open: retrieval beyond BM25, and identity and timeline categories. The
-hash chain is tamper-evident, not cryptographic immutability. Phase 4 scoped
-memory stays in process memory.
+Identity, timeline, and preference categories are present. Timeline records
+require `event_at`. Identity and preference approval do not become factual
+knowledge. A new preference supersedes only a preference it cites. Hybrid
+retrieval combines BM25 with character n-grams and a hashed derived index.
+A desktop Organism page can inspect status, record evidence, search, and
+promote a cited candidate. Neural embeddings and calibrated confidence
+remain open. The hash chain is tamper-evident, not cryptographic
+immutability. Phase 4 scoped memory stays in process memory.
 
 The light client is deferred until these local platform gaps are closed.
 
-Still required by the long-term architecture:
+The organism keeps these classes separate: working, episodic, semantic,
+procedural, project, correction, user-preference, simulation, identity, and
+timeline. Preference and identity stay non-factual.
 
-Separate and govern:
-
-- working memory;
-- episodic memory;
-- semantic memory;
-- procedural memory;
-- project memory;
-- correction memory;
-- user-preference memory;
-- simulation memory;
-- identity memory;
-- timeline memory.
-
-Every important record must include provenance, confidence, validation state, retention policy, contradictions, dependencies, and derived-record lineage. Deletion must include derived summaries and indexes.
+Still required: provenance, confidence, validation state, retention policy,
+contradictions, dependencies, and derived-record lineage on every important
+record. Deletion must include derived summaries and indexes.
 
 ## R4 — Living Project Intelligence
 

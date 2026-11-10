@@ -85,6 +85,21 @@ def test_organism_promotion_and_instruction_refusal(tmp_path: Path) -> None:
     )
     assert found.status_code == 200
     assert found.json()["count"] >= 1
+    assert found.json()["ranker"] == "hybrid"
+    assert found.json()["neural_embeddings"] is False
+    stemmed = client.get(
+        "/organism/memories/search",
+        params={"q": "hydrostatics", "project_id": "hull", "mode": "hybrid"},
+    )
+    assert stemmed.status_code == 200
+    assert stemmed.json()["count"] >= 1
+    lexical_only = client.get(
+        "/organism/memories/search",
+        params={"q": "hydrostatics", "project_id": "hull", "mode": "bm25"},
+    )
+    assert lexical_only.status_code == 200
+    assert lexical_only.json()["count"] == 0
+    assert lexical_only.json()["ranker"] == "bm25"
     integrity = client.get("/organism/evidence")
     assert integrity.json()["integrity_ok"] is True
     assert integrity.json()["cryptographic_immutability"] is False

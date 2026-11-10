@@ -132,8 +132,14 @@ class PermissionManager:
         permission: Permission,
         resource: str,
         actor: str = "system",
+        *,
+        audit: bool = True,
     ) -> PermissionDecision:
-        """Evaluate permission with deny-by-default and approval rules."""
+        """Evaluate permission with deny-by-default and approval rules.
+
+        ``audit=False`` is only for operator displays such as tool status.
+        Action paths must keep the default so denials and grants are recorded.
+        """
         if self.kill_switch.enabled and permission in RISKY_PERMISSIONS:
             return self._record(
                 PermissionDecision(
@@ -144,7 +150,8 @@ class PermissionManager:
                     reason="autonomy kill switch active",
                     requires_human_approval=True,
                     kill_switch_active=True,
-                )
+                ),
+                audit=audit,
             )
 
         matched = [
@@ -164,7 +171,8 @@ class PermissionManager:
                     requires_human_approval=(
                         permission in RISKY_PERMISSIONS
                     ),
-                )
+                ),
+                audit=audit,
             )
 
         rule = matched[-1]
@@ -188,7 +196,8 @@ class PermissionManager:
                 actor=actor,
                 reason=reason,
                 requires_human_approval=requires_approval,
-            )
+            ),
+            audit=audit,
         )
 
     def require(
@@ -204,7 +213,14 @@ class PermissionManager:
                 f"{permission.value} denied for {resource}: {decision.reason}"
             )
 
-    def _record(self, decision: PermissionDecision) -> PermissionDecision:
+    def _record(
+        self,
+        decision: PermissionDecision,
+        *,
+        audit: bool = True,
+    ) -> PermissionDecision:
+        if not audit:
+            return decision
         self.audit_log.record(
             AuditEvent(
                 action=decision.permission.value,

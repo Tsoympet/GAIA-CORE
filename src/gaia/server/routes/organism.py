@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from gaia.core.runtime import GaiaRuntime
 from gaia.evidence.ledger import EvidenceError
 from gaia.organism.organism import MemoryCategory, MemoryOrganism, PromotionError
+from gaia.organism.retrieval import RetrievalMode
 
 router = APIRouter(prefix="/organism", tags=["organism"])
 
@@ -38,6 +39,7 @@ class EpisodicWrite(BaseModel):
     category: MemoryCategory = MemoryCategory.EPISODIC
     project_id: str | None = None
     sensitivity: str = "internal"
+    event_at: datetime | None = None
 
 
 class CandidateWrite(BaseModel):
@@ -168,6 +170,7 @@ async def record_memory(body: EpisodicWrite, request: Request) -> dict[str, obje
             category=body.category,
             project_id=body.project_id,
             sensitivity=body.sensitivity,
+            event_at=body.event_at,
         )
     except (PromotionError, KeyError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -251,12 +254,34 @@ async def correct_memory(
     return {"memory": memory.model_dump(mode="json")}
 
 
+@router.get("/timeline")
+async def list_timeline(
+    request: Request,
+    owner_id: str,
+    project_id: str | None = None,
+) -> dict[str, object]:
+    """Return recorded timeline entries in event order."""
+    organism = _organism(request)
+    entries = organism.list_timeline(owner_id, project_id=project_id)
+    return {
+        "entries": [entry.model_dump(mode="json") for entry in entries],
+        "count": len(entries),
+    }
+
+
 @router.get("/memories/search")
 async def search_memories(
     request: Request,
     q: str = "",
     owner_id: str | None = None,
     project_id: str | None = None,
+    category: MemoryCategory | None = None,
+    evidence_id: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    mode: RetrievalMode = RetrievalMode.HYBRID,
+    include_identity: bool = False,
+    include_preference: bool = False,
     limit: int = 10,
 ) -> dict[str, object]:
     """Search retained memories. Contradicted, stale, and simulation records are omitted."""
@@ -265,11 +290,21 @@ async def search_memories(
         q,
         owner_id=owner_id,
         project_id=project_id,
+        category=category,
+        evidence_id=evidence_id,
+        since=since,
+        until=until,
+        mode=mode,
+        include_identity=include_identity,
+        include_preference=include_preference,
         limit=limit,
     )
     return {
         "hits": [hit.model_dump(mode="json") for hit in hits],
         "count": len(hits),
+        "ranker": mode.value,
+        "uncalibrated": True,
+        "neural_embeddings": False,
     }
 
 

@@ -16,6 +16,9 @@ from gaia.security.field_cipher import (
 )
 from gaia.server.app import create_app
 
+DEFAULT_CONTINUITY_DB = Path(".gaia/continuity.sqlite3")
+DEFAULT_ORGANISM_DB = Path(".gaia/organism.sqlite3")
+
 app = typer.Typer(help="GAIA autonomous intelligence platform CLI.")
 console = Console()
 
@@ -26,6 +29,8 @@ def status(config_dir: Path = Path("config")) -> None:
     runtime = create_runtime(
         config_dir=config_dir,
         kernel_db_path=DEFAULT_KERNEL_DB_PATH,
+        continuity_path=DEFAULT_CONTINUITY_DB,
+        organism_path=DEFAULT_ORGANISM_DB,
     )
     console.print(runtime.status().model_dump(mode="json"))
 
@@ -34,9 +39,10 @@ def status(config_dir: Path = Path("config")) -> None:
 def run(
     task: str,
     config_dir: Path = Path("config"),
-    continuity_db: Path | None = None,
-    organism_db: Path | None = None,
+    continuity_db: Path = DEFAULT_CONTINUITY_DB,
+    organism_db: Path = DEFAULT_ORGANISM_DB,
     data_key_file: Path | None = None,
+    repository_root: Path | None = None,
 ) -> None:
     """Run one task through the local bootstrap runtime."""
     import asyncio
@@ -47,6 +53,7 @@ def run(
         continuity_path=continuity_db,
         organism_path=organism_db,
         data_key=_load_data_key(data_key_file),
+        repository_root=repository_root,
     )
     result = asyncio.run(runtime.submit_task(TaskRequest(task=task)))
     console.print(result.model_dump(mode="json"))
@@ -56,9 +63,10 @@ def run(
 def serve(
     host: str = "127.0.0.1",
     port: int = 8000,
-    continuity_db: Path | None = None,
-    organism_db: Path | None = None,
+    continuity_db: Path = DEFAULT_CONTINUITY_DB,
+    organism_db: Path = DEFAULT_ORGANISM_DB,
     data_key_file: Path | None = None,
+    repository_root: Path | None = None,
 ) -> None:
     """Run the GAIA API server with durable Cognitive Kernel persistence."""
     import uvicorn
@@ -69,6 +77,7 @@ def serve(
         continuity_path=continuity_db,
         organism_path=organism_db,
         data_key=_load_data_key(data_key_file),
+        repository_root=repository_root,
     )
     uvicorn.run(create_app(runtime), host=host, port=port)
 

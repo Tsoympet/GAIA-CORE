@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -37,7 +38,15 @@ from gaia.organism.guards import (
     looks_like_untrusted_instruction,
     redact_assignments,
 )
-from gaia.organism.retrieval import bm25_scores
+from gaia.organism.retrieval import (
+    RankedDocument,
+    RetrievalMode,
+    ScoreComponents,
+    char_ngrams,
+    query_index_keys,
+    rank_documents,
+    tokenize,
+)
 from gaia.security.field_cipher import (
     DataKeyError,
     FieldCipher,
@@ -46,7 +55,7 @@ from gaia.security.field_cipher import (
     seal_if_plain,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 ORGANISM_SQL = """
 CREATE TABLE IF NOT EXISTS organism_schema_migrations (
@@ -72,6 +81,7 @@ CREATE TABLE IF NOT EXISTS organism_memories (
     source_memory_json TEXT NOT NULL,
     parent_memory_id TEXT,
     valid_until TEXT,
+    event_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -89,12 +99,44 @@ CREATE TABLE IF NOT EXISTS organism_contradictions (
     reason TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS organism_retrieval_docs (
+    memory_id TEXT PRIMARY KEY,
+    content_sha256 TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
+    ngram_count INTEGER NOT NULL,
+    indexed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS organism_term_postings (
+    term TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    frequency INTEGER NOT NULL,
+    PRIMARY KEY (term, memory_id)
+);
+CREATE TABLE IF NOT EXISTS organism_ngram_postings (
+    ngram TEXT NOT NULL,
+    memory_id TEXT NOT NULL,
+    frequency INTEGER NOT NULL,
+    PRIMARY KEY (ngram, memory_id)
+);
+CREATE INDEX IF NOT EXISTS organism_term_postings_memory
+    ON organism_term_postings(memory_id);
+CREATE INDEX IF NOT EXISTS organism_ngram_postings_memory
+    ON organism_ngram_postings(memory_id);
 """
 
 DROP_ORGANISM_V1 = """
+DROP TABLE IF EXISTS organism_ngram_postings;
+DROP TABLE IF EXISTS organism_term_postings;
+DROP TABLE IF EXISTS organism_retrieval_docs;
 DROP TABLE IF EXISTS organism_contradictions;
 DROP TABLE IF EXISTS organism_events;
 DROP TABLE IF EXISTS organism_memories;
+"""
+
+DROP_ORGANISM_V3 = """
+DROP TABLE IF EXISTS organism_ngram_postings;
+DROP TABLE IF EXISTS organism_term_postings;
+DROP TABLE IF EXISTS organism_retrieval_docs;
 """
 
 
@@ -109,6 +151,9 @@ class MemoryCategory(StrEnum):
     PROJECT = "project"
     SIMULATION = "simulation"
     AUTOBIOGRAPHICAL = "autobiographical"
+    TIMELINE = "timeline"
+    IDENTITY = "identity"
+    PREFERENCE = "preference"
 
 
 class MemoryStatus(StrEnum):
@@ -125,6 +170,44 @@ class MemoryStatus(StrEnum):
 
 class PromotionError(ValueError):
     """Raised when a memory transition is not allowed."""
+
+
+_EPISODIC_CLASS: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.EPISODIC,
+        MemoryCategory.WORKING,
+        MemoryCategory.AUTOBIOGRAPHICAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.SIMULATION,
+        MemoryCategory.TIMELINE,
+    }
+)
+_LONG_TERM: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.SEMANTIC,
+        MemoryCategory.PROCEDURAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.SIMULATION,
+        MemoryCategory.IDENTITY,
+        MemoryCategory.PREFERENCE,
+    }
+)
+_NON_FACTUAL: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.SIMULATION,
+        MemoryCategory.IDENTITY,
+        MemoryCategory.PREFERENCE,
+    }
+)
+_OBSERVATIONS: frozenset[MemoryCategory] = frozenset(
+    {
+        MemoryCategory.EPISODIC,
+        MemoryCategory.WORKING,
+        MemoryCategory.AUTOBIOGRAPHICAL,
+        MemoryCategory.PROJECT,
+        MemoryCategory.TIMELINE,
+    }
+)
 
 
 class OrganismMemory(BaseModel):
@@ -147,6 +230,7 @@ class OrganismMemory(BaseModel):
     source_memory_ids: list[str] = Field(default_factory=list)
     parent_memory_id: str | None = None
     valid_until: datetime | None = None
+    event_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -168,6 +252,8 @@ class RetrievalHit(BaseModel):
     memory: OrganismMemory
     score: float
     effective_status: str
+    ranker: RetrievalMode = RetrievalMode.HYBRID
+    components: ScoreComponents | None = None
 
 
 class MemoryOrganism:
@@ -199,6 +285,54 @@ class MemoryOrganism:
                     (_now().isoformat(),),
                 )
                 current = 1
+            if current < 2:
+                columns = {
+                    str(row[1])
+                    for row in connection.execute(
+                        "PRAGMA table_info(organism_memories)"
+                    ).fetchall()
+                }
+                if "event_at" not in columns:
+                    connection.execute(
+                        "ALTER TABLE organism_memories ADD COLUMN event_at TEXT"
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO organism_schema_migrations (version, name, applied_at)
+                    VALUES (2, 'timeline_event_at', ?)
+                    """,
+                    (_now().isoformat(),),
+                )
+                current = 2
+            if current < 3:
+                _execute_sql_script(connection, ORGANISM_SQL)
+                for row in connection.execute(
+                    """
+                    SELECT memory_id, content, content_sha256, status
+                    FROM organism_memories
+                    """
+                ).fetchall():
+                    if str(row["status"]) == MemoryStatus.DELETED.value:
+                        _drop_retrieval_index(connection, str(row["memory_id"]))
+                        continue
+                    try:
+                        plaintext = open_field(self.cipher, str(row["content"]))
+                    except DataKeyError:
+                        continue
+                    _upsert_retrieval_index(
+                        connection,
+                        str(row["memory_id"]),
+                        plaintext,
+                        str(row["content_sha256"]),
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO organism_schema_migrations (version, name, applied_at)
+                    VALUES (3, 'hybrid_retrieval_index', ?)
+                    """,
+                    (_now().isoformat(),),
+                )
+                current = 3
             if current > SCHEMA_VERSION:
                 raise PromotionError(
                     f"organism schema {current} is newer than this build ({SCHEMA_VERSION})"
@@ -250,6 +384,26 @@ class MemoryOrganism:
             if target == 0 and current >= 1:
                 _execute_sql_script(connection, DROP_ORGANISM_V1)
                 connection.execute("DELETE FROM organism_schema_migrations WHERE version >= 1")
+            else:
+                if target < 3 and current >= 3:
+                    _execute_sql_script(connection, DROP_ORGANISM_V3)
+                    connection.execute(
+                        "DELETE FROM organism_schema_migrations WHERE version >= 3"
+                    )
+                if target < 2 and current >= 2:
+                    columns = {
+                        str(row[1])
+                        for row in connection.execute(
+                            "PRAGMA table_info(organism_memories)"
+                        ).fetchall()
+                    }
+                    if "event_at" in columns:
+                        connection.execute(
+                            "ALTER TABLE organism_memories DROP COLUMN event_at"
+                        )
+                    connection.execute(
+                        "DELETE FROM organism_schema_migrations WHERE version >= 2"
+                    )
             return _organism_schema_version(connection)
 
     def record_episodic(
@@ -261,20 +415,19 @@ class MemoryOrganism:
         project_id: str | None = None,
         sensitivity: str = "internal",
         valid_until: datetime | None = None,
+        event_at: datetime | None = None,
         confidence: float = 1.0,
     ) -> OrganismMemory:
         """Bind a memory to raw evidence without replacing that evidence."""
         evidence = self.evidence.get(evidence_id)
         if evidence is None or evidence.content_text is None:
             raise PromotionError(f"evidence is missing or purged: {evidence_id}")
-        if category not in {
-            MemoryCategory.EPISODIC,
-            MemoryCategory.WORKING,
-            MemoryCategory.AUTOBIOGRAPHICAL,
-            MemoryCategory.PROJECT,
-            MemoryCategory.SIMULATION,
-        }:
+        if category not in _EPISODIC_CLASS:
             raise PromotionError("direct records must start as episodic-class memories")
+        if category is MemoryCategory.TIMELINE and event_at is None:
+            raise PromotionError("timeline records require event_at")
+        if category is not MemoryCategory.TIMELINE and event_at is not None:
+            raise PromotionError("event_at is only stored on timeline records")
         untrusted = evidence.source in UNTRUSTED_SOURCES and looks_like_untrusted_instruction(
             evidence.content_text
         )
@@ -293,6 +446,7 @@ class MemoryOrganism:
             source_memory_ids=[],
             parent_memory_id=None,
             valid_until=valid_until,
+            event_at=event_at,
             event_type="recorded",
             event_detail={"evidence_id": evidence_id},
         )
@@ -375,12 +529,7 @@ class MemoryOrganism:
         confidence: float = 0.5,
     ) -> OrganismMemory:
         """Propose an abstraction that cites existing memories."""
-        if category not in {
-            MemoryCategory.SEMANTIC,
-            MemoryCategory.PROCEDURAL,
-            MemoryCategory.PROJECT,
-            MemoryCategory.SIMULATION,
-        }:
+        if category not in _LONG_TERM:
             raise PromotionError("candidates must name a long-term category")
         if not source_memory_ids:
             raise PromotionError("a candidate must cite at least one source memory")
@@ -393,10 +542,46 @@ class MemoryOrganism:
             )
         if any(source.status is MemoryStatus.DELETED for source in sources):
             raise PromotionError("deleted memory cannot support a candidate")
-        if category is not MemoryCategory.SIMULATION and any(
-            source.category is MemoryCategory.SIMULATION for source in sources
+        if any(source.category is MemoryCategory.SIMULATION for source in sources):
+            if category is MemoryCategory.SIMULATION:
+                pass
+            elif category is MemoryCategory.IDENTITY:
+                raise PromotionError("simulation memory cannot revise identity")
+            elif category is MemoryCategory.PREFERENCE:
+                raise PromotionError("simulation memory cannot become a preference")
+            else:
+                raise PromotionError(
+                    "simulation memory cannot be promoted into factual knowledge"
+                )
+        if category is MemoryCategory.IDENTITY and any(
+            source.category is MemoryCategory.PREFERENCE for source in sources
         ):
-            raise PromotionError("simulation memory cannot be promoted into factual knowledge")
+            raise PromotionError("preference memory cannot revise identity")
+        if category is MemoryCategory.PREFERENCE and any(
+            source.category is MemoryCategory.IDENTITY for source in sources
+        ):
+            raise PromotionError("identity memory cannot become a preference")
+        if category is MemoryCategory.IDENTITY and not any(
+            source.category in _OBSERVATIONS for source in sources
+        ):
+            raise PromotionError("identity must cite an observation, not identity alone")
+        if category is MemoryCategory.PREFERENCE and not any(
+            source.category in _OBSERVATIONS for source in sources
+        ):
+            raise PromotionError("preference must cite an observation, not preference alone")
+        if category is MemoryCategory.PREFERENCE and any(
+            source.category is MemoryCategory.PREFERENCE and source.owner_id != owner_id
+            for source in sources
+        ):
+            raise PromotionError("preference cannot cite another owner's preference")
+        if category not in _NON_FACTUAL and any(
+            source.category is MemoryCategory.IDENTITY for source in sources
+        ):
+            raise PromotionError("identity memory cannot be promoted into factual knowledge")
+        if category not in _NON_FACTUAL and any(
+            source.category is MemoryCategory.PREFERENCE for source in sources
+        ):
+            raise PromotionError("preference memory cannot be promoted into factual knowledge")
         if looks_like_untrusted_instruction(content):
             raise PromotionError("instruction-like text cannot be proposed as knowledge")
         evidence_ids: list[str] = []
@@ -419,6 +604,7 @@ class MemoryOrganism:
             source_memory_ids=list(source_memory_ids),
             parent_memory_id=source_memory_ids[0],
             valid_until=None,
+            event_at=None,
             event_type="candidate",
             event_detail={"source_memory_ids": list(source_memory_ids)},
         )
@@ -439,7 +625,7 @@ class MemoryOrganism:
             raise PromotionError("approval requires a validated candidate")
         if memory.untrusted_instruction:
             raise PromotionError("untrusted instructions cannot be approved")
-        approved_knowledge = memory.category is not MemoryCategory.SIMULATION
+        approved_knowledge = memory.category not in _NON_FACTUAL
         with self._transaction() as connection:
             connection.execute(
                 """
@@ -464,6 +650,52 @@ class MemoryOrganism:
                     "policy_effect": "none",
                 },
             )
+            if memory.category is MemoryCategory.IDENTITY:
+                previous = connection.execute(
+                    """
+                    SELECT memory_id, content_sha256 FROM organism_memories
+                    WHERE owner_id = ? AND category = ? AND status = ? AND memory_id != ?
+                    """,
+                    (
+                        memory.owner_id,
+                        MemoryCategory.IDENTITY.value,
+                        MemoryStatus.APPROVED.value,
+                        memory_id,
+                    ),
+                ).fetchall()
+                for other in previous:
+                    _mark_superseded(
+                        connection,
+                        other_id=str(other["memory_id"]),
+                        original_hash=str(other["content_sha256"]),
+                        replacement_id=memory_id,
+                        reason="superseded by a later approved identity",
+                    )
+            if memory.category is MemoryCategory.PREFERENCE:
+                cited = set(memory.source_memory_ids)
+                previous = connection.execute(
+                    """
+                    SELECT memory_id, content_sha256 FROM organism_memories
+                    WHERE owner_id = ? AND category = ? AND status = ? AND memory_id != ?
+                    """,
+                    (
+                        memory.owner_id,
+                        MemoryCategory.PREFERENCE.value,
+                        MemoryStatus.APPROVED.value,
+                        memory_id,
+                    ),
+                ).fetchall()
+                for other in previous:
+                    other_id = str(other["memory_id"])
+                    if other_id not in cited:
+                        continue
+                    _mark_superseded(
+                        connection,
+                        other_id=other_id,
+                        original_hash=str(other["content_sha256"]),
+                        replacement_id=memory_id,
+                        reason="superseded by a later approved preference",
+                    )
         return self.require(memory_id)
 
     def correct(
@@ -495,6 +727,7 @@ class MemoryOrganism:
             source_memory_ids=[original.memory_id],
             parent_memory_id=original.memory_id,
             valid_until=None,
+            event_at=None,
             event_type="correction",
             event_detail={"reason": reason, "corrects": original.memory_id},
         )
@@ -543,6 +776,7 @@ class MemoryOrganism:
                 (MemoryStatus.DELETED.value, self._seal(""), _now().isoformat(), memory_id),
             )
             _event(connection, memory_id, "deleted", {"reason": reason})
+            _drop_retrieval_index(connection, memory_id)
             children = connection.execute(
                 """
                 SELECT memory_id, status FROM organism_memories
@@ -591,10 +825,20 @@ class MemoryOrganism:
         include_contradicted: bool = False,
         include_stale: bool = False,
         include_simulation: bool = False,
+        include_identity: bool = False,
+        include_preference: bool = False,
         include_untrusted_instructions: bool = False,
+        evidence_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        mode: RetrievalMode = RetrievalMode.HYBRID,
         limit: int = 10,
     ) -> list[RetrievalHit]:
-        """Rank retained memories with BM25, confidence, and recency."""
+        """Rank retained memories with the selected local ranker.
+
+        Default hybrid ranking uses BM25, character n-grams, confidence, and
+        recency. ``mode=bm25`` keeps the earlier lexical-only ranker.
+        """
         memories = self._all()
         eligible: list[OrganismMemory] = []
         for memory in memories:
@@ -611,10 +855,22 @@ class MemoryOrganism:
                 continue
             if memory.confidence < min_confidence:
                 continue
+            if evidence_id is not None and evidence_id not in memory.source_evidence_ids:
+                continue
+            if since is not None and memory.created_at < since:
+                continue
+            if until is not None and memory.created_at > until:
+                continue
             if memory.untrusted_instruction and not include_untrusted_instructions:
                 continue
             if memory.category is MemoryCategory.SIMULATION and not include_simulation:
                 if category is not MemoryCategory.SIMULATION:
+                    continue
+            if memory.category is MemoryCategory.IDENTITY and not include_identity:
+                if category is not MemoryCategory.IDENTITY:
+                    continue
+            if memory.category is MemoryCategory.PREFERENCE and not include_preference:
+                if category is not MemoryCategory.PREFERENCE:
                     continue
             visible = memory.status in {MemoryStatus.RECORDED, MemoryStatus.APPROVED}
             if memory.status is MemoryStatus.CONTRADICTED and include_contradicted:
@@ -625,30 +881,70 @@ class MemoryOrganism:
             if effective == "stale" and not include_stale:
                 continue
             eligible.append(memory)
-        scores = bm25_scores(
+        if query.strip():
+            candidates = self._index_candidates(query)
+            if candidates is not None:
+                eligible = [
+                    memory for memory in eligible if memory.memory_id in candidates
+                ]
+        scores = rank_documents(
             query,
-            [(memory.memory_id, memory.content or "") for memory in eligible],
+            [
+                RankedDocument(
+                    document_id=memory.memory_id,
+                    text=memory.content or "",
+                    confidence=memory.confidence,
+                    created_at=memory.created_at,
+                    category=memory.category.value,
+                    project_id=memory.project_id,
+                    owner_id=memory.owner_id,
+                )
+                for memory in eligible
+            ],
+            now=_now(),
+            mode=mode,
         )
-        now = _now()
         ranked: list[RetrievalHit] = []
         for memory in eligible:
-            age_days = max(0.0, (now - memory.created_at).total_seconds() / 86400.0)
-            recency = 1.0 / (1.0 + age_days)
-            lexical = scores.get(memory.memory_id, 0.0)
-            if query.strip() and lexical <= 0.0:
+            scored = scores.get(memory.memory_id)
+            if scored is None:
                 continue
-            score = (lexical if query.strip() else recency) * (0.5 + 0.5 * memory.confidence) * (
-                recency if query.strip() else 1.0
-            )
+            score, components = scored
             ranked.append(
                 RetrievalHit(
                     memory=memory,
                     score=score,
                     effective_status=memory.effective_status,
+                    ranker=mode,
+                    components=components,
                 )
             )
         ranked.sort(key=lambda hit: hit.score, reverse=True)
         return ranked[:limit]
+
+    def list_timeline(
+        self,
+        owner_id: str,
+        *,
+        project_id: str | None = None,
+    ) -> list[OrganismMemory]:
+        """Return recorded timeline entries for an owner, oldest event first.
+
+        Deleted, contradicted, stale, and untrusted entries are omitted.
+        Ordering uses ``event_at``, not insertion time or the search ranker.
+        """
+        entries = [
+            memory
+            for memory in self._all()
+            if memory.category is MemoryCategory.TIMELINE
+            and memory.owner_id == owner_id
+            and memory.status is MemoryStatus.RECORDED
+            and memory.event_at is not None
+            and not memory.untrusted_instruction
+            and memory.effective_status != "stale"
+            and (project_id is None or memory.project_id == project_id)
+        ]
+        return sorted(entries, key=lambda memory: (memory.event_at or _now(), memory.created_at))
 
     def _seal(self, plaintext: str) -> str:
         return seal_field(self.cipher, plaintext)
@@ -739,10 +1035,23 @@ class MemoryOrganism:
             "evidence": evidence,
             "db_path": str(self.db_path),
             "continuity_checkpoints_bound": self.continuity_bound,
+            "retrieval": {
+                "default_ranker": RetrievalMode.HYBRID.value,
+                "available_rankers": [mode.value for mode in RetrievalMode],
+                "neural_embeddings": False,
+                "uncalibrated": True,
+                "index": self.retrieval_index_stats(),
+            },
             "limitations": [
-                "BM25 scores are uncalibrated retrieval weights.",
+                "Hybrid scores combine BM25, character n-grams, and metadata overlap.",
+                "Those scores are uncalibrated retrieval weights, not probabilities.",
+                "Character n-grams are lexical features, not neural embeddings.",
                 "Approval cannot modify security policy or persistent instructions.",
                 "Simulation memory cannot be promoted into factual knowledge.",
+                "Identity approval does not set approved knowledge or change policy.",
+                "Preference approval does not set approved knowledge or change policy.",
+                "A new preference supersedes only a preference it cites.",
+                "Timeline order is event_at, and a timeline record cannot omit it.",
                 "Evidence headers are tamper-evident, not cryptographically immutable.",
                 "Continuity checkpoint evidence cites digests only, and only after binding.",
             ],
@@ -765,6 +1074,7 @@ class MemoryOrganism:
         source_memory_ids: list[str],
         parent_memory_id: str | None,
         valid_until: datetime | None,
+        event_at: datetime | None,
         event_type: str,
         event_detail: dict[str, Any],
     ) -> OrganismMemory:
@@ -780,8 +1090,8 @@ class MemoryOrganism:
                     project_id, confidence, confidence_basis, sensitivity,
                     approved_knowledge, policy_effect, untrusted_instruction,
                     source_evidence_json, source_memory_json, parent_memory_id,
-                    valid_until, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?)
+                    valid_until, event_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     memory_id,
@@ -800,11 +1110,13 @@ class MemoryOrganism:
                     json.dumps(source_memory_ids),
                     parent_memory_id,
                     None if valid_until is None else valid_until.isoformat(),
+                    None if event_at is None else event_at.isoformat(),
                     now.isoformat(),
                     now.isoformat(),
                 ),
             )
             _event(connection, memory_id, event_type, event_detail)
+            _upsert_retrieval_index(connection, memory_id, content, digest)
         return self.require(memory_id)
 
     def _set_status(
@@ -835,6 +1147,55 @@ class MemoryOrganism:
                 """,
                 (str(uuid4()), memory_id, other_memory_id, reason, _now().isoformat()),
             )
+
+    def retrieval_index_stats(self) -> dict[str, int | bool]:
+        """Return derived-index counts. Deleted memories have no postings."""
+        self.migrate()
+        with self._read() as connection:
+            if not _has_table(connection, "organism_retrieval_docs"):
+                return {
+                    "documents": 0,
+                    "term_postings": 0,
+                    "ngram_postings": 0,
+                    "hashed_terms": True,
+                }
+            documents = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_retrieval_docs"
+            ).fetchone()
+            terms = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_term_postings"
+            ).fetchone()
+            ngrams = connection.execute(
+                "SELECT COUNT(*) AS count FROM organism_ngram_postings"
+            ).fetchone()
+        return {
+            "documents": 0 if documents is None else int(documents["count"]),
+            "term_postings": 0 if terms is None else int(terms["count"]),
+            "ngram_postings": 0 if ngrams is None else int(ngrams["count"]),
+            "hashed_terms": True,
+        }
+
+    def _index_candidates(self, query: str) -> set[str] | None:
+        terms, ngrams = query_index_keys(query)
+        if not terms and not ngrams:
+            return None
+        with self._read() as connection:
+            if not _retrieval_index_ready(connection):
+                return None
+            ids: set[str] = set()
+            for term in terms:
+                rows = connection.execute(
+                    "SELECT memory_id FROM organism_term_postings WHERE term = ?",
+                    (sha256_text(term),),
+                )
+                ids.update(str(row["memory_id"]) for row in rows)
+            for ngram in ngrams:
+                rows = connection.execute(
+                    "SELECT memory_id FROM organism_ngram_postings WHERE ngram = ?",
+                    (sha256_text(ngram),),
+                )
+                ids.update(str(row["memory_id"]) for row in rows)
+        return ids
 
     def _all(self) -> list[OrganismMemory]:
         self.migrate()
@@ -880,6 +1241,83 @@ def _bounded(confidence: float) -> float:
     return confidence
 
 
+def _has_table(connection: sqlite3.Connection, name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def _retrieval_index_ready(connection: sqlite3.Connection) -> bool:
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return False
+    memories = connection.execute(
+        "SELECT COUNT(*) AS count FROM organism_memories WHERE status != ?",
+        (MemoryStatus.DELETED.value,),
+    ).fetchone()
+    docs = connection.execute(
+        "SELECT COUNT(*) AS count FROM organism_retrieval_docs"
+    ).fetchone()
+    memory_count = 0 if memories is None else int(memories["count"])
+    doc_count = 0 if docs is None else int(docs["count"])
+    return doc_count >= memory_count
+
+
+def _drop_retrieval_index(connection: sqlite3.Connection, memory_id: str) -> None:
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return
+    connection.execute(
+        "DELETE FROM organism_term_postings WHERE memory_id = ?",
+        (memory_id,),
+    )
+    connection.execute(
+        "DELETE FROM organism_ngram_postings WHERE memory_id = ?",
+        (memory_id,),
+    )
+    connection.execute(
+        "DELETE FROM organism_retrieval_docs WHERE memory_id = ?",
+        (memory_id,),
+    )
+
+
+def _upsert_retrieval_index(
+    connection: sqlite3.Connection,
+    memory_id: str,
+    content: str,
+    digest: str,
+) -> None:
+    _drop_retrieval_index(connection, memory_id)
+    if not _has_table(connection, "organism_retrieval_docs"):
+        return
+    tokens = tokenize(content)
+    ngrams = char_ngrams(content)
+    token_counts = Counter(tokens)
+    now = _now().isoformat()
+    connection.execute(
+        """
+        INSERT INTO organism_retrieval_docs (
+            memory_id, content_sha256, token_count, ngram_count, indexed_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (memory_id, digest, len(tokens), sum(ngrams.values()), now),
+    )
+    connection.executemany(
+        """
+        INSERT INTO organism_term_postings (term, memory_id, frequency)
+        VALUES (?, ?, ?)
+        """,
+        [(sha256_text(term), memory_id, frequency) for term, frequency in token_counts.items()],
+    )
+    connection.executemany(
+        """
+        INSERT INTO organism_ngram_postings (ngram, memory_id, frequency)
+        VALUES (?, ?, ?)
+        """,
+        [(sha256_text(gram), memory_id, frequency) for gram, frequency in ngrams.items()],
+    )
+
+
 def _organism_schema_version(connection: sqlite3.Connection) -> int:
     row = connection.execute(
         "SELECT MAX(version) AS version FROM organism_schema_migrations"
@@ -894,6 +1332,45 @@ def _execute_sql_script(connection: sqlite3.Connection, script: str) -> None:
         sql = statement.strip()
         if sql:
             connection.execute(sql)
+
+
+def _mark_superseded(
+    connection: sqlite3.Connection,
+    *,
+    other_id: str,
+    original_hash: str,
+    replacement_id: str,
+    reason: str,
+) -> None:
+    """Mark one approved memory contradicted without rewriting its content."""
+    connection.execute(
+        """
+        UPDATE organism_memories
+        SET status = ?, updated_at = ?
+        WHERE memory_id = ?
+        """,
+        (MemoryStatus.CONTRADICTED.value, _now().isoformat(), other_id),
+    )
+    _event(
+        connection,
+        other_id,
+        "contradicted",
+        {"reason": reason, "replacement_id": replacement_id},
+    )
+    connection.execute(
+        """
+        INSERT INTO organism_contradictions (
+            contradiction_id, memory_id, other_memory_id, reason, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (str(uuid4()), other_id, replacement_id, reason, _now().isoformat()),
+    )
+    unchanged = connection.execute(
+        "SELECT content_sha256 FROM organism_memories WHERE memory_id = ?",
+        (other_id,),
+    ).fetchone()
+    if unchanged is None or str(unchanged["content_sha256"]) != original_hash:
+        raise PromotionError("supersession rewrote original content")
 
 
 def _event(
@@ -948,6 +1425,9 @@ def _memory_from_row(row: sqlite3.Row, cipher: FieldCipher | None) -> OrganismMe
             None if row["parent_memory_id"] is None else str(row["parent_memory_id"])
         ),
         valid_until=None if valid is None else datetime.fromisoformat(str(valid)),
+        event_at=(
+            None if row["event_at"] is None else datetime.fromisoformat(str(row["event_at"]))
+        ),
         created_at=datetime.fromisoformat(str(row["created_at"])),
         updated_at=datetime.fromisoformat(str(row["updated_at"])),
     )

@@ -4,6 +4,12 @@
 
 ### Added
 
+- Read-only repository and process snapshots on continuity schema v3. Publishing a checkpoint records git HEAD, a redacted changed-path list, and hashes of the model and tool policy. File contents and remote URLs are not stored. Rollback does not change the worktree. Resume is refused when the worktree, model, or tool policy differs, and it does not switch models. `GET /kernel/continuity/snapshots` and the desktop Continuity page show the latest observation.
+- Process-local continuity event stream at `/kernel/continuity/events/stream`. Task transitions, published checkpoints, approvals, rollback, and recovery emit live events without checkpoint payloads. The desktop Continuity page follows that stream.
+- Desktop Memory Organism page for status, observation recording, hybrid search, timeline, and the candidate/validate/approve path. An unconfigured runtime stays unavailable. Approval still cannot change policy.
+- Hybrid organism retrieval: default ranking combines BM25, character n-gram cosine, metadata overlap, confidence, and recency. `mode=bm25` keeps the earlier lexical-only ranker. Scores stay uncalibrated. This is not a neural embedding.
+- Organism schema v3 stores a hashed term and n-gram index. Deletion removes those derived rows. Forced rollback to schema 2 drops the index and keeps memories.
+- Search filters for `evidence_id`, `since`, and `until`, plus ranker metadata on `/organism/memories/search`.
 - Optional AES-GCM field encryption for continuity JSON, evidence bodies, and organism memory text. A 32-byte key is read from a file. `gaia data-key` creates one and refuses to overwrite it.
 - Explicit session ids are adopted by the runtime and restored from the continuity journal after a restart.
 - `cryptography` as a runtime dependency for that cipher. The hash chain remains tamper-evident and is not cryptographic immutability.
@@ -30,6 +36,6 @@
 - Field encryption is off until a data key is configured. Attaching a key seals existing plaintext fields. A missing or wrong key does not return sealed text and does not quarantine checkpoints.
 - The light client is not part of this work. It waits until the local platform milestones are further along.
 - Checkpoint hashes and evidence header hashes detect corruption and naive tampering. They are not cryptographic immutability.
-- BM25 scores are uncalibrated retrieval weights, not probabilities.
+- Hybrid and BM25 scores are uncalibrated retrieval weights, not probabilities. Character n-grams are lexical features, not embeddings.
 - Approval of organism memory cannot change security policy.
 - No new third-party dependencies were added. SQLite and hashing use the Python standard library.

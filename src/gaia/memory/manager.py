@@ -119,6 +119,46 @@ class MemoryManager:
             SymbolicFact(subject, predicate, object_value, confidence)
         )
 
+    def recall(
+        self,
+        query: str,
+        owner_id: str,
+        limit: int = 5,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """Return retained records for an owner that match the query."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        needle = query.strip().lower()
+        if not needle:
+            raise ValueError("query must not be empty")
+        matches: list[tuple[MemoryRecord, float]] = []
+        seen: set[str] = set()
+        for scope in MemoryScope:
+            for record in self.list_scope(scope, owner_id):
+                if needle in record.content.lower():
+                    matches.append((record, 1.0))
+                    seen.add(record.record_id)
+                    if len(matches) >= limit:
+                        return matches
+        for result in self.retriever.retrieve(query, limit=max(limit * 5, limit)):
+            record_id = str(
+                result.document.metadata.get("record_id", result.document.document_id)
+            )
+            if record_id in seen:
+                continue
+            found = self._record_by_id(record_id)
+            if (
+                found is None
+                or found.owner_id != owner_id
+                or not self.policy.should_keep(found)
+            ):
+                continue
+            matches.append((found, float(result.score)))
+            seen.add(found.record_id)
+            if len(matches) >= limit:
+                break
+        return matches
+
     def list_scope(
         self,
         scope: MemoryScope,
@@ -208,6 +248,13 @@ class MemoryManager:
             pending_deletion_requests=pending,
             retention_days=self.policy.retention_days,
         )
+
+    def _record_by_id(self, record_id: str) -> MemoryRecord | None:
+        for memory in self.scoped.values():
+            record = memory.records.get(record_id)
+            if record is not None:
+                return record
+        return None
 
     def _delete_scope_for_owner(
         self,

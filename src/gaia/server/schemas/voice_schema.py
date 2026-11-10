@@ -14,6 +14,20 @@ class VoiceSynthesisResponse(BaseModel):
     status: str
     synthetic: bool
     audio_path: str | None = None
+    audio_base64: str | None = None
+    mime_type: str = "audio/wav"
+    impersonation: bool = False
+
+class VoiceTranscribeRequest(BaseModel):
+    text: str | None = None
+
+
+class VoiceTranscribeResponse(BaseModel):
+    text: str
+    provider: str
+    status: str
+    confidence: float
+
 
 class VoiceStatusResponse(BaseModel):
     enabled: bool
