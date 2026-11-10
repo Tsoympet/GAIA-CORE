@@ -4,7 +4,7 @@ import { SurfaceFrame } from '../components/SurfaceFrame';
 
 function Report({ report }: { report: ReflectionReport | null }) {
   if (!report) {
-    return <p className="muted">No review has been stored in this process yet.</p>;
+    return <p className="muted">No review has been stored in the local journal yet.</p>;
   }
   return (
     <div className="structuredResult">
@@ -51,7 +51,7 @@ export function MetacognitionPage() {
       label="Metacognition"
       eyebrow="Internal review"
       title="Reflect on an answer"
-      lede="The review stays inside this process. It does not call a tool, send a message, or change policy."
+      lede="The review is stored in the local journal and reloads after a restart. It does not call a tool, send a message, or change policy."
       signal={report ? 'reviewed' : 'ready'}
       error={error}
     >

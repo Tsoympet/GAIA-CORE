@@ -24,6 +24,7 @@ export default defineConfig({
       '/workspaces': 'http://127.0.0.1:8000',
       '/self-model': 'http://127.0.0.1:8000',
       '/metacognition': 'http://127.0.0.1:8000',
+      '/cognition': 'http://127.0.0.1:8000',
       '/dreaming': 'http://127.0.0.1:8000',
       '/idle-cognition': 'http://127.0.0.1:8000',
       '/version': 'http://127.0.0.1:8000',

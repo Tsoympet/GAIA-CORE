@@ -43,7 +43,7 @@ export function DreamingPage() {
       label="Dreaming"
       eyebrow="Idle cognition"
       title="Internal notes only"
-      lede="A dream cycle rehearses inside the process. It does not run shell commands, browse, or change the workspace."
+      lede="A dream cycle stores internal notes in the local journal. It does not run shell commands, browse, or edit project files."
       signal={blocksShell ? 'no external actions' : 'guard check'}
       error={error}
     >

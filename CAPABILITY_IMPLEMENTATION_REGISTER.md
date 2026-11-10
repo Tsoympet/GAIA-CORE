@@ -51,7 +51,7 @@ Allowed states:
 | Living Project Intelligence | MISSING | SQLite workspace metadata | Requirements graph, repository/file graph, decisions, risks, versions, tests, evidence, timelines and project APIs |
 | Security policy engine | PARTIAL | Objective policy, permissions, guards, audit log, shared kill switch | Scoped grants, expiry, approval records, sandbox policies, policy persistence, event correlation, red-team tests |
 | Tool Runtime | MISSING | Tool route stubs and routing metadata | Signed manifests, schemas, sandbox runner, quotas, dry-run, cancellation, audit, rollback and tool registry |
-| File and terminal tools | MISSING | Functional guards only | Sandboxed implementations, workspace mounts, command allowlists, output capture and rollback |
+| File and terminal tools | PARTIAL | Functional guards, catalog status, and one safe local clock/echo read. Shell, network, and file tools stay approval-gated and unexecuted even if a permission is granted | Sandboxed implementations, workspace mounts, command allowlists, output capture and rollback |
 | Browser and computer use | MISSING | None | Browser adapter, desktop accessibility layer, prompt-injection defense, confirmation gates and replay logs |
 | Git and GitHub tools | MISSING | None in local runtime | Read/write adapters, branch policy, signed commits, PR workflow, approval and rollback |
 | Document and spreadsheet tools | MISSING | Agent names and route placeholders | Parsers, renderers, structured editing, validation and artifact provenance |

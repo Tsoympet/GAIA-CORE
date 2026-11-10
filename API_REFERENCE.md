@@ -41,14 +41,14 @@ These routes are served by the local runtime. Cloud model calls stay disabled. O
 
 - `POST /chat` returns `message`, `model_id`, `provider`, `local_fallback`, and `deterministic`.
 - `GET /agents/status` lists the live agent registry.
-- `POST /memory` writes scoped memory. `POST /memory/recall` ranks that owner's retained notes with the in-process hashed n-gram vector index and includes matching symbolic facts. `score_calibrated` is false: cosine scores are not probabilities or confidence. `GET /memory/facts` and `POST /memory/facts` keep the symbolic graph. No weights are downloaded.
+- `POST /memory` writes scoped memory. `POST /memory/recall` ranks that owner's retained notes with the in-process hashed n-gram vector index and includes matching symbolic facts for that same owner. A fact stored without an owner is not returned for any owner's list or recall. `score_calibrated` is false: cosine scores are not probabilities or confidence. `GET /memory/facts` and `POST /memory/facts` keep the symbolic graph. No weights are downloaded. Phase-4 write and fact text is also appended to `.gaia/cognition.sqlite3`.
 - `GET /models` and `GET /models/health` report the deterministic local client and whether Ollama is reachable. A missing Ollama daemon does not fail the health route. Cloud stays disabled.
-- `GET /tools/status` reports tool permissions and does not execute tools.
-- `GET /workspaces/status` and the workspace collection use the local SQLite store.
+- `GET /tools/status` reports tool permissions and does not execute tools. `POST /tools/run` runs only `local_clock`, a process-local UTC read that can echo a note. Shell, network, and file tools return 403 and are not executed, including after a human approval grant.
+- `GET /workspaces/status` and the workspace collection use the local SQLite store. `POST /workspaces/{id}/links` attaches a `task` or `memory` reference, and `GET /workspaces/{id}/links` lists those links.
 - `GET /security/status`, `GET /security/permissions`, `GET /security/audit`, and `POST /security/check` expose policy state. `POST /security/kill-switch` and `DELETE /security/kill-switch` share the runtime kill switch. Risky permissions still require human approval.
 - `GET /self-model/status` returns the simulated self-model, including known limitations. It is not a consciousness claim.
-- `POST /metacognition/review` runs the reflection loop. `GET /metacognition/status` reports the latest review.
-- `POST /dreaming/cycle` and `POST /idle-cognition/cycle` run internal notes only. External actions are refused.
+- `POST /metacognition/review` runs the reflection loop. `GET /metacognition/status` reports the latest review from `.gaia/cognition.sqlite3` after a restart.
+- `POST /dreaming/cycle` and `POST /idle-cognition/cycle` run internal notes only and append them to that same journal. External actions are refused. `GET /cognition/notes` lists the journal. An `owner_id` filter applies to phase-4 notes and hides other owners.
 - `GET /kernel/status`, `POST /kernel/tasks`, and `POST /tasks` run the cognitive kernel and return a structured result.
 - `GET /kernel/continuity` and `GET /organism/status` report the journal and memory organism when those database paths are set. `gaia serve` and `gaia run` default to `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3`.
 - `GET /voice/status`, `POST /voice/synthesize`, and `POST /voice/transcribe` stay synthetic. `provider=synthetic-tone` returns a generated tone, not a cloned voice. Impersonation text is rejected.

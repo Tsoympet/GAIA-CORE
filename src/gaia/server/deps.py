@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from gaia.cognition import CognitionNoteStore
 from gaia.dreaming.dream_engine import DreamEngine, DreamReport
 from gaia.dreaming.idle_scheduler import IdleScheduler
 from gaia.memory import MemoryManager
@@ -47,6 +48,9 @@ class GaiaServices:
     dream_memory: RuntimeMemoryManager = field(default_factory=RuntimeMemoryManager)
     idle_memory: RuntimeMemoryManager = field(default_factory=RuntimeMemoryManager)
     tools: ToolCatalog = field(default_factory=ToolCatalog)
+    cognition: CognitionNoteStore = field(
+        default_factory=lambda: CognitionNoteStore(Path(".gaia/cognition.sqlite3"))
+    )
     last_reflection: ReflectionReport | None = None
     last_dream: DreamReport | None = None
     last_idle: DreamReport | None = None

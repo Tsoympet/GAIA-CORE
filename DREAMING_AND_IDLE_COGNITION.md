@@ -30,7 +30,7 @@ Dreaming mode must not:
 
 ## Implemented Foundation
 
-The `NoActionGuard` blocks external-action attempts. Dream engine modules are designed for notes and reports only. Future idle schedulers must call the guard before any action-like operation.
+The `NoActionGuard` blocks external-action attempts. Dream engine modules are designed for notes and reports only. Future idle schedulers must call the guard before any action-like operation. API cycles append those notes to `.gaia/cognition.sqlite3`. The dream engine itself does not open a shell, network connection, or project file.
 
 ## Roadmap
 

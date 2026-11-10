@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from gaia.memory import MemoryDeletionRequest, MemoryScope
-from gaia.memory.symbolic import SymbolicFact
+from gaia.memory.symbolic import SymbolicFact, fact_owner
 from gaia.server.deps import GaiaServices, get_services
 from gaia.server.schemas import (
     CommandResponse,
@@ -50,6 +50,18 @@ async def remember(request: MemoryWriteRequest, services: ServicesDep) -> Memory
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if record.owner_id.strip():
+        services.cognition.append(
+            "phase4",
+            record.content,
+            {
+                "owner_id": record.owner_id,
+                "record_id": record.record_id,
+                "scope": record.scope.value,
+                "note_kind": "memory",
+                "external_actions": False,
+            },
+        )
     return MemoryRecordResponse(
         record_id=record.record_id,
         scope=record.scope.value,
@@ -87,19 +99,22 @@ async def recall_memory(
         )
         for record, score in matches
     ]
-    hits.extend(
-        MemoryRecallHit(
-            record_id=fact.fact_id,
-            scope="symbolic",
-            owner_id=str(fact.metadata.get("owner_id") or request.owner_id),
-            content=f"{fact.subject} {fact.predicate} {fact.object}",
-            score=score,
-            created_at=fact.created_at,
-            source="symbolic",
-            score_calibrated=False,
+    for fact, score in facts:
+        owner = fact_owner(fact)
+        if owner is None or owner != request.owner_id.strip():
+            continue
+        hits.append(
+            MemoryRecallHit(
+                record_id=fact.fact_id,
+                scope="symbolic",
+                owner_id=owner,
+                content=f"{fact.subject} {fact.predicate} {fact.object}",
+                score=score,
+                created_at=fact.created_at,
+                source="symbolic",
+                score_calibrated=False,
+            )
         )
-        for fact, score in facts
-    )
     hits.sort(key=lambda hit: hit.score, reverse=True)
     return hits[: request.limit]
 
@@ -126,6 +141,18 @@ async def add_fact(
         request.confidence,
         owner_id=request.owner_id,
     )
+    owner = fact_owner(fact)
+    if owner is not None:
+        services.cognition.append(
+            "phase4",
+            f"{fact.subject} {fact.predicate} {fact.object}",
+            {
+                "owner_id": owner,
+                "fact_id": fact.fact_id,
+                "note_kind": "symbolic",
+                "external_actions": False,
+            },
+        )
     return _fact_response(fact)
 
 
@@ -215,14 +242,13 @@ async def review_memory_deletion(
 
 
 def _fact_response(fact: SymbolicFact) -> SymbolicFactResponse:
-    owner = fact.metadata.get("owner_id")
     return SymbolicFactResponse(
         fact_id=fact.fact_id,
         subject=fact.subject,
         predicate=fact.predicate,
         object_value=fact.object,
         confidence=fact.confidence,
-        owner_id=owner if isinstance(owner, str) else None,
+        owner_id=fact_owner(fact),
         created_at=fact.created_at,
         score_calibrated=False,
     )

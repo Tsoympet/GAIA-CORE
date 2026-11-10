@@ -16,7 +16,7 @@ The scoped memory manager provides:
 
 - project, user, session, and timeline scopes;
 - local in-memory vector indexing and retrieval;
-- symbolic fact storage;
+- symbolic fact storage, with unscoped facts hidden from every owner's list and recall;
 - retention-policy checks;
 - owner consent grant and revoke state;
 - owner export grouped by scope;
@@ -27,6 +27,7 @@ The workspace store provides:
 
 - local SQLite persistence;
 - workspace create, list, and get operations;
+- task and memory reference links stored beside the workspace row;
 - JSON metadata storage;
 - operator status containing database path, workspace count, and durability state.
 
@@ -49,6 +50,13 @@ Workspace routes:
 - `POST /workspaces`
 - `GET /workspaces`
 - `GET /workspaces/{workspace_id}`
+- `POST /workspaces/{workspace_id}/links`
+- `GET /workspaces/{workspace_id}/links`
+
+Phase-4 memory text and symbolic facts written through the API are copied into
+`.gaia/cognition.sqlite3` as notes. The in-process vector index is still rebuilt
+empty when the process starts. Dream and metacognition notes use that same file
+and do not perform external actions.
 
 ## Safety rules
 

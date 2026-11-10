@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from gaia.cognition import note_strings
 from gaia.server.deps import GaiaServices, get_services
 from gaia.server.routes.dreaming import DreamCycleRequest
 from gaia.server.schemas import CommandResponse
@@ -16,7 +17,14 @@ ServicesDep = Annotated[GaiaServices, Depends(get_services)]
 
 @router.get("/status", response_model=CommandResponse)
 async def idle_status(services: ServicesDep) -> CommandResponse:
-    notes = list(services.last_idle.notes) if services.last_idle else []
+    stored = services.cognition.latest("idle")
+    notes: list[str]
+    if stored is not None:
+        notes = note_strings(stored.payload)
+    elif services.last_idle is not None:
+        notes = list(services.last_idle.notes)
+    else:
+        notes = []
     return CommandResponse(
         detail="idle cognition ready",
         data={
@@ -24,6 +32,7 @@ async def idle_status(services: ServicesDep) -> CommandResponse:
             "external_actions": False,
             "last_notes": notes,
             "records": len(services.idle_memory.records),
+            "durable": True,
         },
     )
 
@@ -46,6 +55,11 @@ async def idle_cycle(
         future_goal=payload.future_goal,
     )
     services.last_idle = report
+    services.cognition.append(
+        "idle",
+        "\n".join(report.notes),
+        {"notes": report.notes, "external_actions": False},
+    )
     return CommandResponse(
         detail="idle cognition cycle completed",
         data={

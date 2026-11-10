@@ -24,13 +24,13 @@ A feature is not considered implemented merely because a route, class name, conf
 | Agent execution | RECOVERED | One agent invocation per node | Sandboxed tool runtime, budgets, cancellation, retries, trace persistence |
 | Result aggregation and reflection | RECOVERED | Structured response and internal reflection | Independent verification agents, evidence scoring, contradiction handling |
 | Runtime event memory | PARTIAL | Append-only in-memory records | Durable persistence, project/session binding, encryption, migrations |
-| Scoped memory | PARTIAL | Consent, scopes, in-process hashed n-gram vector index with uncalibrated cosine scores, symbolic facts, export, reviewed deletion | Durable records, provenance, contradiction states, backup/restore, calibrated confidence |
-| Workspace persistence | PARTIAL | SQLite workspace metadata | Full workspace graph, files, repositories, decisions, timelines and permissions |
+| Scoped memory | PARTIAL | Consent, scopes, in-process hashed n-gram vector index with uncalibrated cosine scores, owner-scoped symbolic facts (unscoped facts are hidden from every owner), export, reviewed deletion, phase-4 note copies in `.gaia/cognition.sqlite3` | Durable vector records, provenance, contradiction states, backup/restore, calibrated confidence |
+| Workspace persistence | PARTIAL | SQLite workspace metadata plus task and memory reference links | Full workspace graph, files, repositories, decisions, timelines and permissions |
 | Model fabric | SCAFFOLDED | Registry, Ollama/local placeholders, guarded cloud fallback | Real inference clients, model health, capability benchmarks, resource routing |
 | Security and permissions | PARTIAL | Permission manager, guards, kill switch and policy scaffolding | Unified policy engine, signed approvals, sandbox profiles, audit persistence |
 | Voice | SCAFFOLDED | Typed profiles, STT/TTS adapters, routes and desktop placeholders | Real local STT/TTS, streaming audio, duplex sessions, interruption and consent |
 | Self-model and metacognition | SCAFFOLDED | Confidence and critique primitives | Capability calibration, limitation tracking, contradiction and failure models |
-| Dream Laboratory | SCAFFOLDED | Idle/dreaming modules and no-action guard | Isolated replay, simulation store, consolidation policy, hypothesis validation |
+| Dream Laboratory | SCAFFOLDED | Idle/dreaming modules, no-action guard, and a local SQLite note journal that does not take external actions | Isolated replay, simulation store, consolidation policy, hypothesis validation |
 | Self-evolution | SCAFFOLDED | Agent/capability labels and policy description | GAIA Forge, immutable skill registry, evaluation and approval pipeline |
 | Cognitive Kernel | IMPLEMENTED | Unified `gaia.kernel` control plane with persistence, SSE, resume, backup/restore, permissions, desktop surface | Optional WebSocket transport and richer graph UX in later desktop phases |
 | Cognitive Continuity | PARTIAL | Opt-in journal over KernelStore: checkpoints, recovery, non-reusable approvals, redaction, session workspace and redacted metadata, desktop journal page, process-local event stream, and read-only repository/process snapshots. Resume refuses worktree, model, or tool-policy drift and does not switch models | Automatic model migration, cryptographic immutability |
@@ -40,7 +40,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Skill Registry | MISSING | No governed skill package format | Immutable versions, signatures, permissions, dependencies, tests and rollback |
 | GAIA Forge | MISSING | No operational skill creation pipeline | Workflow discovery, candidate generation, sandbox evaluation and promotion review |
 | Research Laboratory | MISSING | No campaign manager | Baselines, hypotheses, branches, budgets, experiment ledger and paper-to-code review |
-| Tool runtime | MISSING | Tool names are routing metadata only | Typed adapters, sandboxing, dry-run, permissions, cancellation, audit and rollback |
+| Tool runtime | PARTIAL | Catalog status plus one safe local clock/echo read. Shell, network, and file tools stay approval-gated and unexecuted | Typed adapters, sandboxing, dry-run, permissions, cancellation, audit and rollback |
 | Computer use | MISSING | No production desktop/browser controller | Screen state, accessibility APIs, action confirmation, recovery and injection defense |
 | Retrieval and deep research | SCAFFOLDED | Research agent placeholder | Source connectors, provenance, citation graph, freshness and contradiction checks |
 | Multimodal vision | SCAFFOLDED | Agent and routing labels | Real local vision model, evidence storage, image/video pipelines and evaluation |

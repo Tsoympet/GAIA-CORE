@@ -80,6 +80,36 @@ def test_memory_recall_returns_written_record() -> None:
     assert all(hit["score_calibrated"] is False for hit in recalled.json())
 
 
+def test_unowned_symbolic_fact_is_hidden_from_owner_recall() -> None:
+    app = create_app()
+    client = TestClient(app)
+    app.state.services.memory.add_fact("secret", "visible-to", "everyone")
+    owned = client.post(
+        "/memory/facts",
+        json={
+            "subject": "bearing",
+            "predicate": "prefers",
+            "object_value": "local-notes",
+            "owner_id": "local",
+        },
+    )
+
+    assert owned.status_code == 200
+    listed = client.get("/memory/facts", params={"owner_id": "local"})
+    subjects = [fact["subject"] for fact in listed.json()]
+    assert subjects == ["bearing"]
+    assert all(fact["owner_id"] == "local" for fact in listed.json())
+    other = client.get("/memory/facts", params={"owner_id": "other"})
+    assert other.json() == []
+    leaked = client.post(
+        "/memory/recall",
+        json={"query": "secret visible-to everyone", "owner_id": "local"},
+    )
+    assert leaked.status_code == 200
+    assert all("secret" not in hit["content"] for hit in leaked.json())
+    assert all(hit["owner_id"] == "local" for hit in leaked.json())
+
+
 def test_model_health_keeps_cloud_disabled() -> None:
     client = TestClient(create_app())
 
@@ -108,6 +138,23 @@ def test_tools_security_self_model_and_cognition_are_live() -> None:
     tool_names = {tool["name"]: tool for tool in tools["tools"]}
     assert tool_names["permission_checked_repo_tools"]["available"] is False
     assert tools["execution"] == "status_only"
+    assert tool_names["local_clock"]["executable"] is True
+    assert tool_names["permission_checked_repo_tools"]["executable"] is False
+    assert tool_names["network"]["executable"] is False
+    assert tool_names["file_write"]["executable"] is False
+
+    clock = client.post("/tools/run", json={"name": "local_clock", "text": "bench"})
+    assert clock.status_code == 200
+    assert clock.json()["data"]["executed"] is True
+    assert clock.json()["data"]["shell"] is False
+    assert clock.json()["data"]["network"] is False
+    assert clock.json()["data"]["files_touched"] is False
+    assert clock.json()["data"]["result"]["echo"] == "bench"
+    for blocked_name in ("permission_checked_repo_tools", "network", "file_write", "file_read"):
+        blocked = client.post("/tools/run", json={"name": blocked_name, "text": "ls"})
+        assert blocked.status_code == 403
+        assert "not executed" in blocked.json()["detail"]
+    assert client.post("/tools/run", json={"name": "shell"}).status_code == 404
 
     denied = client.post(
         "/security/check",
