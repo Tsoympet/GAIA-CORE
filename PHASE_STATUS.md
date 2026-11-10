@@ -95,8 +95,8 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 - append-only runtime event memory;
 - project, user, session, and timeline scopes;
-- local in-memory vector indexing and retrieval;
-- symbolic facts;
+- local in-memory vector indexing and retrieval, using a deterministic hashed n-gram embedding with uncalibrated cosine scores;
+- symbolic facts, still stored on the graph and ranked with the same uncalibrated embedding;
 - retention checks;
 - owner consent grant/revoke state;
 - export grouped by scope;
@@ -123,7 +123,7 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 - synthetic voice and a generated tone, with real-person impersonation refused;
 - Tauri/React mission control wired to live overview, kernel, continuity, organism, and voice status.
 
-Chat, memory recall, tool status, permissions, audit, the simulated self-model, metacognition review, and idle dreaming cycles answer from this process. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
+Chat, memory recall, tool status, permissions, audit, the simulated self-model, metacognition review, and idle dreaming cycles answer from this process. Mission control opens live pages for agents, memory, models, tools, workspaces, security, the self-model, metacognition, and dreaming. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, calibrated confidence, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
 
 ## Implementation commitment after R0
 
@@ -172,8 +172,9 @@ ordered by `event_at`, identity approval that does not become factual
 knowledge, preference approval that supersedes only a cited preference, and
 local hybrid retrieval (BM25 + character n-grams) with a hashed derived
 index that deletion removes, and a desktop Organism page for status, search,
-and promotion. Phase 4 scoped memory stays in process memory. Neural
-embeddings and calibrated confidence remain open.
+and promotion. Phase 4 scoped memory stays in process memory and is ranked
+by an in-process hashed n-gram vector index. Those cosine scores are
+uncalibrated. Neural embeddings and calibrated confidence remain open.
 
 ## Next phase
 

@@ -25,8 +25,13 @@ textarea {
 
 .topNav {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 28px;
+}
+
+.secondaryNav {
+  margin-top: -16px;
 }
 
 .topNav button,
@@ -116,9 +121,22 @@ textarea {
   text-transform: uppercase;
 }
 
-.panel p {
+.panel p,
+.panelButton p {
   color: #b8cfdd;
   line-height: 1.6;
+}
+
+button.panelButton {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.panelButton h2 {
+  color: #e5f7ff;
 }
 
 .panel textarea,
@@ -177,6 +195,12 @@ textarea {
   display: block;
   margin-top: 8px;
   font-size: 1.8rem;
+}
+
+.kernelMetrics strong.longMetric {
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .kernelWorkbench {
@@ -307,6 +331,10 @@ textarea {
 @media (max-width: 900px) {
   .shell {
     padding: 20px;
+  }
+
+  .topNav button {
+    padding: 7px 10px;
   }
 
   .kernelHeader,

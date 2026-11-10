@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 type Card = {
   title: string;
   path: string;
+  view?: string;
   signal: string;
   detail: string;
 };
@@ -53,9 +54,11 @@ function summarize(path: string, payload: unknown): { signal: string; detail: st
     const health = asRecord(data.health);
     const providers = asRecord(health.providers);
     const cloud = asRecord(providers.cloud);
+    const ollama = asRecord(providers.ollama);
+    const ollamaUp = ollama.reachable === true || ollama.available === true;
     return {
       signal: String(health.active_provider || 'local'),
-      detail: `cloud ${cloud.enabled === false ? 'disabled' : 'enabled'} · local deterministic`,
+      detail: `local deterministic · ollama ${ollamaUp ? 'reachable' : 'unreachable'} · cloud ${cloud.enabled === false ? 'disabled' : 'enabled'}`,
     };
   }
   if (path === '/tools/status') {
@@ -73,7 +76,8 @@ function summarize(path: string, payload: unknown): { signal: string; detail: st
       (sum, value) => sum + (typeof value === 'number' ? value : 0),
       0,
     );
-    return { signal: `${total} records`, detail: 'Scoped memory is in process' };
+    const scoreNote = body.scores_calibrated === false ? 'Vector scores are uncalibrated' : 'Scoped memory is in process';
+    return { signal: `${total} records`, detail: scoreNote };
   }
   if (path === '/security/status') {
     return {
@@ -115,24 +119,30 @@ function summarize(path: string, payload: unknown): { signal: string; detail: st
   return { signal: 'ready', detail: path };
 }
 
-const SOURCES: Array<{ title: string; path: string }> = [
+const SOURCES: Array<{ title: string; path: string; view?: string }> = [
   { title: 'Runtime', path: '/runtime/status' },
-  { title: 'Agents', path: '/agents/status' },
-  { title: 'Models', path: '/models' },
-  { title: 'Tools', path: '/tools/status' },
-  { title: 'Workspaces', path: '/workspaces/status' },
-  { title: 'Memory', path: '/memory/status' },
-  { title: 'Security', path: '/security/status' },
-  { title: 'Self-Model', path: '/self-model/status' },
-  { title: 'Metacognition', path: '/metacognition/status' },
-  { title: 'Dreaming', path: '/dreaming/status' },
-  { title: 'Idle Cognition', path: '/idle-cognition/status' },
-  { title: 'Continuity', path: '/kernel/continuity' },
-  { title: 'Organism', path: '/organism/status' },
-  { title: 'Voice', path: '/voice/status' },
+  { title: 'Agents', path: '/agents/status', view: 'agents' },
+  { title: 'Models', path: '/models', view: 'models' },
+  { title: 'Tools', path: '/tools/status', view: 'tools' },
+  { title: 'Workspaces', path: '/workspaces/status', view: 'workspaces' },
+  { title: 'Memory', path: '/memory/status', view: 'memory' },
+  { title: 'Security', path: '/security/status', view: 'security' },
+  { title: 'Self-Model', path: '/self-model/status', view: 'self-model' },
+  { title: 'Metacognition', path: '/metacognition/status', view: 'metacognition' },
+  { title: 'Dreaming', path: '/dreaming/status', view: 'dreaming' },
+  { title: 'Idle Cognition', path: '/idle-cognition/status', view: 'dreaming' },
+  { title: 'Continuity', path: '/kernel/continuity', view: 'continuity' },
+  { title: 'Organism', path: '/organism/status', view: 'organism' },
+  { title: 'Voice', path: '/voice/status', view: 'voice' },
 ];
 
-export function OverviewPage({ onOpenVoice }: { onOpenVoice: () => void }) {
+export function OverviewPage({
+  onOpenVoice,
+  onOpenSurface,
+}: {
+  onOpenVoice: () => void;
+  onOpenSurface: (view: string) => void;
+}) {
   const [cards, setCards] = useState<Card[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [chatText, setChatText] = useState('Plan a local-first assistant checklist');
@@ -148,11 +158,12 @@ export function OverviewPage({ onOpenVoice }: { onOpenVoice: () => void }) {
         try {
           const payload = await readJson(source.path);
           const summary = summarize(source.path, payload);
-          return { title: source.title, path: source.path, ...summary };
+          return { title: source.title, path: source.path, view: source.view, ...summary };
         } catch (err) {
           return {
             title: source.title,
             path: source.path,
+            view: source.view,
             signal: 'offline',
             detail: err instanceof Error ? err.message : 'unavailable',
           };
@@ -245,15 +256,34 @@ export function OverviewPage({ onOpenVoice }: { onOpenVoice: () => void }) {
       </section>
       {error ? <p className="kernelError">{error}</p> : null}
       <section className="grid" aria-label="Live mission-control panels">
-        {cards.map((card) => (
-          <article className="panel" key={card.path}>
-            <div className="panelHeader">
-              <h2>{card.title}</h2>
-              <span>{card.signal}</span>
-            </div>
-            <p>{card.detail}</p>
-          </article>
-        ))}
+        {cards.map((card) => {
+          const content = (
+            <>
+              <div className="panelHeader">
+                <h2>{card.title}</h2>
+                <span>{card.signal}</span>
+              </div>
+              <p>{card.detail}</p>
+            </>
+          );
+          if (!card.view) {
+            return (
+              <article className="panel" key={card.path}>
+                {content}
+              </article>
+            );
+          }
+          return (
+            <button
+              type="button"
+              className="panel panelButton"
+              key={card.path}
+              onClick={() => onOpenSurface(card.view || '')}
+            >
+              {content}
+            </button>
+          );
+        })}
       </section>
       <section className="kernelWorkbench overviewActions">
         <article className="kernelPanel">

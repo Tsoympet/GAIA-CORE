@@ -41,8 +41,8 @@ These routes are served by the local runtime. Cloud model calls stay disabled. O
 
 - `POST /chat` returns `message`, `model_id`, `provider`, `local_fallback`, and `deterministic`.
 - `GET /agents/status` lists the live agent registry.
-- `POST /memory` writes scoped memory. `POST /memory/recall` searches it for an owner.
-- `GET /models` and `GET /models/health` report the local-first router. Cloud stays disabled.
+- `POST /memory` writes scoped memory. `POST /memory/recall` ranks that owner's retained notes with the in-process hashed n-gram vector index and includes matching symbolic facts. `score_calibrated` is false: cosine scores are not probabilities or confidence. `GET /memory/facts` and `POST /memory/facts` keep the symbolic graph. No weights are downloaded.
+- `GET /models` and `GET /models/health` report the deterministic local client and whether Ollama is reachable. A missing Ollama daemon does not fail the health route. Cloud stays disabled.
 - `GET /tools/status` reports tool permissions and does not execute tools.
 - `GET /workspaces/status` and the workspace collection use the local SQLite store.
 - `GET /security/status`, `GET /security/permissions`, `GET /security/audit`, and `POST /security/check` expose policy state. `POST /security/kill-switch` and `DELETE /security/kill-switch` share the runtime kill switch. Risky permissions still require human approval.

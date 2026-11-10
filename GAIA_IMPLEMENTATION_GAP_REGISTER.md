@@ -24,7 +24,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Agent execution | RECOVERED | One agent invocation per node | Sandboxed tool runtime, budgets, cancellation, retries, trace persistence |
 | Result aggregation and reflection | RECOVERED | Structured response and internal reflection | Independent verification agents, evidence scoring, contradiction handling |
 | Runtime event memory | PARTIAL | Append-only in-memory records | Durable persistence, project/session binding, encryption, migrations |
-| Scoped memory | PARTIAL | Consent, scopes, index, export, reviewed deletion | Durable records, provenance, contradiction states, backup/restore |
+| Scoped memory | PARTIAL | Consent, scopes, in-process hashed n-gram vector index with uncalibrated cosine scores, symbolic facts, export, reviewed deletion | Durable records, provenance, contradiction states, backup/restore, calibrated confidence |
 | Workspace persistence | PARTIAL | SQLite workspace metadata | Full workspace graph, files, repositories, decisions, timelines and permissions |
 | Model fabric | SCAFFOLDED | Registry, Ollama/local placeholders, guarded cloud fallback | Real inference clients, model health, capability benchmarks, resource routing |
 | Security and permissions | PARTIAL | Permission manager, guards, kill switch and policy scaffolding | Unified policy engine, signed approvals, sandbox profiles, audit persistence |
@@ -48,7 +48,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Coding and repository intelligence | SCAFFOLDED | Deterministic capability agent | Real repository tools, isolated execution, test/CI analysis and patch workflow |
 | CAD/CAE engineering integration | SCAFFOLDED | CAD/engineering labels | File adapters, geometry metadata, solver interfaces, simulation provenance |
 | Robotics and physical AI | MISSING | Architecture discussion only | Simulation adapters, safety interlocks, deterministic controller and operator presence |
-| Desktop mission-control application | SCAFFOLDED | React/Tauri shell with live kernel, continuity, and organism pages | Project/Phase 4 memory/task views, permissions and rollback UI |
+| Desktop mission-control application | PARTIAL | React/Tauri shell with live kernel, continuity, organism, voice, agent, memory, model, tool, workspace, security, self-model, metacognition, and dreaming pages | Project graph, research, Forge, and rollback UI |
 | Packaging and updates | PARTIAL | Docker/deployment scaffolding | Windows/Linux installers, signed releases, migrations, backups and safe updater |
 | Observability | PARTIAL | Response artifacts and basic logs | Persistent traces, metrics, resource use, security events and operator diagnostics |
 
