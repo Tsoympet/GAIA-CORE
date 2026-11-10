@@ -236,14 +236,15 @@ class CognitiveKernel:
         self._persist_context(goal.id, session_id)
 
         if not policy.allowed:
-            self.goals.block(goal.id, "; ".join(policy.reasons) or "policy denied")
-            self._persist_goal(self.goals.require(goal.id))
+            reason = "; ".join(policy.reasons) or "policy denied"
             response = self._terminal_response(
                 goal.id,
                 status="blocked",
                 answer="Task blocked by GAIA Cognitive Kernel policy gate.",
                 extra={"policy": policy.model_dump(mode="json")},
             )
+            self.goals.block(goal.id, reason, metadata=self._result_metadata(response))
+            self._persist_goal(self.goals.require(goal.id))
             verification = self.verification.verify(response)
             self.state.failed_verifications += int(not verification.passed)
             self._track(goal.id, TaskState.BLOCKED, "policy denied")
@@ -390,7 +391,7 @@ class CognitiveKernel:
             }
 
             if verification.passed and response.status == "completed":
-                self.goals.complete(goal.id, metadata={"task_id": response.task_id})
+                self.goals.complete(goal.id, metadata=self._result_metadata(response))
                 self._track(goal.id, TaskState.COMPLETED, "verification passed")
                 self.state.verified_runs += 1
                 checkpoint_reason = "verified_run"
@@ -404,7 +405,7 @@ class CognitiveKernel:
                 self.goals.block(
                     goal.id,
                     "blocked by orchestrator security policy",
-                    metadata={"task_id": response.task_id},
+                    metadata=self._result_metadata(response),
                 )
                 self._track(goal.id, TaskState.BLOCKED, "orchestrator blocked the run")
                 self.state.failed_verifications += int(not verification.passed)
@@ -420,7 +421,7 @@ class CognitiveKernel:
                 self.goals.fail(
                     goal.id,
                     failure,
-                    metadata={"task_id": response.task_id},
+                    metadata=self._result_metadata(response),
                 )
                 self._track(goal.id, TaskState.FAILED, failure)
                 self.state.failed_verifications += 1
@@ -452,16 +453,17 @@ class CognitiveKernel:
         except BudgetExceededError as exc:
             self.state.budget_violations += 1
             self.interrupts.request(goal.id, str(exc), kind=InterruptKind.BUDGET)
-            self.goals.fail(goal.id, str(exc))
-            self._persist_goal(self.goals.require(goal.id))
-            self.interrupts.acknowledge(goal.id)
-            self._track(goal.id, TaskState.FAILED, str(exc))
-            response = self._terminal_response(
+            stopped = self._terminal_response(
                 goal.id,
                 status="budget_exceeded",
                 answer=f"Task stopped: {exc}",
                 extra={"budget": tracker.snapshot.model_dump(mode="json")},
             )
+            self.goals.fail(goal.id, str(exc), metadata=self._result_metadata(stopped))
+            self._persist_goal(self.goals.require(goal.id))
+            self.interrupts.acknowledge(goal.id)
+            self._track(goal.id, TaskState.FAILED, str(exc))
+            response = stopped
             await self.events.emit(
                 "goal.budget_exceeded",
                 goal_id=goal.id,
@@ -759,6 +761,16 @@ class CognitiveKernel:
             self._checkpoint(goal_id, "execution_failed")
         except Exception:  # noqa: BLE001
             return
+
+    def _result_metadata(self, response: AggregatedResponse) -> dict[str, Any]:
+        """Fields the desktop and journal can show after the run returns."""
+        return {
+            "task_id": response.task_id,
+            "answer": response.answer,
+            "confidence": response.confidence,
+            "result_status": response.status,
+            "agents": list(response.agents),
+        }
 
     def _terminal_response(
         self,

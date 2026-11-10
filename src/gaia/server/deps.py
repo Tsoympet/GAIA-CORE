@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from gaia.dreaming.dream_engine import DreamEngine, DreamReport
+from gaia.dreaming.idle_scheduler import IdleScheduler
 from gaia.memory import MemoryManager
+from gaia.memory.memory_manager import MemoryManager as RuntimeMemoryManager
+from gaia.metacognition.reflection_loop import ReflectionLoop, ReflectionReport
 from gaia.models import (
     CloudFallbackClient,
     CloudModelConfig,
@@ -14,6 +18,7 @@ from gaia.models import (
     ModelRegistry,
     ModelRouter,
 )
+from gaia.models.local_client import DETERMINISTIC_MODEL_ID
 from gaia.security import (
     AutonomyKillSwitch,
     Permission,
@@ -21,6 +26,7 @@ from gaia.security import (
     SecurityPolicy,
     create_security_policy,
 )
+from gaia.tools import ToolCatalog
 from gaia.workspaces import SQLiteWorkspaceStore
 
 
@@ -35,6 +41,16 @@ class GaiaServices:
     workspaces: SQLiteWorkspaceStore = field(
         default_factory=lambda: SQLiteWorkspaceStore(Path(".gaia/workspaces.sqlite3"))
     )
+    reflection: ReflectionLoop = field(default_factory=ReflectionLoop)
+    dream_engine: DreamEngine = field(default_factory=DreamEngine)
+    idle_scheduler: IdleScheduler = field(default_factory=IdleScheduler)
+    dream_memory: RuntimeMemoryManager = field(default_factory=RuntimeMemoryManager)
+    idle_memory: RuntimeMemoryManager = field(default_factory=RuntimeMemoryManager)
+    tools: ToolCatalog = field(default_factory=ToolCatalog)
+    last_reflection: ReflectionReport | None = None
+    last_dream: DreamReport | None = None
+    last_idle: DreamReport | None = None
+    _model_router: ModelRouter | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not any(
@@ -52,12 +68,12 @@ class GaiaServices:
                     local_first=True,
                 )
             )
-        if "gaia-local-placeholder" not in self.registry.models:
+        if DETERMINISTIC_MODEL_ID not in self.registry.models:
             self.registry.register(
                 ModelDescriptor(
-                    "gaia-local-placeholder",
+                    DETERMINISTIC_MODEL_ID,
                     ModelProvider.LOCAL,
-                    {"chat"},
+                    {"chat", "reasoning", "planning"},
                     local_first=True,
                 )
             )
@@ -69,10 +85,12 @@ class GaiaServices:
 
     @property
     def model_router(self) -> ModelRouter:
-        return ModelRouter.default(
-            self.registry,
-            CloudFallbackClient(CloudModelConfig(enabled=False)),
-        )
+        if self._model_router is None:
+            self._model_router = ModelRouter.default(
+                self.registry,
+                CloudFallbackClient(CloudModelConfig(enabled=False)),
+            )
+        return self._model_router
 
 
 services = GaiaServices()

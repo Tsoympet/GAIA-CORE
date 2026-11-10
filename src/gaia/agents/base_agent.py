@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from gaia.models.local_client import DETERMINISTIC_MODEL_ID, LocalModelClient
+
 
 class AgentContext(BaseModel):
     """Execution context passed to agents by the orchestrator."""
@@ -51,14 +53,18 @@ class LocalReasoningAgent(BaseAgent):
     capabilities: tuple[str, ...] = ("reasoning", "planning")
 
     async def run(self, task: str, context: AgentContext) -> AgentResult:
-        """Return a safe, deterministic response for the runnable core."""
+        """Return a structured local plan without calling a remote model."""
+        content = await _local_plan(task, self.capabilities)
         return AgentResult(
             task_id=context.task_id,
             agent_name=self.name,
-            content=f"GAIA bootstrap agent received and analyzed: {task}",
-            confidence=0.62,
+            content=content,
+            confidence=0.64,
             artifacts={
-                "mode": "local_bootstrap",
+                "mode": "deterministic_local",
+                "model_id": DETERMINISTIC_MODEL_ID,
+                "provider": "local",
+                "neural_weights_loaded": False,
                 "session_id": context.session_id,
             },
         )
@@ -78,13 +84,25 @@ class CapabilityAgent(LocalReasoningAgent):
         self.capabilities = capabilities
 
     async def run(self, task: str, context: AgentContext) -> AgentResult:
+        content = await _local_plan(task, self.capabilities)
         return AgentResult(
             task_id=context.task_id,
             agent_name=self.name,
-            content=(
-                f"{self.name} handled the task using capabilities "
-                f"{', '.join(self.capabilities)}: {task}"
-            ),
+            content=content,
             confidence=0.58,
-            artifacts={"capabilities": list(self.capabilities)},
+            artifacts={
+                "mode": "deterministic_local",
+                "model_id": DETERMINISTIC_MODEL_ID,
+                "provider": "local",
+                "neural_weights_loaded": False,
+                "capabilities": list(self.capabilities),
+            },
         )
+
+
+async def _local_plan(task: str, capabilities: tuple[str, ...]) -> str:
+    focus = ", ".join(capabilities) if capabilities else "reasoning"
+    return await LocalModelClient().generate(
+        f"{task}\ncapabilities: {focus}",
+        DETERMINISTIC_MODEL_ID,
+    )

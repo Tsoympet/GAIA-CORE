@@ -31,3 +31,21 @@ class CloudFallbackClient:
             f"cloud provider {self.config.provider!r} is configured "
             "but no adapter has been installed"
         )
+
+    def health(self) -> dict[str, object]:
+        """Report cloud calls as unavailable unless an operator enables them."""
+        if not self.config.enabled:
+            return {
+                "provider": "cloud",
+                "enabled": False,
+                "available": False,
+                "configured_provider": self.config.provider,
+                "reason": "cloud model fallback is disabled by configuration",
+            }
+        return {
+            "provider": "cloud",
+            "enabled": True,
+            "available": False,
+            "configured_provider": self.config.provider,
+            "reason": "cloud fallback is enabled but no adapter is installed",
+        }
