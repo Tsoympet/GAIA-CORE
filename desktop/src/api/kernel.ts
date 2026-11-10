@@ -30,8 +30,25 @@ export type KernelGoal = {
   status: string;
   capabilities: string[];
   error?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+export type StructuredResult = {
+  task_id: string;
+  status: string;
+  answer: string;
+  confidence: number;
+  agents: string[];
+};
+
+export type TaskSubmission = {
+  runtime_id: string;
+  result: {
+    goal: KernelGoal;
+    response: StructuredResult;
+  };
 };
 
 export type KernelEvent = {
@@ -79,7 +96,7 @@ export async function listEvents(goalId?: string): Promise<{ events: KernelEvent
   return parse(await fetch(`${API_BASE}/kernel/events${query}`));
 }
 
-export async function submitKernelTask(task: string): Promise<{ result: { goal: KernelGoal } }> {
+export async function submitKernelTask(task: string): Promise<TaskSubmission> {
   return parse(
     await fetch(`${API_BASE}/kernel/tasks`, {
       method: 'POST',

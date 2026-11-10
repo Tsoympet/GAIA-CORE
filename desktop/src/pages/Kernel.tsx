@@ -14,6 +14,50 @@ import {
 } from '../api/kernel';
 import { useKernelStore } from '../state/kernelStore';
 
+function answerFromGoal(goal: { metadata?: Record<string, unknown> }): {
+  status: string;
+  answer: string;
+  confidence: number;
+  agents: string[];
+} | null {
+  const metadata = goal.metadata;
+  if (!metadata || typeof metadata.answer !== 'string' || metadata.answer.length === 0) {
+    return null;
+  }
+  const agents = Array.isArray(metadata.agents)
+    ? metadata.agents.filter((agent): agent is string => typeof agent === 'string')
+    : [];
+  return {
+    status: typeof metadata.result_status === 'string' ? metadata.result_status : goalStatus(goal),
+    answer: metadata.answer,
+    confidence: typeof metadata.confidence === 'number' ? metadata.confidence : 0,
+    agents,
+  };
+}
+
+function goalStatus(goal: { metadata?: Record<string, unknown> }): string {
+  return typeof goal.metadata?.result_status === 'string' ? goal.metadata.result_status : 'completed';
+}
+
+function StructuredAnswer({
+  result,
+}: {
+  result: { status: string; answer: string; confidence: number; agents: string[] } | null;
+}) {
+  if (!result) {
+    return <p className="muted">No structured result is stored for this goal yet.</p>;
+  }
+  return (
+    <div className="structuredResult">
+      <p className="muted">
+        {result.status} · confidence {result.confidence.toFixed(2)}
+        {result.agents.length ? ` · ${result.agents.join(', ')}` : ''}
+      </p>
+      <pre>{result.answer}</pre>
+    </div>
+  );
+}
+
 function eventKey(event: KernelEvent): string {
   return event.id || event.event_id || `${event.name}-${event.timestamp || event.created_at || ''}`;
 }
@@ -25,6 +69,7 @@ export function KernelPage() {
     events,
     selectedGoalId,
     taskDraft,
+    lastResult,
     error,
     streaming,
     setStatus,
@@ -33,6 +78,7 @@ export function KernelPage() {
     appendEvent,
     setSelectedGoalId,
     setTaskDraft,
+    setLastResult,
     setError,
     setStreaming,
   } = useKernelStore();
@@ -76,9 +122,17 @@ export function KernelPage() {
   }, [appendEvent, setEvents, setStreaming]);
 
   async function runTask() {
+    const objective = taskDraft.trim();
+    if (!objective) {
+      setError('Write an objective before running the kernel.');
+      return;
+    }
     try {
-      await submitKernelTask(taskDraft.trim());
+      const submission = await submitKernelTask(objective);
+      setLastResult(submission.result.response);
+      setSelectedGoalId(submission.result.goal.id);
       await refresh();
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Task failed');
     }
@@ -196,6 +250,12 @@ export function KernelPage() {
               <p>{selectedGoal.objective}</p>
               <p className="muted">Session {selectedGoal.session_id}</p>
               {selectedGoal.error ? <p className="kernelError">{selectedGoal.error}</p> : null}
+              <StructuredAnswer
+                result={
+                  answerFromGoal(selectedGoal) ||
+                  (lastResult && selectedGoal.id === selectedGoalId ? lastResult : null)
+                }
+              />
             </>
           ) : (
             <p className="muted">Select a goal to inspect context and budgets.</p>
