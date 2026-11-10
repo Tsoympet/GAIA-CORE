@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 from gaia.continuity.errors import ContinuityIntegrityError
+from gaia.continuity.records import Checkpoint
 from gaia.continuity.task_state import TaskState, TaskTransitionError
 from gaia.core.event_bus import EventBus
 from gaia.kernel.context_manager import ContextManager
@@ -688,6 +689,26 @@ class CognitiveKernel:
     def backup(self, destination: Path | str) -> Path:
         """Create a portable backup of kernel durable state."""
         return self.store.backup(destination)
+
+    def rollback_to_checkpoint(self, checkpoint_id: str) -> Checkpoint:
+        """Restore kernel goals from a verified continuity checkpoint.
+
+        Later goals disappear from the live kernel store, including their
+        budgets. A surviving goal keeps the budget counters it already has.
+        Pending interrupts for removed goals are dropped. The global interrupt
+        latch stays. Approval grants are cleared by the journal. This method
+        does not modify the git worktree.
+        """
+        if self.continuity is None:
+            raise RuntimeError("rollback requires cognitive continuity to be configured")
+        checkpoint = self.continuity.rollback(
+            checkpoint_id,
+            kernel_id=self.state.kernel_id,
+        )
+        self.continuity.hydrate(self.goals, self.contexts, replace=True)
+        self.mirror_live_state(drop_missing=True)
+        self.interrupts.discard_absent({goal.id for goal in self.goals.list_goals()})
+        return checkpoint
 
     def mirror_live_state(self, *, drop_missing: bool = False) -> None:
         """Write live goals and contexts back into KernelStore.

@@ -53,7 +53,9 @@ The snapshot does not modify the worktree. A model change is recorded and the
 task reruns under the current model. The migration does not change tool policy.
 Resume rechecks a capability that names a permission and refuses an exhausted
 resource budget before that migration. It does not grant the permission or
-reset the counters.
+reset the counters. Rollback to a verified checkpoint restores live goals
+and clears in-process approvals. It does not modify the worktree or reset a
+surviving goal's budget counters.
 A desktop Continuity page can inspect, publish, verify, and follow a
 process-local event stream. Explicit
 session ids, user id, workspace id, creation time, and redacted metadata

@@ -159,6 +159,9 @@ change is recorded on resume and the task reruns under the current model.
 The migration does not execute by itself, grant approval, or change tool
 policy. Resume also rechecks a capability that names a permission and refuses
 an exhausted resource budget. It does not grant the permission or reset the
+counters. An operator can restore live goals from a verified checkpoint. That
+restore drops in-process approval grants, removes later goals and their
+budgets, and does not modify the worktree or reset a surviving goal's
 counters. Still open: cryptographic immutability (explicitly false). Session id,
 user id, workspace
 id, creation time, and redacted metadata are restored. Approval grants are not.

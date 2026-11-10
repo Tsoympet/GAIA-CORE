@@ -53,6 +53,14 @@ routing label that is not a permission identifier is not treated as one. A
 waiting task runs only when the same process holds a live grant for that
 goal's action fingerprint. A database row is not authorization.
 
+Rollback to a verified checkpoint restores the journal's goals, contexts,
+tasks, and, when the checkpoint has a session snapshot, its session rows.
+In-process approval grants are cleared. Later goals disappear from the live
+kernel store together with their budgets. A surviving goal keeps the budget
+counters already recorded for it. Pending interrupts for removed goals are
+dropped, and a global interrupt latch stays. The git worktree is not
+modified. The desktop Continuity page can request that restore.
+
 ## Sessions
 
 A configured runtime persists the session id, user id, workspace id, creation
@@ -120,10 +128,11 @@ worktree was configured.
   the kernel does not receive a separate plan object. `planned` remains a
   valid state for callers that do.
 - Desktop mission control can inspect status, publish a checkpoint, verify the
-  hash chain, list task runs, follow the live event stream, and show the latest
-  repository and process observation. The stream is process-local. It is not a
-  second durable ledger, and it does not present the chain as cryptographic
-  immutability.
+  hash chain, restore a verified checkpoint, list task runs, follow the live
+  event stream, and show the latest repository and process observation. The
+  stream is process-local. It is not a second durable ledger, and it does not
+  present the chain as cryptographic immutability. Restore does not modify the
+  worktree or bring approvals back.
 - Repository and process snapshots record git HEAD, a redacted change list, and
   hashes of the model and tool policy. They do not store file contents or
   remote URLs. Rollback does not check out commits. Resume does not revive the

@@ -53,6 +53,10 @@ class SessionManager:
         self._sessions[session.id] = session
         return session
 
+    def replace_all(self, sessions: list[Session]) -> None:
+        """Replace the registry with the journal's current session rows."""
+        self._sessions = {session.id: session.model_copy(deep=True) for session in sessions}
+
     def get(self, session_id: str) -> Session | None:
         """Return a session by id when present."""
         return self._sessions.get(session_id)

@@ -329,13 +329,21 @@ class ContinuityJournal:
         raise ContinuityIntegrityError(reason)
 
     def rollback(self, checkpoint_id: str, *, kernel_id: str) -> Checkpoint:
-        """Restore live state from a verified checkpoint and emit a live event."""
+        """Restore live state from a verified checkpoint and emit a live event.
+
+        In-process approval grants are dropped. The checkpoint does not carry
+        a reusable grant, and this call does not modify the git worktree.
+        """
         checkpoint = self.store.rollback_to(checkpoint_id, kernel_id=kernel_id)
+        self._grants.clear()
         self._emit(
             "rolled_back",
             {
                 "checkpoint_id": checkpoint.checkpoint_id,
+                "parent_checkpoint_id": checkpoint.parent_checkpoint_id,
                 "reason": checkpoint.reason,
+                "restores_approvals": False,
+                "modifies_worktree": False,
                 "cryptographic_immutability": False,
             },
         )

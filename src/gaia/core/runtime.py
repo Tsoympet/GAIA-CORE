@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from gaia.agents.agent_registry import AgentRegistry, create_default_agent_registry
 from gaia.capabilities.capability_router import CapabilityRouter, create_default_capability_router
 from gaia.continuity.journal import ContinuityJournal
+from gaia.continuity.records import Checkpoint
 from gaia.continuity.store import ContinuityStore
 from gaia.core.event_bus import EventBus
 from gaia.core.session import Session, SessionManager
@@ -145,6 +146,20 @@ class GaiaRuntime(BaseModel):
         if journal is None:
             return session
         return journal.remember_session(session)
+
+    def rollback_checkpoint(self, checkpoint_id: str) -> Checkpoint:
+        """Restore the kernel and in-memory sessions from a verified checkpoint.
+
+        Session rows follow the journal after the restore. A checkpoint that
+        has no session snapshot leaves the journal sessions in place, and the
+        in-memory registry matches that result. Approval grants are not copied
+        back, and the git worktree is not modified.
+        """
+        checkpoint = self.kernel.rollback_to_checkpoint(checkpoint_id)
+        journal = self.kernel.continuity
+        if journal is not None:
+            self.sessions.replace_all(journal.store.list_sessions())
+        return checkpoint
 
 
 def create_runtime(

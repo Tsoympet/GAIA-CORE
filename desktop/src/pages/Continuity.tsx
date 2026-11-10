@@ -7,6 +7,7 @@ import {
   listContinuityTasks,
   openContinuityEventStream,
   publishContinuityCheckpoint,
+  rollbackContinuityCheckpoint,
   verifyContinuityCheckpoint,
   type CheckpointSummary,
   type ContinuityEvent,
@@ -14,6 +15,7 @@ import {
   type ContinuityTask,
   type EnvironmentReport,
   type ModelMigration,
+  type RollbackResult,
   type VerifyResult,
 } from '../api/continuity';
 
@@ -27,6 +29,7 @@ export function ContinuityPage() {
   const [tasks, setTasks] = useState<ContinuityTask[]>([]);
   const [integrityOk, setIntegrityOk] = useState<boolean | null>(null);
   const [verify, setVerify] = useState<VerifyResult | null>(null);
+  const [restored, setRestored] = useState<RollbackResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [streaming, setStreaming] = useState(false);
@@ -98,6 +101,20 @@ export function ContinuityPage() {
     }
   }
 
+  async function restoreCheckpoint(checkpointId: string) {
+    setBusy(true);
+    try {
+      const result = await rollbackContinuityCheckpoint(checkpointId);
+      setRestored(result);
+      setVerify(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Restore failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function verifyCheckpoint(checkpointId: string) {
     setBusy(true);
     try {
@@ -162,6 +179,10 @@ export function ContinuityPage() {
               Publish snapshot
             </button>
           </div>
+          <p className="muted">
+            Restore replaces live goals with a verified checkpoint. It does not modify the worktree
+            or restore approvals.
+          </p>
           {checkpoints.length === 0 ? (
             <p className="muted">No published checkpoints.</p>
           ) : (
@@ -180,10 +201,29 @@ export function ContinuityPage() {
                       {checkpoint.reason} · {shortId(checkpoint.checkpoint_id)}
                     </span>
                   </button>
+                  {checkpoint.publication === 'published' ? (
+                    <div className="goalActions">
+                      <button
+                        type="button"
+                        onClick={() => void restoreCheckpoint(checkpoint.checkpoint_id)}
+                        disabled={!journalReady || busy}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
+          {restored ? (
+            <p className="muted">
+              Restored {shortId(restored.checkpoint.checkpoint_id)}. Worktree{' '}
+              {restored.modifies_worktree ? 'changed' : 'unchanged'}. Approvals{' '}
+              {restored.restores_approvals ? 'restored' : 'not restored'}. Cryptographic immutability{' '}
+              {restored.cryptographic_immutability ? 'claimed' : 'not claimed'}.
+            </p>
+          ) : null}
           {verify ? (
             <p className="muted">
               {shortId(verify.checkpoint_id)} verified {verify.verified ? 'yes' : 'no'}, chain{' '}

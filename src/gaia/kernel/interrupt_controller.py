@@ -100,6 +100,15 @@ class InterruptController:
         """Clear a global interrupt latch."""
         self._global = None
 
+    def discard_absent(self, live_goal_ids: set[str]) -> None:
+        """Drop pending interrupts for goals that are no longer live.
+
+        The global latch is left in place. History is not rewritten.
+        """
+        for goal_id in list(self._by_goal):
+            if goal_id not in live_goal_ids:
+                self._by_goal.pop(goal_id, None)
+
     def history(self) -> list[InterruptRequest]:
         """Return interrupt history in request order."""
         return list(self._history)
