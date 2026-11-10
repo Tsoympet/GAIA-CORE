@@ -27,6 +27,10 @@ class ChatRequest(GaiaSchema):
 class ChatResponse(GaiaSchema):
     message: str
     session_id: str = Field(default_factory=lambda: str(uuid4()))
+    model_id: str = ""
+    provider: str = "local"
+    local_fallback: bool = False
+    deterministic: bool = False
 
 
 class CommandResponse(GaiaSchema):
@@ -39,6 +43,21 @@ class MemoryWriteRequest(GaiaSchema):
     content: str
     scope: Literal["project", "user", "session", "timeline"] = "session"
     owner_id: str = "default"
+
+
+class MemoryRecallRequest(GaiaSchema):
+    query: str = Field(min_length=1)
+    owner_id: str = "default"
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class MemoryRecallHit(GaiaSchema):
+    record_id: str
+    scope: str
+    owner_id: str
+    content: str
+    score: float
+    created_at: datetime
 
 
 class MemoryRecordResponse(GaiaSchema):
@@ -60,6 +79,12 @@ class ModelRegistrationRequest(GaiaSchema):
 class SecurityDecisionResponse(GaiaSchema):
     allowed: bool
     reason: str
+
+
+class PermissionCheckRequest(GaiaSchema):
+    permission: str = Field(min_length=1)
+    resource: str = "*"
+    actor: str = "api"
 
 
 class MemoryStatusResponse(GaiaSchema):

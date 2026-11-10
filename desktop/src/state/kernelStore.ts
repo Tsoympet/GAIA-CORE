@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { KernelEvent, KernelGoal, KernelStatusResponse } from '../api/kernel';
+import type { KernelEvent, KernelGoal, KernelStatusResponse, StructuredResult } from '../api/kernel';
 
 type KernelState = {
   status: KernelStatusResponse | null;
@@ -7,6 +7,7 @@ type KernelState = {
   events: KernelEvent[];
   selectedGoalId: string | null;
   taskDraft: string;
+  lastResult: StructuredResult | null;
   error: string | null;
   streaming: boolean;
   setStatus: (status: KernelStatusResponse | null) => void;
@@ -15,6 +16,7 @@ type KernelState = {
   appendEvent: (event: KernelEvent) => void;
   setSelectedGoalId: (goalId: string | null) => void;
   setTaskDraft: (task: string) => void;
+  setLastResult: (result: StructuredResult | null) => void;
   setError: (error: string | null) => void;
   setStreaming: (streaming: boolean) => void;
 };
@@ -25,6 +27,7 @@ export const useKernelStore = create<KernelState>((set) => ({
   events: [],
   selectedGoalId: null,
   taskDraft: 'Inspect Cognitive Kernel status and budgets',
+  lastResult: null,
   error: null,
   streaming: false,
   setStatus: (status) => set({ status }),
@@ -36,6 +39,7 @@ export const useKernelStore = create<KernelState>((set) => ({
     })),
   setSelectedGoalId: (selectedGoalId) => set({ selectedGoalId }),
   setTaskDraft: (taskDraft) => set({ taskDraft }),
+  setLastResult: (lastResult) => set({ lastResult }),
   setError: (error) => set({ error }),
   setStreaming: (streaming) => set({ streaming }),
 }));

@@ -15,6 +15,8 @@ from gaia.server.schemas import (
     MemoryDeletionRequestCreate,
     MemoryDeletionRequestResponse,
     MemoryDeletionReviewRequest,
+    MemoryRecallHit,
+    MemoryRecallRequest,
     MemoryRecordResponse,
     MemoryStatusResponse,
     MemoryWriteRequest,
@@ -52,6 +54,29 @@ async def remember(request: MemoryWriteRequest, services: ServicesDep) -> Memory
         content=record.content,
         created_at=record.created_at,
     )
+
+
+@router.post("/recall", response_model=list[MemoryRecallHit])
+async def recall_memory(
+    request: MemoryRecallRequest,
+    services: ServicesDep,
+) -> list[MemoryRecallHit]:
+    """Recall retained memory for an owner."""
+    try:
+        matches = services.memory.recall(request.query, request.owner_id, request.limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return [
+        MemoryRecallHit(
+            record_id=record.record_id,
+            scope=record.scope.value,
+            owner_id=record.owner_id,
+            content=record.content,
+            score=score,
+            created_at=record.created_at,
+        )
+        for record, score in matches
+    ]
 
 
 @router.get("/review", response_model=list[MemoryRecordResponse])

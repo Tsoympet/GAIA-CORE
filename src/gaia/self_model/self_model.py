@@ -36,3 +36,45 @@ class SimulatedSelfModel:
             capabilities=self.capability_map.names(),
             limitations=self.limitations.list(),
         )
+
+
+_LOW_CONFIDENCE = frozenset(
+    {"vision", "cad", "documents", "self_evolve", "plugins", "robotics"}
+)
+
+
+def build_runtime_self_model(
+    capabilities: list[tuple[str, str]],
+) -> SimulatedSelfModel:
+    """Build an introspection snapshot from the live capability catalog."""
+    capability_map = CapabilitySelfMap()
+    for name, description in capabilities:
+        confidence = 0.25 if name in _LOW_CONFIDENCE else 0.6
+        capability_map.update(name, description, confidence)
+    limitations = LimitationRegistry()
+    limitations.add(
+        "neural_weights",
+        "No model weights are downloaded. Local answers are deterministic.",
+        "high",
+    )
+    limitations.add(
+        "cloud_models",
+        "Paid cloud model calls stay disabled unless an operator enables them.",
+        "high",
+    )
+    limitations.add(
+        "ollama",
+        "Ollama is used only when its daemon reports a ready local model.",
+        "medium",
+    )
+    limitations.add(
+        "voice_cloning",
+        "Voice stays synthetic and must not impersonate a real person.",
+        "high",
+    )
+    limitations.add(
+        "continuity_crypto",
+        "The continuity hash chain is tamper-evident, not cryptographic immutability.",
+        "medium",
+    )
+    return SimulatedSelfModel(capability_map, limitations)

@@ -117,10 +117,13 @@ The current test environment reports one upstream Starlette/httpx deprecation wa
 
 ### Models, agents, voice, and desktop
 
-- local-first model catalog and disabled-by-default cloud fallback;
+- local-first model catalog, a deterministic local client, and a disabled-by-default cloud fallback;
+- Ollama is used only when its daemon lists a ready model;
 - canonical agent registry with specialist capability agents;
-- synthetic voice abstractions and safety controls;
-- Tauri/React desktop shell and voice panels.
+- synthetic voice and a generated tone, with real-person impersonation refused;
+- Tauri/React mission control wired to live overview, kernel, continuity, organism, and voice status.
+
+Chat, memory recall, tool status, permissions, audit, the simulated self-model, metacognition review, and idle dreaming cycles answer from this process. `gaia serve` and `gaia run` open `.gaia/continuity.sqlite3` and `.gaia/organism.sqlite3` unless another path is passed. Neural embeddings, cryptographic immutability, paid cloud calls, and voice cloning remain out of scope.
 
 ## Implementation commitment after R0
 

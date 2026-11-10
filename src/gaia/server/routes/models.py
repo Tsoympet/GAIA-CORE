@@ -14,15 +14,36 @@ router = APIRouter(prefix="/models", tags=["models"])
 ServicesDep = Annotated[GaiaServices, Depends(get_services)]
 
 
+def _descriptor(model: ModelDescriptor) -> dict[str, object]:
+    return {
+        "model_id": model.model_id,
+        "provider": model.provider.value,
+        "capabilities": sorted(model.capabilities),
+        "local_first": model.local_first,
+        "enabled": model.enabled,
+        "context_window": model.context_window,
+    }
+
+
 @router.get("", response_model=CommandResponse)
 async def list_models(services: ServicesDep) -> CommandResponse:
+    models = services.registry.list()
+    health = await services.model_router.health()
     return CommandResponse(
+        detail="local-first model router ready",
         data={
-            "models": [
-                model.model_id
-                for model in services.registry.list()
-            ]
-        }
+            "models": [model.model_id for model in models],
+            "descriptors": [_descriptor(model) for model in models],
+            "health": health,
+        },
+    )
+
+
+@router.get("/health", response_model=CommandResponse)
+async def model_health(services: ServicesDep) -> CommandResponse:
+    return CommandResponse(
+        detail="model provider health",
+        data=await services.model_router.health(),
     )
 
 
