@@ -18,6 +18,7 @@ from gaia.server.app import create_app
 
 DEFAULT_CONTINUITY_DB = Path(".gaia/continuity.sqlite3")
 DEFAULT_ORGANISM_DB = Path(".gaia/organism.sqlite3")
+DEFAULT_PHASE4_DB = Path(".gaia/phase4.sqlite3")
 
 app = typer.Typer(help="GAIA autonomous intelligence platform CLI.")
 console = Console()
@@ -65,10 +66,11 @@ def serve(
     port: int = 8000,
     continuity_db: Path = DEFAULT_CONTINUITY_DB,
     organism_db: Path = DEFAULT_ORGANISM_DB,
+    phase4_db: Path = DEFAULT_PHASE4_DB,
     data_key_file: Path | None = None,
     repository_root: Path | None = None,
 ) -> None:
-    """Run the GAIA API server with durable Cognitive Kernel persistence."""
+    """Run the GAIA API server with durable kernel and phase-4 memory."""
     import uvicorn
 
     runtime = create_runtime(
@@ -79,7 +81,7 @@ def serve(
         data_key=_load_data_key(data_key_file),
         repository_root=repository_root,
     )
-    uvicorn.run(create_app(runtime), host=host, port=port)
+    uvicorn.run(create_app(runtime, phase4_db=phase4_db), host=host, port=port)
 
 
 @app.command()

@@ -72,8 +72,7 @@ class InMemoryVectorStore(VectorStore):
         ]
         return sorted(
             results,
-            key=lambda result: result.score,
-            reverse=True,
+            key=lambda result: (-result.score, result.document.document_id),
         )[:limit]
 
     def delete(self, document_ids: list[str]) -> int:

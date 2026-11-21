@@ -73,7 +73,13 @@ function summarize(path: string, payload: unknown): { signal: string; detail: st
       (sum, value) => sum + (typeof value === 'number' ? value : 0),
       0,
     );
-    return { signal: `${total} records`, detail: 'Scoped memory is in process' };
+    const stored = body.durable === true;
+    return {
+      signal: `${total} records`,
+      detail: stored
+        ? 'Scoped recall is stored locally. Scores are uncalibrated.'
+        : 'Scoped memory is in process. Scores are uncalibrated.',
+    };
   }
   if (path === '/security/status') {
     return {
