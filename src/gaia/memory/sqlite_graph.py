@@ -43,7 +43,7 @@ class SQLiteFactGraph:
             rows = connection.execute(
                 """
                 SELECT fact_id, subject, predicate, object, confidence,
-                       metadata_json, created_at
+                       metadata_json, created_at, owner_id
                 FROM symbolic_facts
                 """
             ).fetchall()
@@ -56,15 +56,16 @@ class SQLiteFactGraph:
                 """
                 INSERT INTO symbolic_facts (
                     fact_id, subject, predicate, object, confidence,
-                    metadata_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    metadata_json, created_at, owner_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(fact_id) DO UPDATE SET
                     subject = excluded.subject,
                     predicate = excluded.predicate,
                     object = excluded.object,
                     confidence = excluded.confidence,
                     metadata_json = excluded.metadata_json,
-                    created_at = excluded.created_at
+                    created_at = excluded.created_at,
+                    owner_id = excluded.owner_id
                 """,
                 (
                     fact.fact_id,
@@ -74,6 +75,7 @@ class SQLiteFactGraph:
                     fact.confidence,
                     json.dumps(fact.metadata, sort_keys=True),
                     fact.created_at.isoformat(),
+                    fact.owner_id,
                 ),
             )
 
@@ -148,10 +150,13 @@ class SQLiteFactGraph:
                     object TEXT NOT NULL,
                     confidence REAL NOT NULL,
                     metadata_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    owner_id TEXT
                 )
                 """
             )
+            # CREATE TABLE IF NOT EXISTS does not add columns to an existing file.
+            _ensure_fact_owner_column(connection)
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS memory_consent (
@@ -180,7 +185,16 @@ class SQLiteFactGraph:
         return connection
 
 
+def _ensure_fact_owner_column(connection: sqlite3.Connection) -> None:
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(symbolic_facts)").fetchall()
+    }
+    if "owner_id" not in columns:
+        connection.execute("ALTER TABLE symbolic_facts ADD COLUMN owner_id TEXT")
+
+
 def _fact_from_row(row: sqlite3.Row) -> SymbolicFact:
+    owner = row["owner_id"]
     return SymbolicFact(
         subject=str(row["subject"]),
         predicate=str(row["predicate"]),
@@ -189,6 +203,7 @@ def _fact_from_row(row: sqlite3.Row) -> SymbolicFact:
         metadata=_object_from_json(str(row["metadata_json"])),
         fact_id=str(row["fact_id"]),
         created_at=datetime.fromisoformat(str(row["created_at"])),
+        owner_id=None if owner is None else str(owner),
     )
 
 

@@ -17,6 +17,7 @@ class SymbolicFact:
     metadata: dict[str, Any] = field(default_factory=dict)
     fact_id: str = field(default_factory=lambda: str(uuid4()))
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    owner_id: str | None = None
 
 
 @dataclass(slots=True)

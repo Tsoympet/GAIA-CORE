@@ -105,6 +105,7 @@ class SymbolicFactCreate(GaiaSchema):
     predicate: str = Field(min_length=1)
     object_value: str = Field(min_length=1)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    owner_id: str = "default"
 
 
 class SymbolicFactResponse(GaiaSchema):
@@ -114,6 +115,7 @@ class SymbolicFactResponse(GaiaSchema):
     object_value: str
     confidence: float
     created_at: datetime
+    owner_id: str | None = None
     score_calibrated: bool = False
 
 

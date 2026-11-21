@@ -93,13 +93,17 @@ async def add_fact(
     request: SymbolicFactCreate,
     services: ServicesDep,
 ) -> SymbolicFactResponse:
-    """Add a symbolic fact. This does not change recall scoring."""
-    fact = services.memory.add_fact(
-        request.subject,
-        request.predicate,
-        request.object_value,
-        request.confidence,
-    )
+    """Add a symbolic fact for an owner. Revoked consent refuses the write."""
+    try:
+        fact = services.memory.add_fact(
+            request.subject,
+            request.predicate,
+            request.object_value,
+            request.confidence,
+            owner_id=request.owner_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return _fact_response(fact)
 
 
@@ -196,6 +200,7 @@ def _fact_response(fact: SymbolicFact) -> SymbolicFactResponse:
         object_value=fact.object,
         confidence=fact.confidence,
         created_at=fact.created_at,
+        owner_id=fact.owner_id,
         score_calibrated=False,
     )
 

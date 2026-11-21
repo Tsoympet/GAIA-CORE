@@ -108,8 +108,7 @@ class MemoryManager:
         metadata: dict[str, Any] | None = None,
     ) -> MemoryRecord:
         """Store scoped memory only when owner consent is not revoked."""
-        if self.consent.get(owner_id) == MemoryConsent.REVOKED:
-            raise PermissionError(f"memory consent revoked for owner: {owner_id}")
+        self._require_write_consent(owner_id)
         record_metadata = {"index": index, **(metadata or {})}
         record = self.scoped[scope].add(content, owner_id, record_metadata)
         if index:
@@ -132,10 +131,22 @@ class MemoryManager:
         predicate: str,
         object_value: str,
         confidence: float = 1.0,
+        owner_id: str = "default",
     ) -> SymbolicFact:
-        """Store a symbolic fact. Confidence is not a calibrated probability."""
+        """Store a symbolic fact when this owner has not revoked consent.
+
+        ``owner_id`` defaults to ``default``, matching memory writes. A missing
+        consent record is allowed. Confidence is not a calibrated probability.
+        """
+        self._require_write_consent(owner_id)
         fact = self.symbolic.add(
-            SymbolicFact(subject, predicate, object_value, confidence)
+            SymbolicFact(
+                subject,
+                predicate,
+                object_value,
+                confidence,
+                owner_id=owner_id,
+            )
         )
         if self.fact_graph is not None:
             self.fact_graph.save_fact(fact)
@@ -283,6 +294,11 @@ class MemoryManager:
             fact_store=fact_store,
             fact_store_durable=fact_store_durable,
         )
+
+    def _require_write_consent(self, owner_id: str) -> None:
+        """Refuse a write when this owner has revoked consent."""
+        if self.consent.get(owner_id) == MemoryConsent.REVOKED:
+            raise PermissionError(f"memory consent revoked for owner: {owner_id}")
 
     def _persist_consent(self, owner_id: str) -> None:
         if self.fact_graph is not None:
