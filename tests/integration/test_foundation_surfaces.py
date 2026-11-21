@@ -49,6 +49,11 @@ def test_memory_recall_returns_written_record() -> None:
     hits = recalled.json()
     assert hits[0]["content"] == "Hydrostatic bearing note"
     assert hits[0]["owner_id"] == "local"
+    assert hits[0]["score_calibrated"] is False
+    status = client.get("/memory/status").json()
+    assert status["durable"] is False
+    assert status["scores_calibrated"] is False
+    assert "uncalibrated" in status["score_note"]
 
 
 def test_model_health_keeps_cloud_disabled() -> None:

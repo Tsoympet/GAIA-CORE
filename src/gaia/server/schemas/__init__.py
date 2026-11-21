@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gaia.memory.indexer import SCORE_NOTE, SCORES_CALIBRATED, VECTOR_INDEX
+
 
 class GaiaSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -58,6 +60,7 @@ class MemoryRecallHit(GaiaSchema):
     content: str
     score: float
     created_at: datetime
+    score_calibrated: bool = SCORES_CALIBRATED
 
 
 class MemoryRecordResponse(GaiaSchema):
@@ -96,6 +99,10 @@ class MemoryStatusResponse(GaiaSchema):
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    vector_index: str = VECTOR_INDEX
+    scores_calibrated: bool = SCORES_CALIBRATED
+    score_note: str = SCORE_NOTE
+    durable: bool = False
 
 
 class MemoryConsentRequest(GaiaSchema):

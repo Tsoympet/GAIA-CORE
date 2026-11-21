@@ -8,10 +8,19 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from .indexer import MemoryIndexer
+from .indexer import (
+    MIN_VECTOR_SCORE,
+    SCORE_NOTE,
+    SCORES_CALIBRATED,
+    SQLITE_SCORE_NOTE,
+    SQLITE_VECTOR_INDEX,
+    VECTOR_INDEX,
+    MemoryIndexer,
+)
 from .policies import MemoryPolicy
 from .retriever import MemoryRetriever
 from .scoped import MemoryRecord, MemoryScope, ScopedMemory
+from .sqlite_index import SQLiteVectorIndex
 from .symbolic import SymbolicFact, SymbolicMemory
 from .vector_store import InMemoryVectorStore, VectorStore
 
@@ -56,6 +65,10 @@ class MemoryStatus:
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    vector_index: str = VECTOR_INDEX
+    scores_calibrated: bool = SCORES_CALIBRATED
+    score_note: str = SCORE_NOTE
+    durable: bool = False
 
 
 @dataclass(slots=True)
@@ -74,6 +87,9 @@ class MemoryManager:
     def __post_init__(self) -> None:
         for scope in MemoryScope:
             self.scoped.setdefault(scope, ScopedMemory(scope=scope))
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            for record in self.vector_store.load_records():
+                self.scoped[record.scope].records.setdefault(record.record_id, record)
 
     @property
     def indexer(self) -> MemoryIndexer:
@@ -96,6 +112,8 @@ class MemoryManager:
             raise PermissionError(f"memory consent revoked for owner: {owner_id}")
         record_metadata = {"index": index, **(metadata or {})}
         record = self.scoped[scope].add(content, owner_id, record_metadata)
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            self.vector_store.save_record(record)
         if index:
             self.indexer.index([record])
         return record
@@ -125,27 +143,24 @@ class MemoryManager:
         owner_id: str,
         limit: int = 5,
     ) -> list[tuple[MemoryRecord, float]]:
-        """Return retained records for an owner that match the query."""
+        """Rank retained records for an owner with the local vector index.
+
+        Scores are uncalibrated cosine similarity over hashed n-gram vectors.
+        They are not probabilities or confidence.
+        """
         if limit < 1:
             raise ValueError("limit must be positive")
-        needle = query.strip().lower()
+        needle = query.strip()
         if not needle:
             raise ValueError("query must not be empty")
+        window = max(self.vector_store.count(), 1)
         matches: list[tuple[MemoryRecord, float]] = []
-        seen: set[str] = set()
-        for scope in MemoryScope:
-            for record in self.list_scope(scope, owner_id):
-                if needle in record.content.lower():
-                    matches.append((record, 1.0))
-                    seen.add(record.record_id)
-                    if len(matches) >= limit:
-                        return matches
-        for result in self.retriever.retrieve(query, limit=max(limit * 5, limit)):
+        for result in self.retriever.retrieve(needle, limit=window):
+            if result.score < MIN_VECTOR_SCORE:
+                continue
             record_id = str(
                 result.document.metadata.get("record_id", result.document.document_id)
             )
-            if record_id in seen:
-                continue
             found = self._record_by_id(record_id)
             if (
                 found is None
@@ -154,7 +169,6 @@ class MemoryManager:
             ):
                 continue
             matches.append((found, float(result.score)))
-            seen.add(found.record_id)
             if len(matches) >= limit:
                 break
         return matches
@@ -234,6 +248,13 @@ class MemoryManager:
             for request in self.deletion_requests.values()
             if request.status == DeletionRequestStatus.PENDING
         )
+        vector_index = VECTOR_INDEX
+        score_note = SCORE_NOTE
+        durable = False
+        if isinstance(self.vector_store, SQLiteVectorIndex):
+            vector_index = SQLITE_VECTOR_INDEX
+            score_note = SQLITE_SCORE_NOTE
+            durable = True
         return MemoryStatus(
             scopes={
                 scope.value: len(memory.records)
@@ -247,6 +268,10 @@ class MemoryManager:
             },
             pending_deletion_requests=pending,
             retention_days=self.policy.retention_days,
+            vector_index=vector_index,
+            scores_calibrated=SCORES_CALIBRATED,
+            score_note=score_note,
+            durable=durable,
         )
 
     def _record_by_id(self, record_id: str) -> MemoryRecord | None:

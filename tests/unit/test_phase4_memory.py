@@ -22,6 +22,10 @@ def test_phase4_memory_status_tracks_scopes_indexes_and_consent() -> None:
     assert status.symbolic_facts == 1
     assert status.consent_records["workspace-1"] == MemoryConsent.GRANTED.value
     assert status.local_first is True
+    assert status.durable is False
+    assert status.scores_calibrated is False
+    assert status.vector_index == "in-process-hashed-ngram"
+    assert "uncalibrated" in status.score_note
 
 
 def test_phase4_memory_deletion_requires_review_and_removes_indexed_derivatives() -> None:

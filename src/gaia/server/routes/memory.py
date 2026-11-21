@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from gaia.memory import MemoryDeletionRequest, MemoryScope
+from gaia.memory.indexer import SCORES_CALIBRATED
 from gaia.server.deps import GaiaServices, get_services
 from gaia.server.schemas import (
     CommandResponse,
@@ -74,6 +75,7 @@ async def recall_memory(
             content=record.content,
             score=score,
             created_at=record.created_at,
+            score_calibrated=SCORES_CALIBRATED,
         )
         for record, score in matches
     ]
