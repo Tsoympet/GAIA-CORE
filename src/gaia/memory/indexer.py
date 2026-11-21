@@ -31,13 +31,16 @@ EMBEDDING_DIMENSIONS = 1024
 # Ignore a lone hash collision. Related notes in the tests sit above this.
 MIN_VECTOR_SCORE = 0.2
 
-_TOKEN = re.compile(r"[a-z0-9]+")
+# Unicode letters and digits, excluding underscore. After lower(), ASCII text
+# still matches [a-z0-9], so persisted ASCII vectors stay valid.
+_TOKEN = re.compile(r"[^\W_]+")
 
 
 def simple_embedding(text: str, dimensions: int = EMBEDDING_DIMENSIONS) -> list[float]:
     """Hash tokens and character trigrams into a unit vector.
 
     The same text always produces the same vector. No model weights are used.
+    Tokens are Unicode letters and digits. ASCII text still hashes as ``[a-z0-9]``.
     """
     if dimensions < 1:
         raise ValueError("dimensions must be positive")

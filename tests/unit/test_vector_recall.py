@@ -2,14 +2,18 @@
 
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from gaia.memory import MemoryManager, MemoryScope
 from gaia.memory.indexer import (
+    MIN_VECTOR_SCORE,
     SCORES_CALIBRATED,
     SQLITE_SCORE_NOTE,
     SQLITE_VECTOR_INDEX,
     simple_embedding,
 )
 from gaia.memory.sqlite_index import SQLiteVectorIndex
+from gaia.server.app import create_app
 
 
 def test_scoped_vector_recall_survives_close_and_reopen(tmp_path: Path) -> None:
@@ -49,3 +53,32 @@ def test_scoped_vector_recall_survives_close_and_reopen(tmp_path: Path) -> None:
     assert status.score_note == SQLITE_SCORE_NOTE
     assert "uncalibrated" in status.score_note
     assert status.durable is True
+
+
+def test_exact_non_ascii_query_recalls_stored_note(tmp_path: Path) -> None:
+    note = "άντληση καμπύλης"
+    app = create_app(phase4_db=tmp_path / "unicode.sqlite3")
+    client = TestClient(app)
+    written = client.post(
+        "/memory",
+        json={"content": note, "scope": "project", "owner_id": "local"},
+    )
+
+    assert written.status_code == 200
+    record_id = written.json()["record_id"]
+    embedding = list(app.state.services.memory.vector_store.documents[record_id].embedding)
+    assert embedding == simple_embedding(note)
+    assert any(value != 0.0 for value in embedding)
+
+    recalled = client.post(
+        "/memory/recall",
+        json={"query": note, "owner_id": "local"},
+    )
+
+    assert recalled.status_code == 200
+    hits = recalled.json()
+    assert [hit["record_id"] for hit in hits] == [record_id]
+    assert hits[0]["content"] == note
+    assert hits[0]["score"] > MIN_VECTOR_SCORE
+    assert hits[0]["score_calibrated"] is False
+    assert hits[0]["score_calibrated"] is SCORES_CALIBRATED
