@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from gaia.core.runtime import GaiaRuntime, TaskRequest, create_runtime
+from gaia.memory import MemoryManager
+from gaia.memory.sqlite_graph import SQLiteFactGraph
 from gaia.orchestrator.aggregator import AggregatedResponse
 from gaia.orchestrator.engine import OrchestrationPlan
 from gaia.server.deps import GaiaServices, get_services
@@ -42,19 +44,31 @@ class PlanRequest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
 
 
-def create_app(runtime: GaiaRuntime | None = None) -> FastAPI:
+def create_app(
+    runtime: GaiaRuntime | None = None,
+    *,
+    fact_db: Path | None = None,
+) -> FastAPI:
     """Create a configured GAIA FastAPI app.
 
     When ``runtime`` is omitted an in-memory kernel store is used. Production
     CLI/server entrypoints should pass a runtime created with
-    ``DEFAULT_KERNEL_DB_PATH`` for durable goal persistence.
+    ``DEFAULT_KERNEL_DB_PATH`` for durable goal persistence. Pass ``fact_db``
+    to keep symbolic facts, consent, and deletion requests in local SQLite.
+    Recall scores are unchanged and are not labeled as calibrated confidence.
     """
     runtime = runtime or create_runtime(config_dir=Path("config"))
     app = FastAPI(title="GAIA Core Runtime", version="0.1.0")
     app.state.runtime = runtime
+    memory = (
+        MemoryManager(fact_graph=SQLiteFactGraph(fact_db))
+        if fact_db is not None
+        else MemoryManager()
+    )
     app.state.services = GaiaServices(
         permissions=runtime.permission_manager,
         security_policy=runtime.security_policy,
+        memory=memory,
     )
     app.dependency_overrides[get_services] = lambda: app.state.services
 

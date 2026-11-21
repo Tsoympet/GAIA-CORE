@@ -24,7 +24,7 @@ A feature is not considered implemented merely because a route, class name, conf
 | Agent execution | RECOVERED | One agent invocation per node | Sandboxed tool runtime, budgets, cancellation, retries, trace persistence |
 | Result aggregation and reflection | RECOVERED | Structured response and internal reflection | Independent verification agents, evidence scoring, contradiction handling |
 | Runtime event memory | PARTIAL | Append-only in-memory records | Durable persistence, project/session binding, encryption, migrations |
-| Scoped memory | PARTIAL | Consent, scopes, index, export, reviewed deletion | Durable records, provenance, contradiction states, backup/restore |
+| Scoped memory | PARTIAL | Consent, scopes, index, export, reviewed deletion, symbolic facts, consent, and deletion requests in `.gaia/facts.sqlite3` when `gaia serve` starts | Provenance, contradiction states, backup/restore, calibrated confidence |
 | Workspace persistence | PARTIAL | SQLite workspace metadata | Full workspace graph, files, repositories, decisions, timelines and permissions |
 | Model fabric | SCAFFOLDED | Registry, Ollama/local placeholders, guarded cloud fallback | Real inference clients, model health, capability benchmarks, resource routing |
 | Security and permissions | PARTIAL | Permission manager, guards, kill switch and policy scaffolding | Unified policy engine, signed approvals, sandbox profiles, audit persistence |

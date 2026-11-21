@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from gaia.memory import MemoryDeletionRequest, MemoryScope
+from gaia.memory.symbolic import SymbolicFact
 from gaia.server.deps import GaiaServices, get_services
 from gaia.server.schemas import (
     CommandResponse,
@@ -20,6 +21,8 @@ from gaia.server.schemas import (
     MemoryRecordResponse,
     MemoryStatusResponse,
     MemoryWriteRequest,
+    SymbolicFactCreate,
+    SymbolicFactResponse,
 )
 
 router = APIRouter(prefix="/memory", tags=["memory"])
@@ -77,6 +80,31 @@ async def recall_memory(
         )
         for record, score in matches
     ]
+
+
+@router.get("/facts", response_model=list[SymbolicFactResponse])
+async def list_facts(services: ServicesDep) -> list[SymbolicFactResponse]:
+    """List symbolic facts. Confidence is not a calibrated probability."""
+    return [_fact_response(fact) for fact in services.memory.list_facts()]
+
+
+@router.post("/facts", response_model=SymbolicFactResponse)
+async def add_fact(
+    request: SymbolicFactCreate,
+    services: ServicesDep,
+) -> SymbolicFactResponse:
+    """Add a symbolic fact for an owner. Revoked consent refuses the write."""
+    try:
+        fact = services.memory.add_fact(
+            request.subject,
+            request.predicate,
+            request.object_value,
+            request.confidence,
+            owner_id=request.owner_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return _fact_response(fact)
 
 
 @router.get("/review", response_model=list[MemoryRecordResponse])
@@ -162,6 +190,19 @@ async def review_memory_deletion(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="deletion request not found") from exc
     return _deletion_response(deletion_request)
+
+
+def _fact_response(fact: SymbolicFact) -> SymbolicFactResponse:
+    return SymbolicFactResponse(
+        fact_id=fact.fact_id,
+        subject=fact.subject,
+        predicate=fact.predicate,
+        object_value=fact.object,
+        confidence=fact.confidence,
+        created_at=fact.created_at,
+        owner_id=fact.owner_id,
+        score_calibrated=False,
+    )
 
 
 def _deletion_response(request: MemoryDeletionRequest) -> MemoryDeletionRequestResponse:

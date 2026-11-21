@@ -41,7 +41,7 @@ These routes are served by the local runtime. Cloud model calls stay disabled. O
 
 - `POST /chat` returns `message`, `model_id`, `provider`, `local_fallback`, and `deterministic`.
 - `GET /agents/status` lists the live agent registry.
-- `POST /memory` writes scoped memory. `POST /memory/recall` searches it for an owner.
+- `POST /memory` writes scoped memory. `POST /memory/recall` searches it for an owner. `gaia serve` keeps symbolic facts, consent, and deletion requests in `.gaia/facts.sqlite3`, so those rows survive a restart. Fact confidence and recall scores are not calibrated probabilities. No weights are downloaded.
 - `GET /models` and `GET /models/health` report the local-first router. Cloud stays disabled.
 - `GET /tools/status` reports tool permissions and does not execute tools.
 - `GET /workspaces/status` and the workspace collection use the local SQLite store.

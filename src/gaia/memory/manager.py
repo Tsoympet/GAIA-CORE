@@ -12,6 +12,7 @@ from .indexer import MemoryIndexer
 from .policies import MemoryPolicy
 from .retriever import MemoryRetriever
 from .scoped import MemoryRecord, MemoryScope, ScopedMemory
+from .sqlite_graph import SQLiteFactGraph, StoredDeletion
 from .symbolic import SymbolicFact, SymbolicMemory
 from .vector_store import InMemoryVectorStore, VectorStore
 
@@ -56,6 +57,8 @@ class MemoryStatus:
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    fact_store: str = "process"
+    fact_store_durable: bool = False
 
 
 @dataclass(slots=True)
@@ -70,10 +73,23 @@ class MemoryManager:
     deletion_requests: dict[str, MemoryDeletionRequest] = field(
         default_factory=dict
     )
+    fact_graph: SQLiteFactGraph | None = None
 
     def __post_init__(self) -> None:
         for scope in MemoryScope:
             self.scoped.setdefault(scope, ScopedMemory(scope=scope))
+        if self.fact_graph is not None:
+            for fact in self.fact_graph.load_facts():
+                self.symbolic.facts.setdefault(fact.fact_id, fact)
+            self.consent.update(
+                {
+                    owner: MemoryConsent(state)
+                    for owner, state in self.fact_graph.load_consent().items()
+                }
+            )
+            for stored in self.fact_graph.load_deletions():
+                request = _deletion_from_store(stored)
+                self.deletion_requests.setdefault(request.request_id, request)
 
     @property
     def indexer(self) -> MemoryIndexer:
@@ -92,8 +108,7 @@ class MemoryManager:
         metadata: dict[str, Any] | None = None,
     ) -> MemoryRecord:
         """Store scoped memory only when owner consent is not revoked."""
-        if self.consent.get(owner_id) == MemoryConsent.REVOKED:
-            raise PermissionError(f"memory consent revoked for owner: {owner_id}")
+        self._require_write_consent(owner_id)
         record_metadata = {"index": index, **(metadata or {})}
         record = self.scoped[scope].add(content, owner_id, record_metadata)
         if index:
@@ -103,10 +118,12 @@ class MemoryManager:
     def grant_consent(self, owner_id: str) -> None:
         """Allow future memory writes for an owner."""
         self.consent[owner_id] = MemoryConsent.GRANTED
+        self._persist_consent(owner_id)
 
     def revoke_consent(self, owner_id: str) -> None:
         """Block future memory writes without deleting existing records."""
         self.consent[owner_id] = MemoryConsent.REVOKED
+        self._persist_consent(owner_id)
 
     def add_fact(
         self,
@@ -114,10 +131,30 @@ class MemoryManager:
         predicate: str,
         object_value: str,
         confidence: float = 1.0,
+        owner_id: str = "default",
     ) -> SymbolicFact:
-        return self.symbolic.add(
-            SymbolicFact(subject, predicate, object_value, confidence)
+        """Store a symbolic fact when this owner has not revoked consent.
+
+        ``owner_id`` defaults to ``default``, matching memory writes. A missing
+        consent record is allowed. Confidence is not a calibrated probability.
+        """
+        self._require_write_consent(owner_id)
+        fact = self.symbolic.add(
+            SymbolicFact(
+                subject,
+                predicate,
+                object_value,
+                confidence,
+                owner_id=owner_id,
+            )
         )
+        if self.fact_graph is not None:
+            self.fact_graph.save_fact(fact)
+        return fact
+
+    def list_facts(self) -> list[SymbolicFact]:
+        """Return every symbolic fact currently stored."""
+        return list(self.symbolic.facts.values())
 
     def recall(
         self,
@@ -199,6 +236,7 @@ class MemoryManager:
             reason=reason,
         )
         self.deletion_requests[request.request_id] = request
+        self._persist_deletion(request)
         return request
 
     def review_deletion_request(
@@ -223,6 +261,7 @@ class MemoryManager:
             reviewed_at=datetime.now(UTC),
         )
         self.deletion_requests[request_id] = reviewed
+        self._persist_deletion(reviewed)
         if approve:
             self._delete_scope_for_owner(request.scope, request.owner_id)
         return reviewed
@@ -234,6 +273,11 @@ class MemoryManager:
             for request in self.deletion_requests.values()
             if request.status == DeletionRequestStatus.PENDING
         )
+        fact_store = "process"
+        fact_store_durable = False
+        if self.fact_graph is not None:
+            fact_store = "sqlite-facts"
+            fact_store_durable = True
         return MemoryStatus(
             scopes={
                 scope.value: len(memory.records)
@@ -247,6 +291,32 @@ class MemoryManager:
             },
             pending_deletion_requests=pending,
             retention_days=self.policy.retention_days,
+            fact_store=fact_store,
+            fact_store_durable=fact_store_durable,
+        )
+
+    def _require_write_consent(self, owner_id: str) -> None:
+        """Refuse a write when this owner has revoked consent."""
+        if self.consent.get(owner_id) == MemoryConsent.REVOKED:
+            raise PermissionError(f"memory consent revoked for owner: {owner_id}")
+
+    def _persist_consent(self, owner_id: str) -> None:
+        if self.fact_graph is not None:
+            self.fact_graph.save_consent(owner_id, self.consent[owner_id].value)
+
+    def _persist_deletion(self, request: MemoryDeletionRequest) -> None:
+        if self.fact_graph is None:
+            return
+        self.fact_graph.save_deletion(
+            StoredDeletion(
+                request_id=request.request_id,
+                owner_id=request.owner_id,
+                scope=request.scope.value,
+                reason=request.reason,
+                status=request.status.value,
+                requested_at=request.requested_at,
+                reviewed_at=request.reviewed_at,
+            )
         )
 
     def _record_by_id(self, record_id: str) -> MemoryRecord | None:
@@ -270,3 +340,15 @@ class MemoryManager:
         for record_id in record_ids:
             scoped_memory.records.pop(record_id, None)
         self.vector_store.delete(record_ids)
+
+
+def _deletion_from_store(stored: StoredDeletion) -> MemoryDeletionRequest:
+    return MemoryDeletionRequest(
+        owner_id=stored.owner_id,
+        scope=MemoryScope(stored.scope),
+        reason=stored.reason,
+        request_id=stored.request_id,
+        status=DeletionRequestStatus(stored.status),
+        requested_at=stored.requested_at,
+        reviewed_at=stored.reviewed_at,
+    )
