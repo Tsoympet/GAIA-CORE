@@ -96,6 +96,25 @@ class MemoryStatusResponse(GaiaSchema):
     retention_days: int | None
     deletion_requires_review: bool = True
     local_first: bool = True
+    fact_store: str = "process"
+    fact_store_durable: bool = False
+
+
+class SymbolicFactCreate(GaiaSchema):
+    subject: str = Field(min_length=1)
+    predicate: str = Field(min_length=1)
+    object_value: str = Field(min_length=1)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class SymbolicFactResponse(GaiaSchema):
+    fact_id: str
+    subject: str
+    predicate: str
+    object_value: str
+    confidence: float
+    created_at: datetime
+    score_calibrated: bool = False
 
 
 class MemoryConsentRequest(GaiaSchema):
